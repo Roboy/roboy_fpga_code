@@ -129,7 +129,7 @@ BEGIN
 				  ELSE
 					addr_rw <= addr & rw;          --collect requested slave address and command
 				  END IF;
-              data_tx <= data_wr(7 downto 0) ;            --collect requested data to write
+              data_tx <= data_wr(31 downto 24) ;            --collect requested data to write
               state <= start;                --go to start bit
             ELSE                             --remain idle
               busy <= '0';                   --unflag busy

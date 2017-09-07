@@ -1,3 +1,4 @@
+
 // I2C_avalon_bridge node
 // you can read out the registers via avalon bus in the following way:
 // #define IORD(base,reg) (*(((volatile uint32_t*)base)+reg))
@@ -82,4 +83,3 @@ i2c_master i2c(
 );
 
 endmodule
-
