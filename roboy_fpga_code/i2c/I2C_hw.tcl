@@ -9,6 +9,11 @@
 # for reading sensor values from am4096
 # 
 
+# 
+# request TCL package from ACDS 16.1
+# 
+package require -exact qsys 16.1
+
 
 # 
 # module I2C
