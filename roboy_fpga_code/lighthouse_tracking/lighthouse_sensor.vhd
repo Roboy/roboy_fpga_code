@@ -15,9 +15,11 @@ use IEEE.std_logic_signed.all;
 -- room depending on the duration between two NSKIP pulses. If this 
 -- duration is approximately equal to the phase duration (8333 us), 
 -- the active lighthouse didn't change. Otherwise the active lighthouse 
--- has changed. All SKIP pulses are completely ignored.
+-- has changed. 
+
+-- The module also decodes the ootx frame, the lighthouses use to communicate
 --
--- Author: Nikita Basargin
+-- Author: Nikita Basargin, Simon Trendel
 
 
 entity lighthouse_sensor is 
@@ -28,7 +30,10 @@ entity lighthouse_sensor is
 		lighthouse_id : out std_logic;	-- which lighthouse emitted the sweep
 		axis : out std_logic;				-- sweep x or y axis
 		valid : out std_logic;				-- is '1' if (300 * 50 < duration < 8000 * 50)
-		combined_data : out unsigned(31 downto 0)
+		combined_data : out unsigned(31 downto 0);
+		led : out std_logic;
+		payload : out std_logic_vector (263 downto 0);
+		crc32 : out std_logic_vector (31 downto 0)
 		-- combined data layout:
 		-- bit 31    	lighthouse_id
 		-- bit 30    	axis
@@ -57,6 +62,14 @@ architecture baustein42 of lighthouse_sensor is
 	signal current_axis : std_logic := '0';
 	signal current_lighthouse_id : std_logic := '0';
 	
+	-- OOTX 
+	constant ootx_preamble : std_logic_vector(16 downto 0) := "00000000000000001";
+	signal ootx_shift_register : std_logic_vector(16 downto 0) := (others => '1');
+	signal data : std_logic;
+	signal ootx_state : unsigned (1 downto 0);
+	signal data_counter : std_logic_vector (8 downto 0) := (others => '0');
+	signal bit_counter : std_logic_vector (8 downto 0) := (others => '0');
+	signal payload_length : std_logic_vector (15 downto 0) := (others => '0');
 begin
 	
 	process(clk)
@@ -175,32 +188,117 @@ begin
 								-- Not skipping, axis = 0, data = 0  
 								-- (max 67 microseconds * 50 clock speed = 3350, real time = 62.5 microseconds)
 								current_axis <= '0';
+								data <= '0';
 								
 							elsif (counter_from_last_rise < 3900) then							
 								-- Not skipping, axis = 1, data = 0  
 								-- (max 78 microseconds * 50 clock speed = 3900, real time = 72.9 microseconds)
-								current_axis <= '1';								
+								current_axis <= '1';	
+								data <= '0';							
 								
 							elsif (counter_from_last_rise < 4400) then	
 								-- Not skipping, axis = 0, data = 1  
 								-- (max 88 microseconds * 50 clock speed = 4400, real time = 83.3 microseconds)
-								current_axis <= '0';								
+								current_axis <= '0';		
+								data <= '1';
 								
 							else	
 								-- Not skipping, axis = 1, data = 1  
 								-- (max 99 microseconds * 50 clock speed = 3350, real time = 93.8 microseconds)
-								current_axis <= '1';								
+								current_axis <= '1';		
+								data <= '1';
 								
 							end if;
 							
 						else 						
 							-- SKIPPING  (real time = 104 or more microseconds)
-							-- ignore this one completely
+							if (counter_from_last_rise < 5450) then
+								-- skipping, axis = 0, data = 0  
+								-- (max 109 microseconds * 50 clock speed = 5450, real time = 104 microseconds)
+								data <= '0';
+								
+							elsif (counter_from_last_rise < 6000) then							
+								-- skipping, axis = 1, data = 0  
+								-- (max 120 microseconds * 50 clock speed = 6000, real time = 115 microseconds)
+								data <= '0';							
+								
+							elsif (counter_from_last_rise < 6500) then	
+								-- skipping, axis = 0, data = 1  
+								-- (max 130 microseconds * 50 clock speed = 6500, real time = 125 microseconds)
+								data <= '1';
+								
+							else	
+								-- skipping, axis = 1, data = 1  
+								-- (max 140 microseconds * 50 clock speed = 7000, real time = 135 microseconds)
+								data <= '1';
+								
+							end if;
 						
 						end if;
 						
-							
-												
+						if(ootx_state = "00") then 
+							-- OOTX preamble detector
+							for i in 0 to 15 loop --register shifter
+								 ootx_shift_register(i+1) <= ootx_shift_register(i);
+							end loop;        
+
+							ootx_shift_register(0) <= data;
+
+							if ootx_shift_register = ootx_preamble then
+								 led <= '1';
+								 ootx_state <= "01";
+								 data_counter <= "000000000";
+								 bit_counter <= "000000000";
+							else
+								 led <= '0';
+							end if;	
+						elsif (ootx_state = "01") then
+							-- the following 16 bits are the payload length
+							if(data_counter< 16) then 
+								payload_length (to_integer(unsigned(data_counter))) <= data;
+								data_counter <= data_counter + 1;
+							else
+								if (data = '1') then -- we want the sync bit
+									data_counter <= "000000000";
+									bit_counter <= "000000000";
+									ootx_state <= "10";
+								else -- go back to preamble detection
+									ootx_state <= "00";
+								end if;
+							end if;
+						elsif (ootx_state = "10") then
+							-- the following payload_length bytes are the payload
+							if(data_counter < to_integer(unsigned(payload_length))*8) then
+								if(to_integer(unsigned(bit_counter+1)) mod 16 = 0) then
+									if (data = '0') then -- we want the sync bit, so if it's not there go to preamble detection
+										ootx_state <= "00";
+									end if;
+								else -- write the bit to payload
+									payload (to_integer(unsigned(data_counter))) <= data;
+									data_counter <= data_counter + 1;
+								end if;
+								bit_counter <= bit_counter + 1;
+							else 
+								data_counter <= "000000000";
+								bit_counter <= "000000000";
+								ootx_state <= "11";
+							end if;
+						elsif (ootx_state = "11") then
+							-- the following 32 bit are the crc checksum of the payload
+							if(to_integer(unsigned(bit_counter+1)) mod 16 = 0) then
+								if (data = '0') then -- we want the sync bit, so if it's not there go to preamble detection
+									ootx_state <= "00";
+								end if;
+							else
+								if(data_counter < 32) then
+									crc32 (to_integer(unsigned(data_counter))) <= data;
+									data_counter <= data_counter + 1;
+								else
+									ootx_state <= "00";
+								end if;
+							end if;
+							bit_counter <= bit_counter + 1;	
+						end if;
 						
 					else
 						-- do not change state yet, could be noise
@@ -213,8 +311,7 @@ begin
 				-- end HIGH PHASE	
 				
 			end if;
-			
-			
+				
 		end if; -- end rising_edge(clk)
 		
 	end process;

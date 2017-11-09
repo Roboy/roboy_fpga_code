@@ -57,6 +57,8 @@ wire [31:0] sensor_combined_data_28;
 wire [31:0] sensor_combined_data_29;
 wire [31:0] sensor_combined_data_30;
 wire [31:0] sensor_combined_data_31;
+wire [31:0] crc32_2;
+wire [263:0] payload;
 
 
 // 32 OUTPUTS TO THE ARM CORE
@@ -93,6 +95,26 @@ assign readdata =
 	(address == 29) ? sensor_combined_data_29 :
 	(address == 30) ? sensor_combined_data_30 :
 	(address == 31) ? sensor_combined_data_31 :
+	(address == 32) ? crc32_2 :
+	(address == 33) ? payload[15:0] : // fw_version
+	(address == 34) ? payload[47:16] : // ID
+	(address == 35) ? payload[63:48] : // fcal.0.phase
+	(address == 36) ? payload[79:64] : // fcal.1.phase
+	(address == 37) ? payload[95:80] : // fcal.0.tilt
+	(address == 38) ? payload[111:96] : // fcal.1.tilt
+	(address == 39) ? payload[119:112] : // sys.unlock_count
+	(address == 40) ? payload[127:120] : // hw_version
+	(address == 41) ? payload[143:128] : // fcal.0.curve
+	(address == 42) ? payload[159:144] : // fcal.1.curve
+	(address == 43) ? payload[167:160] : // accel.dir_x
+	(address == 44) ? payload[175:168] : // accel.dir_y
+	(address == 45) ? payload[183:176] : // accel.dir_z
+	(address == 46) ? payload[199:184] : // fcal.0.gibphase
+	(address == 47) ? payload[215:200] : // fcal.1.gibphase
+	(address == 48) ? payload[231:216] : // fcal.0.gibmag
+	(address == 49) ? payload[247:232] : // fcal.1.gibmag
+	(address == 50) ? payload[255:248] : // mode.current
+	(address == 51) ? payload[263:256] : // sys.faults
 						  32'hDEAD_BEEF;
 
 assign waitrequest = 0;
@@ -101,44 +123,53 @@ assign waitrequest = 0;
 lighthouse_sensor awesome_lighthouse00 (
 	.clk(clock),
 	.sensor(sensor_signal_i[0]),
-	.combined_data(sensor_combined_data_00)
+	.combined_data(sensor_combined_data_00),
+	.led(LED[0])
 );
 
 lighthouse_sensor awesome_lighthouse01 (
 	.clk(clock),
 	.sensor(sensor_signal_i[1]),
-	.combined_data(sensor_combined_data_01)
+	.combined_data(sensor_combined_data_01),
+	.led(LED[1])
 );
 
 lighthouse_sensor awesome_lighthouse02 (
 	.clk(clock),
 	.sensor(sensor_signal_i[2]),
-	.combined_data(sensor_combined_data_02)
+	.combined_data(sensor_combined_data_02),
+	.led(LED[2]),
+	.crc32(crc32_2),
+	.payload(payload)
 );
 
 
 lighthouse_sensor awesome_lighthouse03 (
 	.clk(clock),
 	.sensor(sensor_signal_i[3]),
-	.combined_data(sensor_combined_data_03)
+	.combined_data(sensor_combined_data_03),
+	.led(LED[3])
 );
 
 lighthouse_sensor awesome_lighthouse04 (
 	.clk(clock),
 	.sensor(sensor_signal_i[4]),
-	.combined_data(sensor_combined_data_04)
+	.combined_data(sensor_combined_data_04),
+	.led(LED[4])
 );
 
 lighthouse_sensor awesome_lighthouse05 (
 	.clk(clock),
 	.sensor(sensor_signal_i[5]),
-	.combined_data(sensor_combined_data_05)
+	.combined_data(sensor_combined_data_05),
+	.led(LED[5])
 );
 
 lighthouse_sensor awesome_lighthouse06 (
 	.clk(clock),
 	.sensor(sensor_signal_i[6]),
-	.combined_data(sensor_combined_data_06)
+	.combined_data(sensor_combined_data_06),
+	.led(LED[6])
 );
 
 lighthouse_sensor awesome_lighthouse07 (
