@@ -23,6 +23,7 @@ use IEEE.std_logic_signed.all;
 
 
 entity lighthouse_sensor is 
+	generic (sensor_id : unsigned(9 downto 0):=(others => '0'));
 	port (
 		clk : in std_logic;		-- 50 MHz clock
 		sensor : in std_logic;	-- sensor INPUT
@@ -38,7 +39,8 @@ entity lighthouse_sensor is
 		-- bit 31    	lighthouse_id
 		-- bit 30    	axis
 		-- bit 29    	valid
-		-- bits 28:0	duration (divide by 50 to get microseconds)
+		-- bits 28:19  sensor_id
+		-- bits 18:0	duration (divide by 50 to get microseconds)
 	);
 end lighthouse_sensor;
 
@@ -159,7 +161,8 @@ begin
 														
 							-- duration from NSKIP to last rising edge is the duration to this SWEEP
 							duration_nskip_to_sweep <= duration_from_nskip_rise_to_last_rise;
-							combined_data(28 downto 0) <= duration_from_nskip_rise_to_last_rise(28 downto 0);
+							combined_data(28 downto 19) <= sensor_id;
+							combined_data(18 downto 0) <= duration_from_nskip_rise_to_last_rise(18 downto 0);
 							
 							
 						elsif (counter_from_last_rise < 4950) then
