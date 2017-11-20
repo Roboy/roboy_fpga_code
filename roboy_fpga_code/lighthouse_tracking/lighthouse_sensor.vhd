@@ -32,6 +32,7 @@ entity lighthouse_sensor is
 		axis : out std_logic;				-- sweep x or y axis
 		valid : out std_logic;				-- is '1' if (300 * 50 < duration < 8000 * 50)
 		combined_data : out unsigned(31 downto 0);
+		sync: out std_logic; -- spikes on sync pulse of non-skipping lighthouse (used for triggering data transmission)
 		led : out std_logic;
 		payload : out std_logic_vector (263 downto 0);
 		crc32 : out std_logic_vector (31 downto 0)
@@ -77,6 +78,8 @@ begin
 	process(clk)
 	begin
 		if rising_edge(clk) then
+			sync <= '0'; 
+			
 			
 			-- update counters
 			counter_from_nskip_rise <= counter_from_nskip_rise + 1;
@@ -212,6 +215,8 @@ begin
 								data <= '1';
 								
 							end if;
+							
+							sync <= '0';  -- spike the sync output to trigger data transmission to host
 							
 						else 						
 							-- SKIPPING  (real time = 104 or more microseconds)
