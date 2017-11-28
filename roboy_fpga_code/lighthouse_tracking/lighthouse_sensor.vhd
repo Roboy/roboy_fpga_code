@@ -216,7 +216,7 @@ begin
 								
 							end if;
 							
-							sync <= '0';  -- spike the sync output to trigger data transmission to host
+							sync <= '1';  -- spike the sync output to trigger data transmission to host
 							
 						else 						
 							-- SKIPPING  (real time = 104 or more microseconds)

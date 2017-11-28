@@ -16,7 +16,7 @@ module uart_tx
   (
    input       i_Clock,
    input       i_Tx_DV,
-   input [7:0] i_Tx_Byte, 
+   input [0:7] i_Tx_Byte, 
    output      o_Tx_Active,
    output reg  o_Tx_Serial,
    output      o_Tx_Done
@@ -31,7 +31,7 @@ module uart_tx
   reg [2:0]    r_SM_Main     = 0;
   reg [8:0]    r_Clock_Count = 0;
   reg [2:0]    r_Bit_Index   = 0;
-  reg [7:0]    r_Tx_Data     = 0;
+  reg [0:7]    r_Tx_Data     = 0;
   reg          r_Tx_Done     = 0;
   reg          r_Tx_Active   = 0;
      

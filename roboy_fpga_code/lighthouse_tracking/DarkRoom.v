@@ -9,6 +9,7 @@ module DarkRoom(
 	input [NUMBER_OF_SENSORS-1:0]sensor_signals_i,
 	// this is a debug connection(triggers SPI transmission when there are no sensors connected)
 	input trigger_me,
+	output [NUMBER_OF_SENSORS-1:0]sync_o,
 	// SPI
 	output sck_o, // clock
 	output ss_n_o, // slave select
@@ -20,6 +21,7 @@ localparam NUMBER_OF_SPI_FRAMES = (NUMBER_OF_SENSORS+8-1)/8; // ceil division to
 
 reg [255:0]sensor_data[NUMBER_OF_SPI_FRAMES-1:0] ;
 reg [NUMBER_OF_SENSORS-1:0] sync;
+assign sync_o = sync;
 
 genvar i,sensor_frame,sensor_counter;
 generate 
@@ -81,7 +83,7 @@ always @(posedge clock, negedge reset_n) begin: SPI_DATA_MUX
 		ss_n_prev <= ss_n_o;
 		case(mux_state)
 			IDLE: begin
-						if(trigger_me|| (|sync)) begin // if trigger me or if any sensor detects a non-skipping sweep 
+						if(trigger_me||(|sync)) begin // if trigger me or if any sensor detects a non-skipping sweep 
 							mux_state <= TRIGGER_SEND;
 							sensor_frame_counter <= 0;
 						end
