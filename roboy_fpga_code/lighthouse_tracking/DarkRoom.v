@@ -6,6 +6,11 @@
 module DarkRoom(
 	input clock,
 	input reset_n,
+	// this is for the avalon interface
+	input [6:0] address,
+	input read,
+	output signed [31:0] readdata,
+	output waitrequest,
 	// those are the sensor signals
 	input [NUMBER_OF_SENSORS-1:0]sensor_signals_i,
 	// this is a debug connection(triggers SPI transmission when there are no sensors connected)
@@ -16,6 +21,36 @@ module DarkRoom(
 	output ss_n_o, // slave select
 	output mosi_o	// mosi
 );
+
+
+assign readdata = sensor_data_avalon;
+assign waitrequest = waitFlag;
+reg [31:0] sensor_data_avalon;
+reg waitFlag;
+
+always @(posedge clock, negedge reset_n) begin: AVALON_READ_INTERFACE
+	if (reset_n == 0) begin
+		waitFlag <= 0;
+	end else begin
+		if(read) begin
+			waitFlag <= 1;
+			case(address%8)
+				0: sensor_data_avalon <= sensor_data[address/8][31:0];
+				1: sensor_data_avalon <= sensor_data[address/8][63:32];
+				2: sensor_data_avalon <= sensor_data[address/8][95:64];
+				3: sensor_data_avalon <= sensor_data[address/8][127:96];
+				4: sensor_data_avalon <= sensor_data[address/8][159:128];
+				5: sensor_data_avalon <= sensor_data[address/8][191:160];
+				6: sensor_data_avalon <= sensor_data[address/8][223:192];
+				7: sensor_data_avalon <= sensor_data[address/8][255:224];
+				default: sensor_data_avalon <= 0;
+			endcase
+		end
+		if(waitFlag==1) begin // after one clock cycle the sensor_data_avalon should be stable
+			waitFlag <= 0;
+		end
+	end
+end
 
 parameter NUMBER_OF_SENSORS = 8 ;
 localparam NUMBER_OF_SPI_FRAMES = (NUMBER_OF_SENSORS+8-1)/8; // ceil division to get eg 2 frames when using 15 sensors
