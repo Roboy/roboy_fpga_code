@@ -1,4 +1,5 @@
 // This module instantiates NUMBER_OF_SENSORS lighthouse sensors
+// author: Simon Trendel (simon.trendel@tum.de)
 
 `timescale 1ns/10ps
 
