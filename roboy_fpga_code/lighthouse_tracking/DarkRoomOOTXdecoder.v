@@ -6,7 +6,7 @@ module DarkRoomOOTXdecoder (
 	// this is for the avalon interface
 	input [5:0] address,
 	input read,
-	output signed [31:0] readdata,
+	output signed [0:31] readdata,
 	output waitrequest,
 	// uart tx port
 	output uart_tx,
@@ -31,24 +31,26 @@ assign readdata =
 	((address == 13))? ootx_payload_o[0][231:216] : // fcal.0.gibmag
 	((address == 14))? ootx_payload_o[0][247:232] : // fcal.1.gibmag
 	((address == 15))? ootx_payload_o[0][255:248] : // mode.current
-	((address == 16))? ootx_crc32_o[0][31:0] : // crc32
-	((address == 17))? ootx_payload_o[1][15:0] : // fw_version
-	((address == 18))? ootx_payload_o[1][47:16] : // ID
-	((address == 19))? ootx_payload_o[1][63:48] : // fcal.0.phase
-	((address == 20))? ootx_payload_o[1][79:64] : // fcal.1.phase
-	((address == 21))? ootx_payload_o[1][95:80] : // fcal.0.tilt
-	((address == 22))? ootx_payload_o[1][95:80] : // fcal.1.tilt
-	((address == 23))? ootx_payload_o[1][119:112] : // sys.unlock_count
-	((address == 24))? ootx_payload_o[1][127:120] : // hw_version
-	((address == 25))? ootx_payload_o[1][143:128] : // fcal.0.curve
-	((address == 26))? ootx_payload_o[1][159:144] : // fcal.1.curve
-	((address == 27))? ootx_payload_o[1][183:160] : // accel.dir_xyz
-	((address == 28))? ootx_payload_o[1][199:184] : // fcal.0.gibphase
-	((address == 29))? ootx_payload_o[1][215:200] : // fcal.1.gibphase
-	((address == 30))? ootx_payload_o[1][231:216] : // fcal.0.gibmag
-	((address == 31))? ootx_payload_o[1][247:232] : // fcal.1.gibmag
-	((address == 32))? ootx_payload_o[1][255:248] : // mode.current
-	((address == 33))? ootx_crc32_o[1][31:0] : // crc32
+	((address == 16))? ootx_payload_o[0][263:256] : // faults
+	((address == 17))? ootx_crc32_o[0][31:0] : // crc32
+	((address == 18))? ootx_payload_o[1][15:0] : // fw_version
+	((address == 19))? ootx_payload_o[1][47:16] : // ID
+	((address == 20))? ootx_payload_o[1][63:48] : // fcal.0.phase
+	((address == 21))? ootx_payload_o[1][79:64] : // fcal.1.phase
+	((address == 22))? ootx_payload_o[1][95:80] : // fcal.0.tilt
+	((address == 23))? ootx_payload_o[1][95:80] : // fcal.1.tilt
+	((address == 24))? ootx_payload_o[1][119:112] : // sys.unlock_count
+	((address == 25))? ootx_payload_o[1][127:120] : // hw_version
+	((address == 26))? ootx_payload_o[1][143:128] : // fcal.0.curve
+	((address == 27))? ootx_payload_o[1][159:144] : // fcal.1.curve
+	((address == 28))? ootx_payload_o[1][183:160] : // accel.dir_xyz
+	((address == 29))? ootx_payload_o[1][199:184] : // fcal.0.gibphase
+	((address == 30))? ootx_payload_o[1][215:200] : // fcal.1.gibphase
+	((address == 31))? ootx_payload_o[1][231:216] : // fcal.0.gibmag
+	((address == 32))? ootx_payload_o[1][247:232] : // fcal.1.gibmag
+	((address == 33))? ootx_payload_o[1][255:248] : // mode.current
+	((address == 34))? ootx_payload_o[1][263:256] : // faults
+	((address == 35))? ootx_crc32_o[1][31:0] : // crc32
 	32'hDEAD_BEEF;
 
 assign waitrequest = |sync; // if we are syncing, the frame is updated, so we should wait for sync to go low
