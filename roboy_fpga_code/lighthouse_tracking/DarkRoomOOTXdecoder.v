@@ -6,13 +6,17 @@ module DarkRoomOOTXdecoder (
 	// this is for the avalon interface
 	input [5:0] address,
 	input read,
-	output signed [0:31] readdata,
+	output signed [31:0] readdata,
+	input write,
+	input signed [31:0] writedata,
 	output waitrequest,
 	// uart tx port
 	output uart_tx,
-	input sensor,
+	input [NUMBER_OF_SENSORS-1:0] sensor_signals,
 	output [7:0] led
 );
+
+parameter NUMBER_OF_SENSORS = 8 ;
 
 assign readdata = 
 	((address == 0))? ootx_payload_o[0][15:0] : // fw_version
@@ -54,6 +58,22 @@ assign readdata =
 	32'hDEAD_BEEF;
 
 assign waitrequest = |sync; // if we are syncing, the frame is updated, so we should wait for sync to go low
+	
+always @(posedge clock, posedge reset) begin: SENSOR_SIGNAL_MUX_LOGIC
+	if (reset == 1) begin
+		sensor_select <= 0;
+	end else begin
+		// if we are writing via avalon bus and waitrequest is deasserted, write the respective register
+		if(write) begin
+			if(writedata<NUMBER_OF_SENSORS && address==0) // you can only choose a sensor channel, that is connected
+				sensor_select <= writedata;
+		end
+	end 
+end
+	
+reg [31:0] sensor_select;
+wire sensor;
+assign sensor = sensor_signals[sensor_select];
 	
 wire [1:0] sync;
 wire uart_done;
