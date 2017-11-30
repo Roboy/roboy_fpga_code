@@ -20,7 +20,7 @@ assign readdata =
 	((address == 2))? ootx_payload_o[0][63:48] : // fcal.0.phase
 	((address == 3))? ootx_payload_o[0][79:64] : // fcal.1.phase
 	((address == 4))? ootx_payload_o[0][95:80] : // fcal.0.tilt
-	((address == 5))? ootx_payload_o[0][95:80] : // fcal.1.tilt
+	((address == 5))? ootx_payload_o[0][111:96] : // fcal.1.tilt
 	((address == 6))? ootx_payload_o[0][119:112] : // sys.unlock_count
 	((address == 7))? ootx_payload_o[0][127:120] : // hw_version
 	((address == 8))? ootx_payload_o[0][143:128] : // fcal.0.curve
@@ -38,7 +38,7 @@ assign readdata =
 	((address == 20))? ootx_payload_o[1][63:48] : // fcal.0.phase
 	((address == 21))? ootx_payload_o[1][79:64] : // fcal.1.phase
 	((address == 22))? ootx_payload_o[1][95:80] : // fcal.0.tilt
-	((address == 23))? ootx_payload_o[1][95:80] : // fcal.1.tilt
+	((address == 23))? ootx_payload_o[1][111:96] : // fcal.1.tilt
 	((address == 24))? ootx_payload_o[1][119:112] : // sys.unlock_count
 	((address == 25))? ootx_payload_o[1][127:120] : // hw_version
 	((address == 26))? ootx_payload_o[1][143:128] : // fcal.0.curve
