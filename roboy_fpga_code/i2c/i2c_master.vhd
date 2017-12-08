@@ -213,7 +213,7 @@ BEGIN
             END IF;
           WHEN slv_ack2 =>                   --slave acknowledge bit (write)
 				IF( counter < number_of_bytes ) THEN               --continue transaction
-				  busy <= '0';                   --continue is accepted
+--				  busy <= '0';                   --continue is accepted
 				  case counter is 					--collect requested data to write (MSB first)
 						when 3 => data_tx <= data_wr(7 downto 0) ;            
 						when 2 => data_tx <= data_wr(15 downto 8);
@@ -222,7 +222,8 @@ BEGIN
 						when others => NULL;
 				  end case;
 				  IF(addr_rw = addr & rw) THEN   --continue transaction with another write
-					 sda_int <= data_wr(bit_cnt); --write first bit of data
+					 bit_cnt <= 7; 					--reset bit counter
+					 sda_int <= data_wr(32-counter*8-1); 
 					 state <= wr;                 --go to write byte
 				  ELSE                           --continue transaction with a read or new slave
 					 state <= start;              --go to repeated start
@@ -234,7 +235,7 @@ BEGIN
           WHEN mstr_ack =>                   --master acknowledge bit after a read
 				fifo_write_ack <= '0';
 				IF( counter < number_of_bytes ) THEN               --continue transaction
-				  busy <= '0';                   --continue is accepted and data received is available on bus
+--				  busy <= '0';                   --continue is accepted and data received is available on bus
 				  addr_rw <= addr & rw;          --collect requested slave address and command
 				  case counter is 					--collect requested data to write (MSB first)
 						when 3 => data_tx <= data_wr(7 downto 0) ;            
@@ -245,6 +246,7 @@ BEGIN
 				  end case;
 				  IF(addr_rw = addr & rw) THEN   --continue transaction with another read
 					 sda_int <= '1';              --release sda from incoming data
+					 bit_cnt <= 7; 					--reset bit counter
 					 state <= rd;                 --go to read byte
 				  ELSE                           --continue transaction with a write or new slave
 					 state <= start;              --repeated start
@@ -253,7 +255,7 @@ BEGIN
 				  state <= stop;                 --go to stop bit
 				END IF;
           WHEN stop =>                       --stop bit of transaction
-            busy <= '0';                     --unflag busy
+--            busy <= '0';                     --unflag busy
             state <= ready;                  --go to idle state
 				IF((number_of_bytes mod 4)>0) THEN --we need to write the rest of the bytes to the fifo
 					fifo_write_ack <= '1';
