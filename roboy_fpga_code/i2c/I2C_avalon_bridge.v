@@ -1,8 +1,63 @@
 // I2C_avalon_bridge node
-// you can read out the registers via avalon bus in the following way:
-// #define IORD(base,reg) (*(((volatile uint32_t*)base)+reg))
-// #define IOWR(base,reg,data) (*(((volatile uint32_t*)base)+reg)=data)
-// where reg corresponds to the address of the avalon slave
+// This module implements a i2c communication node.
+// Through the lightweight axi bridge, the following values can be READ
+//	address            -----   [type] value
+// [3'h00]                    [uint32] addr - address of i2c device slave to be accessed
+// [3'h01]                    [uint32] data_read_fifo - 32-bit chunks of data read from device
+// [3'h02]                    [bool] rw - read =1 write = 0
+// [3'h03]                    [bool] ena - enable, starts transmission
+// [3'h04]                    [bool] busy - true is i2c transmission is not finished
+// [3'h05]                    [bool] ack_error - true if slave did not acknowledge
+// [3'h06]                    [uint8] usedw - amount of 32-bit chunks stored in fifo
+//
+// Through the lightweight axi bridge, the following values can be WRITTEN
+//	address            -----   [type] value
+// [3'h00]                    [uint32] addr - address of i2c device to be accessed
+// [3'h01]                    [uint32] data_wd - data to be written [31:24 register, 23:0 data]
+// [3'h02]                    [bool] rw - read =1 write = 0
+// [3'h03]                    [bool] ena - enable, starts transmission
+// [3'h04]                    [uint8] number_of_bytes - that many bytes shall be transmitted
+// [3'h05]                    [uint8] gpio_set - lowest 3 bit control gpios
+// 															if gpio_set[3] is set, we pull sda low
+//											 					if gpio_set[4] is set, we pull sda high
+// [3'h06]                    [bool] read_only - if true, the core will simply start reading from slave,
+//																without transmitting a register address
+// Features:
+//  * complete control via lightweight axi bridge
+//  * continuous read using a fifo
+//  * specialized sda, scl, gpio control for Infineon 3d magnetic sensor configuration
+
+//	BSD 3-Clause License
+//
+//	Copyright (c) 2017, Roboy
+//	All rights reserved.
+//
+//	Redistribution and use in source and binary forms, with or without
+//	modification, are permitted provided that the following conditions are met:
+//
+//	* Redistributions of source code must retain the above copyright notice, this
+//	  list of conditions and the following disclaimer.
+//
+//	* Redistributions in binary form must reproduce the above copyright notice,
+//	  this list of conditions and the following disclaimer in the documentation
+//	  and/or other materials provided with the distribution.
+//
+//	* Neither the name of the copyright holder nor the names of its
+//	  contributors may be used to endorse or promote products derived from
+//	  this software without specific prior written permission.
+//
+//	THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+//	AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+//	IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+//	DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+//	FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+//	DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+//	SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+//	CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+//	OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+//	OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+// author: Simon Trendel, simon.trendel@tum.de, 2018
 
 `timescale 1ns/10ps
 
@@ -18,11 +73,13 @@ module I2C_avalon_bridge (
 	output waitrequest,
 	output [2:0] gpio,
 	output [6:0] LED,
-//	output interrupt_sender_irq,
 	// these are the i2c ports
 	inout scl,
 	inout sda
 );
+
+parameter CLOCK_SPEED_HZ = 50_000_000;
+parameter BUS_SPEED_HZ = 100_000;
 
 reg [6:0] addr;
 reg rw;
@@ -140,7 +197,7 @@ oneshot oneshot(
    .level_sig(fifo_write)
 );
 
-i2c_master i2c(
+i2c_master #(CLOCK_SPEED_HZ, BUS_SPEED_HZ) i2c(
 	.clk(clock),
 	.reset_n(~reset),
 	.ena(ena),

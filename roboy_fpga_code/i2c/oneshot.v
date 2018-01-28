@@ -1,3 +1,6 @@
+// oneshot
+// helper module which generates a pulse on changing signals
+// author: Simon Trendel, 2017
 
 module oneshot (
     input clk,

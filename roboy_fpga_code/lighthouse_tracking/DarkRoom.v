@@ -1,5 +1,40 @@
-// This module instantiates NUMBER_OF_SENSORS lighthouse sensors
-// author: Simon Trendel (simon.trendel@tum.de)
+// DarkRoom 
+// This module implements signal decoders for HTC Vive lighthouse tracking. 
+// Optionally it adds a SPI core which triggers transmission if any sensor sees a non-skipping lighthouse.
+// The SPI frame is compatible with ESP8266 spi and transmits a frame of 256 bits containing 8 decoded
+// sensor values
+
+//	BSD 3-Clause License
+//
+//	Copyright (c) 2017, Roboy
+//	All rights reserved.
+//
+//	Redistribution and use in source and binary forms, with or without
+//	modification, are permitted provided that the following conditions are met:
+//
+//	* Redistributions of source code must retain the above copyright notice, this
+//	  list of conditions and the following disclaimer.
+//
+//	* Redistributions in binary form must reproduce the above copyright notice,
+//	  this list of conditions and the following disclaimer in the documentation
+//	  and/or other materials provided with the distribution.
+//
+//	* Neither the name of the copyright holder nor the names of its
+//	  contributors may be used to endorse or promote products derived from
+//	  this software without specific prior written permission.
+//
+//	THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+//	AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+//	IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+//	DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+//	FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+//	DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+//	SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+//	CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+//	OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+//	OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+// author: Simon Trendel, simon.trendel@tum.de, 2018
 
 `timescale 1ns/10ps
 
@@ -22,6 +57,7 @@ module DarkRoom(
 	output mosi_o	// mosi
 );
 
+parameter ENABLE_SPI_TRANSMITTER = 0;
 
 assign readdata = sensor_data_avalon;
 assign waitrequest = waitFlag;
@@ -74,85 +110,91 @@ generate
 	end
 endgenerate 
 
-wire wr_ack, wren, di_req;
-reg trigger;
-wire [255:0] spi_frame;
-wire [7:0]data;
+generate
+	if(ENABLE_SPI_TRANSMITTER!=0) begin
+		wire wr_ack, wren, di_req;
+		reg trigger;
+		wire [255:0] spi_frame;
+		wire [7:0]data;
 
-SpiControl_esp8266 spi_control_esp8266(
-	.clock(clock),
-	.data(spi_frame),
-	.dataReady(trigger), // triggers transmission if any sensor sees a non-skipping lighthouse
-	.reset_n(reset_n),
-	.write_ack(wr_ack),
-	.di_req(di_req),
-	.data_byte(data),
-	.wren(wren)
-);
+		SpiControl_esp8266 spi_control_esp8266(
+			.clock(clock),
+			.data(spi_frame),
+			.dataReady(trigger), // triggers transmission if any sensor sees a non-skipping lighthouse
+			.reset_n(reset_n),
+			.write_ack(wr_ack),
+			.di_req(di_req),
+			.data_byte(data),
+			.wren(wren)
+		);
 
-spi_master #(8, 1'b0, 1'b0, 2, 5) spi(
-	.sclk_i(clock),
-	.pclk_i(clock),
-	.rst_i(~reset_n),
-	.wren_i(wren),
-	.di_req_o(di_req),
-	.spi_ssel_o(ss_n_o),
-	.spi_sck_o(sck_o),
-	.spi_mosi_o(mosi_o),
-	.wr_ack_o(wr_ack),
-	.di_i(data)
-);
+		spi_master #(8, 1'b0, 1'b0, 2, 5) spi(
+			.sclk_i(clock),
+			.pclk_i(clock),
+			.rst_i(~reset_n),
+			.wren_i(wren),
+			.di_req_o(di_req),
+			.spi_ssel_o(ss_n_o),
+			.spi_sck_o(sck_o),
+			.spi_mosi_o(mosi_o),
+			.wr_ack_o(wr_ack),
+			.di_i(data)
+		);
 
 
-reg [3:0] sensor_frame_counter;
-assign spi_frame = sensor_data[sensor_frame_counter];
-reg [9:0] delay_counter;
+		reg [3:0] sensor_frame_counter;
+		assign spi_frame = sensor_data[sensor_frame_counter];
+		reg [9:0] delay_counter;
 
-always @(posedge clock, negedge reset_n) begin: SPI_DATA_MUX
-	parameter IDLE  = 2'b00, TRIGGER_SEND = 2'b01, WAIT_FOR_NEXT_FRAME = 2'b10, DELAY = 2'b11;
-	reg [1:0] mux_state;
-	reg ss_n_prev;
-	if (reset_n == 0) begin
-		mux_state <= IDLE;
-	end else begin
-		trigger <= 0; 
-		ss_n_prev <= ss_n_o;
-		case(mux_state)
-			IDLE: begin
-						if(trigger_me||(|sync)) begin // if trigger me or if any sensor detects a non-skipping sweep 
-							mux_state <= TRIGGER_SEND;
-							sensor_frame_counter <= 0;
-						end
+		always @(posedge clock, negedge reset_n) begin: SPI_DATA_MUX
+			parameter IDLE  = 2'b00, TRIGGER_SEND = 2'b01, WAIT_FOR_NEXT_FRAME = 2'b10, DELAY = 2'b11;
+			reg [1:0] mux_state;
+			reg ss_n_prev;
+			if (reset_n == 0) begin
+				mux_state <= IDLE;
+			end else begin
+				trigger <= 0; 
+				ss_n_prev <= ss_n_o;
+				case(mux_state)
+					IDLE: begin
+								if(trigger_me||(|sync)) begin // if trigger me or if any sensor detects a non-skipping sweep 
+									mux_state <= TRIGGER_SEND;
+									sensor_frame_counter <= 0;
+								end
+							end
+					TRIGGER_SEND: begin		
+								if(sensor_frame_counter< NUMBER_OF_SPI_FRAMES) begin // each SPI frame contains 8 sensors
+									trigger <= 1;
+									mux_state <= WAIT_FOR_NEXT_FRAME;
+								end else begin
+									mux_state <= IDLE;
+								end
+							end
+					
+					WAIT_FOR_NEXT_FRAME: begin
+								if(ss_n_prev==0 && ss_n_o==1) begin // if the frame is done, go to next frame
+									delay_counter<= 1;
+									mux_state <= DELAY;
+								end
+								
+							end
+					DELAY: begin
+								delay_counter <= delay_counter+1;
+								if(delay_counter==0) begin
+									sensor_frame_counter <= sensor_frame_counter+1;
+									mux_state <= TRIGGER_SEND;
+								end
 					end
-			TRIGGER_SEND: begin		
-						if(sensor_frame_counter< NUMBER_OF_SPI_FRAMES) begin // each SPI frame contains 8 sensors
-							trigger <= 1;
-							mux_state <= WAIT_FOR_NEXT_FRAME;
-						end else begin
-							mux_state <= IDLE;
-						end
-					end
-			
-			WAIT_FOR_NEXT_FRAME: begin
-						if(ss_n_prev==0 && ss_n_o==1) begin // if the frame is done, go to next frame
-							delay_counter<= 1;
-							mux_state <= DELAY;
-						end
-						
-					end
-			DELAY: begin
-						delay_counter <= delay_counter+1;
-						if(delay_counter==0) begin
-							sensor_frame_counter <= sensor_frame_counter+1;
-							mux_state <= TRIGGER_SEND;
-						end
+					
+					default: mux_state <= IDLE;
+				endcase
+				
 			end
-			
-			default: mux_state <= IDLE;
-		endcase
-		
+		end
 	end
-end
+
+endgenerate 
+
 
 endmodule
 

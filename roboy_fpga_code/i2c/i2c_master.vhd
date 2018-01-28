@@ -26,7 +26,8 @@
 --     Adjusted timing of SCL during start and stop conditions
 --   Version 2.2 02/05/2015 Scott Larson
 --     Corrected small SDA glitch introduced in version 2.1
--- 
+--   Version roboy 2018 Simon Trendel, simon.trendel@tum.de
+--     Adapted for continuous read write using fifo
 --------------------------------------------------------------------------------
 
 LIBRARY ieee;

@@ -1,4 +1,82 @@
-// MyoControl logic
+// MyoControl 
+// This module handles the communication and implements PID controller for each myo motor board.
+// Communication with the motors is via SPI. The module is accessible via lightweight axi bridge.
+// On axi read/write request, the upper 8 bit of the address define which value is accessed, while
+// the lower 8 bit define for which motor (if applicable).
+// Through the axi bridge, the following values can be READ
+//	address            -----   [type] value
+// [8'h00 8'h(motor)]         [int16] Kp - gain of PID controller
+// [8'h01 8'h(motor)]         [int16] Ki - gain of PID controller
+// [8'h02 8'h(motor)]         [int16] Kd - gain of PID controller
+// [8'h03 8'h(motor)]         [int32] sp - setpoint of PID controller
+// [8'h04 8'h(motor)]         [int16] forwardGain - gain of PID controller
+// [8'h05 8'h(motor)]         [int16] outputPosMax - maximal output of PID controller
+// [8'h06 8'h(motor)]         [int16] outputNegMax - minimal output of PID controller
+// [8'h07 8'h(motor)]         [int16] IntegralPosMax - maximal integral of PID controller
+// [8'h08 8'h(motor)]         [int16] IntegralNegMax - minimal integral of PID controller
+// [8'h09 8'h(motor)]         [int16] deadBand - deadBand of PID controller
+// [8'h0A 8'h(motor)]         [uint8] control_mode - control_mode of PID controller
+// [8'h0B 8'h(motor)]         [int32] position - motor position
+// [8'h0C 8'h(motor)]         [int16] velocity - motor velocity
+// [8'h0D 8'h(motor)]         [int16] current - motor current
+// [8'h0E 8'h(motor)]         [int16] displacement - spring displacement
+// [8'h0F 8'h(motor)]         [int16] pwmRef - output of PID controller
+// [8'h10 8'h(motor)]         [int32] update_frequency - update frequency between pid an motor board
+//
+// Through the axi bridge, the following values can be WRITTEN
+//	address            -----   [type] value
+// [8'h00 8'h(motor)]         [int16] Kp - gain of PID controller
+// [8'h01 8'h(motor)]         [int16] Ki - gain of PID controller
+// [8'h02 8'h(motor)]         [int16] Kd - gain of PID controller
+// [8'h03 8'h(motor)]         [int32] sp - setpoint of PID controller
+// [8'h04 8'h(motor)]         [int16] forwardGain - gain of PID controller
+// [8'h05 8'h(motor)]         [int16] outputPosMax - maximal output of PID controller
+// [8'h06 8'h(motor)]         [int16] outputNegMax - minimal output of PID controller
+// [8'h07 8'h(motor)]         [int16] IntegralPosMax - maximal integral of PID controller
+// [8'h08 8'h(motor)]         [int16] IntegralNegMax - minimal integral of PID controller
+// [8'h09 8'h(motor)]         [int16] deadBand - deadBand of PID controller
+// [8'h0A 8'h(motor)]         [uint8] control_mode - control_mode of PID controller
+// [8'h0B 8'h(motor)]         [bool] reset_myo_control - reset
+// [8'h0C 8'h(motor)]         [bool] spi_activated - toggles spi communication
+// [8'h0D 8'h(motor)]         [bool] reset_controller - resets individual PID controller
+// [8'h0E 8'h(motor)]         [uint32] update_frequency - motor pid update frequency
+//
+// Features: 
+// * use the NUMBER_OF_MOTORS parameter to define how many motors are connected on one SPI bus (maximum 254)
+// * use the update_frequency to define at what rate the motors should be controlled
+//   NOTE: The maximal update_frequency is limited by the amount of motors per SPI bus. For 7 motors
+//			  on one bus this is for example ~2.8kHz. Setting a higher frequency has no effect.
+
+//	BSD 3-Clause License
+//
+//	Copyright (c) 2017, Roboy
+//	All rights reserved.
+//
+//	Redistribution and use in source and binary forms, with or without
+//	modification, are permitted provided that the following conditions are met:
+//
+//	* Redistributions of source code must retain the above copyright notice, this
+//	  list of conditions and the following disclaimer.
+//
+//	* Redistributions in binary form must reproduce the above copyright notice,
+//	  this list of conditions and the following disclaimer in the documentation
+//	  and/or other materials provided with the distribution.
+//
+//	* Neither the name of the copyright holder nor the names of its
+//	  contributors may be used to endorse or promote products derived from
+//	  this software without specific prior written permission.
+//
+//	THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+//	AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+//	IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+//	DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+//	FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+//	DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+//	SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+//	CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+//	OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+//	OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
 // author: Simon Trendel, simon.trendel@tum.de, 2018
 
 `timescale 1ns/10ps
@@ -7,7 +85,7 @@ module MYOControl (
 	input clock,
 	input reset,
 	// this is for the avalon interface
-	input [7:0] address,
+	input [15:0] address,
 	input write,
 	input signed [31:0] writedata,
 	input read,
@@ -20,7 +98,8 @@ module MYOControl (
 	output sck
 );
 
-parameter NUMBER_OF_MOTORS = 6 ;
+parameter NUMBER_OF_MOTORS = 7 ;
+parameter CLOCK_SPEED_HZ = 50_000_000;
 
 // gains and shit
 // p gains
@@ -44,7 +123,7 @@ reg signed [15:0] IntegralPosMax[NUMBER_OF_MOTORS-1:0];
 // deadband
 reg signed [15:0] deadBand[NUMBER_OF_MOTORS-1:0];
 // control mode
-reg unsigned [1:0] controller[NUMBER_OF_MOTORS-1:0];
+reg unsigned [1:0] control_mode[NUMBER_OF_MOTORS-1:0];
 // reset pid_controller
 reg reset_controller[NUMBER_OF_MOTORS-1:0];
 
@@ -67,28 +146,37 @@ assign waitrequest = waitFlag || update_controller;
 reg [31:0] returnvalue;
 reg waitFlag;
 
+reg [31:0] update_frequency;
+reg [31:0] delay_counter;
+
 // the following iterface handles read requests via lightweight axi bridge
-// the upper 16 bit off the read register define which value we want to read
-// the lower 16 bit off the read register define for which motor
+// the upper 8 bit off the read address define which value we want to read
+// the lower 8 bit off the read address define for which motor
 always @(posedge clock, posedge reset) begin: AVALON_READ_INTERFACE
 	if (reset == 1) begin
 		waitFlag <= 0;
 	end else begin
 		if(read) begin
 			waitFlag <= 1;
-			case(address[31:16])
-				0: returnvalue <= Kp[address[15:0]][15:0];
-				1: returnvalue <= Ki[address[15:0]][15:0];
-				2: returnvalue <= Kd[address[15:0]][15:0];
-				3: returnvalue <= sp[address[15:0]][31:0];
-				4: returnvalue <= forwardGain[address[15:0]][15:0];
-				5: returnvalue <= outputPosMax[address[15:0]][15:0];
-				6: returnvalue <= outputNegMax[address[15:0]][15:0];
-				7: returnvalue <= IntegralNegMax[address[15:0]][15:0];
-				8: returnvalue <= IntegralPosMax[address[15:0]][15:0];
-				9: returnvalue <= deadBand[address[15:0]][15:0];
-				10: returnvalue <= controller[address[15:0]][1:0];
-				default: returnvalue <= 31'hDEADBEEF;
+			case(address[15:8])
+				8'h00: returnvalue <= Kp[address[7:0]][15:0];
+				8'h01: returnvalue <= Ki[address[7:0]][15:0];
+				8'h02: returnvalue <= Kd[address[7:0]][15:0];
+				8'h03: returnvalue <= sp[address[7:0]][31:0];
+				8'h04: returnvalue <= forwardGain[address[7:0]][15:0];
+				8'h05: returnvalue <= outputPosMax[address[7:0]][15:0];
+				8'h06: returnvalue <= outputNegMax[address[7:0]][15:0];
+				8'h07: returnvalue <= IntegralPosMax[address[7:0]][15:0];
+				8'h08: returnvalue <= IntegralNegMax[address[7:0]][15:0];
+				8'h09: returnvalue <= deadBand[address[7:0]][15:0];
+				8'h0A: returnvalue <= control_mode[address[7:0]][1:0];
+				8'h0B: returnvalue <= positions[address[7:0]][31:0];
+				8'h0C: returnvalue <= velocitys[address[7:0]][15:0];
+				8'h0D: returnvalue <= currents[address[7:0]][15:0];
+				8'h0E: returnvalue <= displacements[address[7:0]][15:0];
+				8'h0F: returnvalue <= pwmRefs[address[7:0]][0:15];
+				8'h10: returnvalue <= update_frequency;
+				default: returnvalue <= 32'hDEADBEEF;
 			endcase
 		end
 		if(waitFlag==1) begin // after one clock cycle the returnvalue should be ready
@@ -100,35 +188,60 @@ end
 reg reset_myo_control;
 reg spi_activated;
 reg update_controller;
-
-// when spi is done we transfer the results, which would be a bad time to read the values.
-assign waitrequest = update_controller;
+reg start_spi_transmission;
 	
-reg [2:0] motor;
-reg [2:0] pid_update;
+reg [7:0] motor;
+reg [7:0] pid_update;
 	
 always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 	reg spi_done_prev; 
-	reg [3:0]i;
+	reg [7:0]i;
 	if (reset == 1) begin
 		reset_myo_control <= 0;
 		spi_activated <= 0;
 		motor <= 0;
 		spi_done_prev <= 0;
+		delay_counter <= 0;
+		update_frequency <= 0;
 	end else begin
 		update_controller <= 0;
+		start_spi_transmission <= 0;
 		spi_done_prev <= spi_done;
+		
 		if(spi_done_prev==0 && spi_done) begin
 			positions[motor][31:0] <= position[0:31];
 			velocitys[motor][15:0] <= velocity[0:15];
 			currents[motor][15:0] <= current[0:15];
 			displacements[motor][15:0] <= displacement[0:15];
-			update_controller <= 1;
-			pid_update <= motor;
-			if(motor==NUMBER_OF_MOTORS) begin
-				motor <= 0;
+		end
+		
+		if(update_frequency>0) begin
+			if(spi_done_prev==0 && spi_done) begin
+				if(motor<NUMBER_OF_MOTORS) begin
+					pid_update <= motor;
+					update_controller <= 1;
+					motor <= motor + 1;
+					start_spi_transmission <= 1;
+				end else begin
+					delay_counter <= CLOCK_SPEED_HZ/update_frequency;
+				end
+			end			
+			if(delay_counter>0) begin
+				delay_counter <= delay_counter-1;
 			end else begin
-				motor <= motor + 1;
+				start_spi_transmission <= 1; 
+				motor <= 0;
+			end
+		end else begin
+			if(spi_done_prev==0 && spi_done) begin
+				pid_update <= motor;
+				update_controller <= 1;
+				start_spi_transmission <= 1;
+				if(motor<NUMBER_OF_MOTORS) begin
+					motor <= motor + 1;
+				end else begin
+					motor <= 0;
+				end
 			end
 		end
 	
@@ -140,21 +253,23 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 	
 		// if we are writing via avalon bus and waitrequest is deasserted, write the respective register
 		if(write && ~waitrequest) begin
-			if(address[31:16]<=12 && address[15:0]<NUMBER_OF_MOTORS) begin
-				case(address[31:16])
-					0: Kp[address[15:0]][15:0] <= writedata[15:0];
-					1: Ki[address[15:0]][15:0] <= writedata[15:0];
-					2: Kd[address[15:0]][15:0] <= writedata[15:0];
-					3: sp[address[15:0]][31:0] <= writedata[31:0];
-					4: forwardGain[address[15:0]][15:0] <= writedata[15:0];
-					5: outputPosMax[address[15:0]][15:0] <= writedata[15:0];
-					6: outputNegMax[address[15:0]][15:0] <= writedata[15:0];
-					7: IntegralNegMax[address[15:0]][15:0] <= writedata[15:0];
-					8: IntegralPosMax[address[15:0]][15:0] <= writedata[15:0];
-					9: deadBand[address[15:0]][15:0] <= writedata[15:0];
-					10: controller[address[15:0]][1:0] <= writedata[1:0];
-					11: reset_myo_control <= (writedata!=0);
-					12: spi_activated <= (writedata!=0);
+			if(address[15:8]<=8'h0E && address[7:0]<NUMBER_OF_MOTORS) begin
+				case(address[15:8])
+					8'h00: Kp[address[7:0]][15:0] <= writedata[15:0];
+					8'h01: Ki[address[7:0]][15:0] <= writedata[15:0];
+					8'h02: Kd[address[7:0]][15:0] <= writedata[15:0];
+					8'h03: sp[address[7:0]][31:0] <= writedata[31:0];
+					8'h04: forwardGain[address[7:0]][15:0] <= writedata[15:0];
+					8'h05: outputPosMax[address[7:0]][15:0] <= writedata[15:0];
+					8'h06: outputNegMax[address[7:0]][15:0] <= writedata[15:0];
+					8'h07: IntegralPosMax[address[7:0]][15:0] <= writedata[15:0];
+					8'h08: IntegralNegMax[address[7:0]][15:0] <= writedata[15:0];
+					8'h09: deadBand[address[7:0]][15:0] <= writedata[15:0];
+					8'h0A: control_mode[address[7:0]][1:0] <= writedata[1:0];
+					8'h0B: reset_myo_control <= (writedata!=0);
+					8'h0C: spi_activated <= (writedata!=0);
+					8'h0D: reset_controller[address[7:0]] <= (writedata!=0);
+					8'h0E: update_frequency <= writedata;
 				endcase
 			end
 		end
@@ -176,7 +291,6 @@ wire motor_line;
 assign motor_line = motor;
 // the pwmRef signal will be wired to the corresponding pid controller output
 assign pwmRef = pwmRefs[motor_line];
-assign ss_n_o = ss_n;
 
 SpiControl spi_control(
 	.clock(clock),
@@ -185,8 +299,7 @@ SpiControl spi_control(
 	.write_ack(wr_ack),
 	.data_read_valid(do_valid),
 	.data_read(data_out[15:0]),
-	// if spi is activated and we update the previous controller, we start transmission with the next motor
-	.start(spi_activated && update_controller),
+	.start(spi_activated && start_spi_transmission),
 	.Word(Word[0:15]),
 	.wren(wren),
 	.spi_done(spi_done),
@@ -232,13 +345,14 @@ generate
 			.IntegralNegMax(IntegralNegMax[j]),
 			.IntegralPosMax(IntegralPosMax[j]),
 			.deadBand(deadBand[j]),
-			.controller(controller[j]), // position velocity force
-			.position(position[j]),
-			.velocity(velocity[j]),
-			.displacement(displacement[j]),
+			.control_mode(control_mode[j]), // position velocity force
+			.position(positions[j]),
+			.velocity(velocitys[j]),
+			.displacement(displacements[j]),
 			.update_controller(pid_update==j && update_controller),
-			.pwmRef(pwmRef[j])
+			.pwmRef(pwmRefs[j])
 		);
+		assign ss_n_o[j] = (motor==j?ss_n:1);
 	end
 endgenerate 
 
