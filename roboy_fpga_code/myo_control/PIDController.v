@@ -49,7 +49,7 @@ module PIDController (
 	input signed [15:0] IntegralNegMax,
 	input signed [15:0] IntegralPosMax,
 	input signed [15:0] deadBand,
-	input unsigned [1:0] control_mode, // position velocity displacement
+	input [1:0] control_mode, // position velocity displacement
 	input signed [31:0] position,
 	input signed [15:0] velocity,
 	input wire [15:0] displacement,

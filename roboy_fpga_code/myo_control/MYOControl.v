@@ -21,7 +21,7 @@
 // [8'h0D 8'h(motor)]         [int16] current - motor current
 // [8'h0E 8'h(motor)]         [int16] displacement - spring displacement
 // [8'h0F 8'h(motor)]         [int16] pwmRef - output of PID controller
-// [8'h10 8'h(motor)]         [int32] update_frequency - update frequency between pid an motor board
+// [8'h10 8'hz]               [int32] update_frequency - update frequency between pid an motor board
 //
 // Through the axi bridge, the following values can be WRITTEN
 //	address            -----   [type] value
@@ -36,10 +36,10 @@
 // [8'h08 8'h(motor)]         [int16] IntegralNegMax - minimal integral of PID controller
 // [8'h09 8'h(motor)]         [int16] deadBand - deadBand of PID controller
 // [8'h0A 8'h(motor)]         [uint8] control_mode - control_mode of PID controller
-// [8'h0B 8'h(motor)]         [bool] reset_myo_control - reset
-// [8'h0C 8'h(motor)]         [bool] spi_activated - toggles spi communication
+// [8'h0B 8'hz]               [bool] reset_myo_control - reset
+// [8'h0C 8'hz]               [bool] spi_activated - toggles spi communication
 // [8'h0D 8'h(motor)]         [bool] reset_controller - resets individual PID controller
-// [8'h0E 8'h(motor)]         [uint32] update_frequency - motor pid update frequency
+// [8'h0E 8'hz]               [uint32] update_frequency - motor pid update frequency
 //
 // Features: 
 // * use the NUMBER_OF_MOTORS parameter to define how many motors are connected on one SPI bus (maximum 254)
@@ -123,7 +123,7 @@ reg signed [15:0] IntegralPosMax[NUMBER_OF_MOTORS-1:0];
 // deadband
 reg signed [15:0] deadBand[NUMBER_OF_MOTORS-1:0];
 // control mode
-reg unsigned [1:0] control_mode[NUMBER_OF_MOTORS-1:0];
+reg [1:0] control_mode[NUMBER_OF_MOTORS-1:0];
 // reset pid_controller
 reg reset_controller[NUMBER_OF_MOTORS-1:0];
 
@@ -142,7 +142,7 @@ reg [15:0] displacements[NUMBER_OF_MOTORS-1:0];
 
 
 assign readdata = returnvalue;
-assign waitrequest = waitFlag || update_controller;
+assign waitrequest = (waitFlag && read) || update_controller;
 reg [31:0] returnvalue;
 reg waitFlag;
 
@@ -154,11 +154,11 @@ reg [31:0] delay_counter;
 // the lower 8 bit off the read address define for which motor
 always @(posedge clock, posedge reset) begin: AVALON_READ_INTERFACE
 	if (reset == 1) begin
-		waitFlag <= 0;
+		waitFlag <= 1;
 	end else begin
+		waitFlag <= 1;
 		if(read) begin
-			waitFlag <= 1;
-			case(address[15:8])
+			case(address>>8)
 				8'h00: returnvalue <= Kp[address[7:0]][15:0];
 				8'h01: returnvalue <= Ki[address[7:0]][15:0];
 				8'h02: returnvalue <= Kd[address[7:0]][15:0];
@@ -178,9 +178,9 @@ always @(posedge clock, posedge reset) begin: AVALON_READ_INTERFACE
 				8'h10: returnvalue <= update_frequency;
 				default: returnvalue <= 32'hDEADBEEF;
 			endcase
-		end
-		if(waitFlag==1) begin // after one clock cycle the returnvalue should be ready
-			waitFlag <= 0;
+			if(waitFlag==1) begin // next clock cycle the returnvalue should be ready
+				waitFlag <= 0;
+			end
 		end
 	end
 end
@@ -217,20 +217,21 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 		
 		if(update_frequency>0) begin
 			if(spi_done_prev==0 && spi_done) begin
-				if(motor<NUMBER_OF_MOTORS) begin
+				if(motor<(NUMBER_OF_MOTORS-1)) begin
 					pid_update <= motor;
 					update_controller <= 1;
 					motor <= motor + 1;
 					start_spi_transmission <= 1;
-				end else begin
-					delay_counter <= CLOCK_SPEED_HZ/update_frequency;
 				end
 			end			
 			if(delay_counter>0) begin
 				delay_counter <= delay_counter-1;
 			end else begin
-				start_spi_transmission <= 1; 
-				motor <= 0;
+				if(spi_done && motor>=(NUMBER_OF_MOTORS-1)) begin
+					motor <= 0;
+					delay_counter <= CLOCK_SPEED_HZ/update_frequency;
+					start_spi_transmission <= 1; 
+				end
 			end
 		end else begin
 			if(spi_done_prev==0 && spi_done) begin
@@ -253,8 +254,8 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 	
 		// if we are writing via avalon bus and waitrequest is deasserted, write the respective register
 		if(write && ~waitrequest) begin
-			if(address[15:8]<=8'h0E && address[7:0]<NUMBER_OF_MOTORS) begin
-				case(address[15:8])
+			if((address>>8)<=8'h0E && address[7:0]<NUMBER_OF_MOTORS) begin
+				case(address>>8)
 					8'h00: Kp[address[7:0]][15:0] <= writedata[15:0];
 					8'h01: Ki[address[7:0]][15:0] <= writedata[15:0];
 					8'h02: Kd[address[7:0]][15:0] <= writedata[15:0];
@@ -287,10 +288,8 @@ wire [0:15] displacement;
 wire signed [0:15] sensor1;
 wire signed [0:15] sensor2;
 
-wire motor_line;
-assign motor_line = motor;
-// the pwmRef signal will be wired to the corresponding pid controller output
-assign pwmRef = pwmRefs[motor_line];
+// the pwmRef signal will be wired to the active motor pid controller output
+assign pwmRef = pwmRefs[motor];
 
 SpiControl spi_control(
 	.clock(clock),
@@ -345,7 +344,7 @@ generate
 			.IntegralNegMax(IntegralNegMax[j]),
 			.IntegralPosMax(IntegralPosMax[j]),
 			.deadBand(deadBand[j]),
-			.control_mode(control_mode[j]), // position velocity force
+			.control_mode(control_mode[j]), // position velocity displacement
 			.position(positions[j]),
 			.velocity(velocitys[j]),
 			.displacement(displacements[j]),
