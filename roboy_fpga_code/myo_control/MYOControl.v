@@ -213,13 +213,13 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 			velocitys[motor][15:0] <= velocity[0:15];
 			currents[motor][15:0] <= current[0:15];
 			displacements[motor][15:0] <= displacement[0:15];
+			pid_update <= motor;
+			update_controller <= 1;
 		end
 		
 		if(update_frequency>0) begin
 			if(spi_done_prev==0 && spi_done) begin
 				if(motor<(NUMBER_OF_MOTORS-1)) begin
-					pid_update <= motor;
-					update_controller <= 1;
 					motor <= motor + 1;
 					start_spi_transmission <= 1;
 				end
@@ -235,14 +235,13 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 			end
 		end else begin
 			if(spi_done_prev==0 && spi_done) begin
-				pid_update <= motor;
-				update_controller <= 1;
 				start_spi_transmission <= 1;
 				if(motor<NUMBER_OF_MOTORS) begin
 					motor <= motor + 1;
 				end else begin
 					motor <= 0;
 				end
+				update_controller <= 1;
 			end
 		end
 	
