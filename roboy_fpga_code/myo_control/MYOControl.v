@@ -231,7 +231,7 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 		// if a frequency is requested, a delay counter makes sure the next motor cycle will be delayed accordingly
 		if(update_frequency>0) begin
 			if(spi_done_prev==0 && spi_done) begin
-				if(motor<(NUMBER_OF_MOTORS-2)) begin
+				if(motor<(NUMBER_OF_MOTORS-1)) begin
 					motor <= motor + 1;
 					start_spi_transmission <= 1;
 				end
@@ -239,7 +239,7 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 			if(delay_counter>0) begin
 				delay_counter <= delay_counter-1;
 			end else begin
-				if(spi_done && motor>=(NUMBER_OF_MOTORS-2)) begin
+				if(spi_done && motor>=(NUMBER_OF_MOTORS-1)) begin
 					motor <= 0;
 					delay_counter <= CLOCK_SPEED_HZ/update_frequency;
 					start_spi_transmission <= 1; 
