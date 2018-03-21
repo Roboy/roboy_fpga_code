@@ -96,7 +96,10 @@ reg [31:0] data_wd;
 reg [4:0] gpio_set;
 reg read_only;
 
-assign gpio = gpio_set[2:0];
+assign gpio[2] = gpio_set[2]?1:1'bz;
+assign gpio[1] = gpio_set[1]?1:1'bz;
+assign gpio[0] = gpio_set[0]?1:1'bz;
+
 reg [7:0] read_counter;
 
 assign readdata = 
