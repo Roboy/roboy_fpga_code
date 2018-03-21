@@ -98,7 +98,7 @@ module MYOControl (
 	output sck
 );
 
-parameter NUMBER_OF_MOTORS = 7 ;
+parameter NUMBER_OF_MOTORS = 6 ;
 parameter CLOCK_SPEED_HZ = 50_000_000;
 
 // gains and shit
@@ -150,8 +150,8 @@ reg [31:0] update_frequency;
 reg [31:0] delay_counter;
 
 // the following iterface handles read requests via lightweight axi bridge
-// the upper 8 bit off the read address define which value we want to read
-// the lower 8 bit off the read address define for which motor
+// the upper 8 bit of the read address define which value we want to read
+// the lower 8 bit of the read address define for which motor
 always @(posedge clock, posedge reset) begin: AVALON_READ_INTERFACE
 	if (reset == 1) begin
 		waitFlag <= 1;
@@ -204,19 +204,31 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 		delay_counter <= 0;
 		update_frequency <= 0;
 	end else begin
+		// toggle registers need to be set to zero at every clock cycle
 		update_controller <= 0;
 		start_spi_transmission <= 0;
+		reset_myo_control <= 0;
+		for(i=0; i<NUMBER_OF_MOTORS; i = i+1) begin : reset_reset_controller
+			reset_controller[i] <= 0;
+		end
+		// for rising edge detection of spi done
 		spi_done_prev <= spi_done;
 		
+		// when spi is done, latch the received values for the current motor and toggle PID controller update of previous motor
 		if(spi_done_prev==0 && spi_done) begin
 			positions[motor][31:0] <= position[0:31];
 			velocitys[motor][15:0] <= velocity[0:15];
 			currents[motor][15:0] <= current[0:15];
 			displacements[motor][15:0] <= displacement[0:15];
-			pid_update <= motor;
-			update_controller <= 1;
+			if(motor==0) begin // lazy update (we are updating the controller following the current spi transmission)
+				pid_update <= NUMBER_OF_MOTORS-1; 
+			end else begin
+				pid_update <= motor-1;
+			end
+			update_controller <= 1; 
 		end
 		
+		// if a frequency is requested, a delay counter makes sure the next motor cycle will be delayed accordingly
 		if(update_frequency>0) begin
 			if(spi_done_prev==0 && spi_done) begin
 				if(motor<(NUMBER_OF_MOTORS-1)) begin
@@ -234,21 +246,15 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 				end
 			end
 		end else begin
+			// update as fast as possible
 			if(spi_done_prev==0 && spi_done) begin
 				start_spi_transmission <= 1;
-				if(motor<NUMBER_OF_MOTORS) begin
+				if(motor<NUMBER_OF_MOTORS-1) begin
 					motor <= motor + 1;
 				end else begin
 					motor <= 0;
 				end
-				update_controller <= 1;
 			end
-		end
-	
-		reset_myo_control <= 0;
-		
-		for(i=0; i<NUMBER_OF_MOTORS; i = i+1) begin : reset_reset_controller
-			reset_controller[i] <= 0;
 		end
 	
 		// if we are writing via avalon bus and waitrequest is deasserted, write the respective register
@@ -287,9 +293,10 @@ wire [0:15] displacement;
 wire signed [0:15] sensor1;
 wire signed [0:15] sensor2;
 
-// the pwmRef signal will be wired to the active motor pid controller output
+// the pwmRef signal is wired to the active motor pid controller output
 assign pwmRef = pwmRefs[motor];
 
+// control logic for handling myocontrol frame
 SpiControl spi_control(
 	.clock(clock),
 	.reset(reset_myo_control),
@@ -311,6 +318,7 @@ SpiControl spi_control(
 	.ss_n(ss_n)
 );
 
+// SPI specs: 2MHz, 16bit MSB, clock phase of 1
 spi_master #(16, 1'b0, 1'b1, 2, 5) spi(
 	.sclk_i(clock),
 	.pclk_i(clock),
@@ -327,6 +335,7 @@ spi_master #(16, 1'b0, 1'b1, 2, 5) spi(
 	.do_o(data_out[15:0])
 );
 
+// PID controller for NUMBER_OF_MOTORS
 genvar j;
 generate 
 	for(j=0; j<NUMBER_OF_MOTORS; j = j+1) begin : instantiate_pid_controllers
