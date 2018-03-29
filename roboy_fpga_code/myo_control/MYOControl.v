@@ -147,6 +147,7 @@ reg [31:0] returnvalue;
 reg waitFlag;
 
 reg [31:0] update_frequency;
+reg [31:0] actual_update_frequency;
 reg [31:0] delay_counter;
 
 // the following iterface handles read requests via lightweight axi bridge
@@ -175,7 +176,7 @@ always @(posedge clock, posedge reset) begin: AVALON_READ_INTERFACE
 				8'h0D: returnvalue <= currents[address[7:0]][15:0];
 				8'h0E: returnvalue <= displacements[address[7:0]][15:0];
 				8'h0F: returnvalue <= pwmRefs[address[7:0]][0:15];
-				8'h10: returnvalue <= update_frequency;
+				8'h10: returnvalue <= actual_update_frequency;
 				default: returnvalue <= 32'hDEADBEEF;
 			endcase
 			if(waitFlag==1) begin // next clock cycle the returnvalue should be ready
@@ -196,6 +197,7 @@ reg [7:0] pid_update;
 always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 	reg spi_done_prev; 
 	reg [7:0]i;
+	reg [31:0] counter;
 	if (reset == 1) begin
 		reset_myo_control <= 0;
 		spi_activated <= 0;
@@ -203,6 +205,7 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 		spi_done_prev <= 0;
 		delay_counter <= 0;
 		update_frequency <= 0;
+		counter <= 0;
 	end else begin
 		// toggle registers need to be set to zero at every clock cycle
 		update_controller <= 0;
@@ -213,6 +216,9 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 		end
 		// for rising edge detection of spi done
 		spi_done_prev <= spi_done;
+		
+		// increment counter, will be used to calculate actual update frequency
+		counter <= counter + 1;
 		
 		// when spi is done, latch the received values for the current motor and toggle PID controller update of previous motor
 		if(spi_done_prev==0 && spi_done) begin
@@ -242,6 +248,8 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 				if(spi_done && motor>=(NUMBER_OF_MOTORS-1)) begin
 					motor <= 0;
 					delay_counter <= CLOCK_SPEED_HZ/update_frequency;
+					actual_update_frequency <= CLOCK_SPEED_HZ/counter;
+					counter <= 0;
 					start_spi_transmission <= 1; 
 				end
 			end
@@ -253,6 +261,8 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 					motor <= motor + 1;
 				end else begin
 					motor <= 0;
+					actual_update_frequency <= CLOCK_SPEED_HZ/counter;
+					counter <= 0;
 				end
 			end
 		end
