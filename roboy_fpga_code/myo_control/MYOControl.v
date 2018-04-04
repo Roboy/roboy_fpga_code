@@ -21,7 +21,7 @@
 // [8'h0D 8'h(motor)]         [int16] current - motor current
 // [8'h0E 8'h(motor)]         [int16] displacement - spring displacement
 // [8'h0F 8'h(motor)]         [int16] pwmRef - output of PID controller
-// [8'h10 8'hz]               [int32] update_frequency - update frequency between pid an motor board
+// [8'h10 8'hz]               [uint32] update_frequency - update frequency between pid an motor board
 //
 // Through the axi bridge, the following values can be WRITTEN
 //	address            -----   [type] value
@@ -142,7 +142,7 @@ reg [15:0] displacements[NUMBER_OF_MOTORS-1:0];
 
 
 assign readdata = returnvalue;
-assign waitrequest = (waitFlag && read) || update_controller;
+assign waitrequest = (waitFlag && read);
 reg [31:0] returnvalue;
 reg waitFlag;
 
