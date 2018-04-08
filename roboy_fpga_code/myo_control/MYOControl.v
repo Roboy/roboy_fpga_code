@@ -95,7 +95,8 @@ module MYOControl (
 	output [NUMBER_OF_MOTORS-1:0] ss_n_o,
 	input miso,
 	output mosi,
-	output sck
+	output sck,
+	input mirrored_muscle_unit
 );
 
 parameter NUMBER_OF_MOTORS = 6 ;
@@ -367,6 +368,7 @@ generate
 			.velocity(velocitys[j]),
 			.displacement(displacements[j]),
 			.update_controller(pid_update==j && update_controller),
+			.mirrored_muscle_unit(mirrored_muscle_unit),
 			.pwmRef(pwmRefs[j])
 		);
 		assign ss_n_o[j] = (motor==j?ss_n:1);
