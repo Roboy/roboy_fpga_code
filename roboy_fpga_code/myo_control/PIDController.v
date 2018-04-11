@@ -54,7 +54,6 @@ module PIDController (
 	input signed [15:0] velocity,
 	input wire [15:0] displacement,
 	input update_controller,
-	input mirrored_muscle_unit,
 	output reg signed [15:0] pwmRef
 	);
 
@@ -85,28 +84,15 @@ always @(posedge clock, posedge reset) begin: PID_CONTROLLER_PID_CONTROLLERLOGIC
 				2'b01: err = (sp - velocity);
 				2'b10: begin
 							displacement_for_real = $signed(displacement[14:0]);
-							if(mirrored_muscle_unit) begin
-								if(displacement_for_real>0) begin
-									displacement_offset = displacement_for_real;
-								end else begin
-									displacement_offset = 0;
-								end
-								if (sp<0) begin
-									err = (sp - (displacement_for_real+displacement_offset));
-								end else begin
-									err = 0;
-								end
-							end else begin 
-								if(displacement_for_real<0) begin
-									displacement_offset = displacement_for_real;
-								end else begin
-									displacement_offset = 0;
-								end
-								if (sp>0) begin
-									err = (sp - (displacement_for_real-displacement_offset));
-								end else begin
-									err = 0;
-								end
+							if(displacement_for_real<0) begin
+								displacement_offset = displacement_for_real;
+							end else begin
+								displacement_offset = 0;
+							end
+							if (sp>0) begin
+								err = (sp - (displacement_for_real-displacement_offset));
+							end else begin
+								err = 0;
 							end
 						end
 				default: err = 0;

@@ -143,7 +143,7 @@ reg [15:0] displacements[NUMBER_OF_MOTORS-1:0];
 
 
 assign readdata = returnvalue;
-assign waitrequest = (waitFlag && read);
+assign waitrequest = (waitFlag && read) || update_controller;
 reg [31:0] returnvalue;
 reg waitFlag;
 
@@ -226,7 +226,11 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 			positions[motor][31:0] <= position[0:31];
 			velocitys[motor][15:0] <= velocity[0:15];
 			currents[motor][15:0] <= current[0:15];
-			displacements[motor][15:0] <= displacement[0:15];
+			if(mirrored_muscle_unit) begin 
+				displacements[motor][15:0] <= (-1)*displacement[0:15];
+			end else begin
+				displacements[motor][15:0] <= displacement[0:15];
+			end
 			if(motor==0) begin // lazy update (we are updating the controller following the current spi transmission)
 				pid_update <= NUMBER_OF_MOTORS-1; 
 			end else begin
@@ -368,7 +372,6 @@ generate
 			.velocity(velocitys[j]),
 			.displacement(displacements[j]),
 			.update_controller(pid_update==j && update_controller),
-			.mirrored_muscle_unit(mirrored_muscle_unit),
 			.pwmRef(pwmRefs[j])
 		);
 		assign ss_n_o[j] = (motor==j?ss_n:1);
