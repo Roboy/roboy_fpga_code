@@ -22,6 +22,7 @@
 // [8'h0E 8'h(motor)]         [int16] displacement - spring displacement
 // [8'h0F 8'h(motor)]         [int16] pwmRef - output of PID controller
 // [8'h10 8'hz]               [uint32] update_frequency - update frequency between pid an motor board
+// [8'h11 8'hz]               [uint32] power_sense_n - power sense pin
 //
 // Through the axi bridge, the following values can be WRITTEN
 //	address            -----   [type] value
@@ -39,7 +40,7 @@
 // [8'h0B 8'hz]               [bool] reset_myo_control - reset
 // [8'h0C 8'hz]               [bool] spi_activated - toggles spi communication
 // [8'h0D 8'h(motor)]         [bool] reset_controller - resets individual PID controller
-// [8'h0E 8'hz]               [uint32] update_frequency - motor pid update frequency
+// [8'h0E 8'hz]               [bool] update_frequency - motor pid update frequency
 //
 // Features: 
 // * use the NUMBER_OF_MOTORS parameter to define how many motors are connected on one SPI bus (maximum 254)
@@ -96,7 +97,8 @@ module MYOControl (
 	input miso,
 	output mosi,
 	output sck,
-	input mirrored_muscle_unit
+	input mirrored_muscle_unit,
+	input power_sense_n
 );
 
 parameter NUMBER_OF_MOTORS = 6 ;
@@ -178,6 +180,7 @@ always @(posedge clock, posedge reset) begin: AVALON_READ_INTERFACE
 				8'h0E: returnvalue <= displacements[address[7:0]][15:0];
 				8'h0F: returnvalue <= pwmRefs[address[7:0]][0:15];
 				8'h10: returnvalue <= actual_update_frequency;
+				8'h11: returnvalue <= power_sense_n;
 				default: returnvalue <= 32'hDEADBEEF;
 			endcase
 			if(waitFlag==1) begin // next clock cycle the returnvalue should be ready
@@ -311,6 +314,28 @@ wire signed [0:15] sensor2;
 // the pwmRef signal is wired to the active motor pid controller output
 assign pwmRef = pwmRefs[motor];
 
+reg spi_enable;
+always @(posedge clock, posedge reset) begin: power_sense_n_LOGIC
+	reg power_sense_n_prev;
+	reg [31:0] spi_enable_counter;
+	if (reset == 1) begin
+		spi_enable_counter <= 0;
+		spi_enable <= 0;
+	end else begin
+		if(power_sense_n==0) begin // if power on and delay not reached yet, we count
+			if(spi_enable_counter<100000000) begin 
+				spi_enable_counter <= spi_enable_counter + 1;
+			end else begin
+				spi_enable <= 1;
+			end
+		end else begin 
+			spi_enable_counter <= 0;
+			spi_enable <= 0;
+		end
+	end
+end
+
+
 // control logic for handling myocontrol frame
 SpiControl spi_control(
 	.clock(clock),
@@ -374,7 +399,7 @@ generate
 			.update_controller(pid_update==j && update_controller),
 			.pwmRef(pwmRefs[j])
 		);
-		assign ss_n_o[j] = (motor==j?ss_n:1);
+		assign ss_n_o[j] = (motor==j?(ss_n || spi_enable==1):1);
 	end
 endgenerate 
 
