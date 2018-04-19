@@ -399,7 +399,7 @@ generate
 			.update_controller(pid_update==j && update_controller),
 			.pwmRef(pwmRefs[j])
 		);
-		assign ss_n_o[j] = (motor==j?(ss_n || spi_enable==1):1);
+		assign ss_n_o[j] = (motor==j?(ss_n || spi_enable==0):1);
 	end
 endgenerate 
 
