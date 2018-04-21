@@ -98,7 +98,8 @@ module MYOControl (
 	output mosi,
 	output sck,
 	input mirrored_muscle_unit,
-	input power_sense_n
+	input power_sense_n,
+	output gpio_n
 );
 
 parameter NUMBER_OF_MOTORS = 6 ;
@@ -142,6 +143,7 @@ reg signed [15:0] velocitys[NUMBER_OF_MOTORS-1:0];
 reg signed [15:0] currents[NUMBER_OF_MOTORS-1:0];
 // displacements of the springs
 reg [15:0] displacements[NUMBER_OF_MOTORS-1:0];
+reg [15:0] displacement_offsets[NUMBER_OF_MOTORS-1:0];
 
 
 assign readdata = returnvalue;
@@ -180,7 +182,8 @@ always @(posedge clock, posedge reset) begin: AVALON_READ_INTERFACE
 				8'h0E: returnvalue <= displacements[address[7:0]][15:0];
 				8'h0F: returnvalue <= pwmRefs[address[7:0]][0:15];
 				8'h10: returnvalue <= actual_update_frequency;
-				8'h11: returnvalue <= power_sense_n;
+				8'h11: returnvalue <= (power_sense_n==0); // active low
+				8'h12: returnvalue <= gpio_enable;
 				default: returnvalue <= 32'hDEADBEEF;
 			endcase
 			if(waitFlag==1) begin // next clock cycle the returnvalue should be ready
@@ -194,6 +197,8 @@ reg reset_myo_control;
 reg spi_activated;
 reg update_controller;
 reg start_spi_transmission;
+reg gpio_enable;
+assign gpio_n = !gpio_enable;
 	
 reg [7:0] motor;
 reg [7:0] pid_update;
@@ -202,6 +207,8 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 	reg spi_done_prev; 
 	reg [7:0]i;
 	reg [31:0] counter;
+	reg [31:0] spi_enable_counter;
+	reg spi_enable;
 	if (reset == 1) begin
 		reset_myo_control <= 0;
 		spi_activated <= 0;
@@ -210,6 +217,8 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 		delay_counter <= 0;
 		update_frequency <= 0;
 		counter <= 0;
+		spi_enable_counter <= 0;
+		spi_enable <= 0;
 	end else begin
 		// toggle registers need to be set to zero at every clock cycle
 		update_controller <= 0;
@@ -230,8 +239,16 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 			velocitys[motor][15:0] <= velocity[0:15];
 			currents[motor][15:0] <= current[0:15];
 			if(mirrored_muscle_unit) begin 
-				displacements[motor][15:0] <= (-1)*displacement[0:15];
+//				if(position[0:31]<0 && ((-1)*displacement[0:15])>0) begin // this fixes the displacement sensor missing some encoder ticks
+//					displacement_offsets[motor][15:0] <= (-1)*displacement[0:15];
+//				end
+//				- displacement_offsets[motor][15:0];
+				displacements[motor][15:0] <= (-1)*displacement[0:15]; 
 			end else begin
+//				if(position[0:31]<0 && displacement[0:15]>0) begin
+//					displacement_offsets[motor][15:0] <= displacement[0:15] ;
+//				end
+//				 - displacement_offsets[motor][15:0];
 				displacements[motor][15:0] <= displacement[0:15];
 			end
 			if(motor==0) begin // lazy update (we are updating the controller following the current spi transmission)
@@ -294,8 +311,22 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 					8'h0C: spi_activated <= (writedata!=0);
 					8'h0D: reset_controller[address[7:0]] <= (writedata!=0);
 					8'h0E: update_frequency <= writedata;
+					8'h0F: gpio_enable <= (writedata!=0);
 				endcase
 			end
+		end
+		
+		if(power_sense_n==0) begin // if power on and delay not reached yet, we count
+			if(spi_enable_counter<150000000) begin 
+				spi_enable_counter <= spi_enable_counter + 1;
+				reset_myo_control <= 1;
+			end else begin
+				reset_myo_control <= 0;
+				spi_activated <= 1;
+			end
+		end else begin 
+			spi_enable_counter <= 0;
+			reset_myo_control <= 1;
 		end
 	end 
 end
@@ -313,28 +344,6 @@ wire signed [0:15] sensor2;
 
 // the pwmRef signal is wired to the active motor pid controller output
 assign pwmRef = pwmRefs[motor];
-
-reg spi_enable;
-always @(posedge clock, posedge reset) begin: power_sense_n_LOGIC
-	reg power_sense_n_prev;
-	reg [31:0] spi_enable_counter;
-	if (reset == 1) begin
-		spi_enable_counter <= 0;
-		spi_enable <= 0;
-	end else begin
-		if(power_sense_n==0) begin // if power on and delay not reached yet, we count
-			if(spi_enable_counter<100000000) begin 
-				spi_enable_counter <= spi_enable_counter + 1;
-			end else begin
-				spi_enable <= 1;
-			end
-		end else begin 
-			spi_enable_counter <= 0;
-			spi_enable <= 0;
-		end
-	end
-end
-
 
 // control logic for handling myocontrol frame
 SpiControl spi_control(
@@ -399,7 +408,7 @@ generate
 			.update_controller(pid_update==j && update_controller),
 			.pwmRef(pwmRefs[j])
 		);
-		assign ss_n_o[j] = (motor==j?(ss_n || spi_enable==0):1);
+		assign ss_n_o[j] = (motor==j?ss_n:1);
 	end
 endgenerate 
 
