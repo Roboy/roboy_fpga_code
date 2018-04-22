@@ -23,6 +23,10 @@
 // [8'h0F 8'h(motor)]         [int16] pwmRef - output of PID controller
 // [8'h10 8'hz]               [uint32] update_frequency - update frequency between pid an motor board
 // [8'h11 8'hz]               [uint32] power_sense_n - power sense pin
+// [8'h12 8'hz]               [bool ]gpio_enable - gpio status
+// [8'h13 8'h(motor)]         [uin16_t] angle - myo brick motor angle
+// [8'h14 8'hz]               [uint32] myo_brick  -myo_brick enable mask
+// [8'h15 8'h(motor)]         [uint8_t] myo_brick_device_id - myo brick i2c device id
 //
 // Through the axi bridge, the following values can be WRITTEN
 //	address            -----   [type] value
@@ -41,7 +45,9 @@
 // [8'h0C 8'hz]               [bool] spi_activated - toggles spi communication
 // [8'h0D 8'h(motor)]         [bool] reset_controller - resets individual PID controller
 // [8'h0E 8'hz]               [bool] update_frequency - motor pid update frequency
-//
+// [8'h0F 8'hz]               [bool] gpio_enable - controls the gpio 
+// [8'h10 8'hz]               [uint32] myo_brics - bit mask for indicating which muscle is a myoBrick
+// [8'h11 8'h(motor)]         [uint8] myo_brick_device_id - i2c device id for reading the motor angle
 // Features: 
 // * use the NUMBER_OF_MOTORS parameter to define how many motors are connected on one SPI bus (maximum 254)
 // * use the update_frequency to define at what rate the motors should be controlled
@@ -99,7 +105,9 @@ module MYOControl (
 	output sck,
 	input mirrored_muscle_unit,
 	input power_sense_n,
-	output gpio_n
+	output gpio_n,
+	output scl,
+	inout sda
 );
 
 parameter NUMBER_OF_MOTORS = 6 ;
@@ -145,6 +153,11 @@ reg signed [15:0] currents[NUMBER_OF_MOTORS-1:0];
 reg [15:0] displacements[NUMBER_OF_MOTORS-1:0];
 reg [15:0] displacement_offsets[NUMBER_OF_MOTORS-1:0];
 
+reg [NUMBER_OF_MOTORS-1:0] myo_brick;
+reg [6:0] myo_brick_device_id[NUMBER_OF_MOTORS-1:0];
+wire [31:0] angle[NUMBER_OF_MOTORS-1:0];
+wire [31:0] status[NUMBER_OF_MOTORS-1:0];
+
 
 assign readdata = returnvalue;
 assign waitrequest = (waitFlag && read) || update_controller;
@@ -184,6 +197,9 @@ always @(posedge clock, posedge reset) begin: AVALON_READ_INTERFACE
 				8'h10: returnvalue <= actual_update_frequency;
 				8'h11: returnvalue <= (power_sense_n==0); // active low
 				8'h12: returnvalue <= gpio_enable;
+				8'h13: returnvalue <= angle[address[7:0]][31:0];
+				8'h14: returnvalue <= myo_brick;
+				8'h15: returnvalue <= myo_brick_device_id[address[7:0]][6:0];
 				default: returnvalue <= 32'hDEADBEEF;
 			endcase
 			if(waitFlag==1) begin // next clock cycle the returnvalue should be ready
@@ -219,6 +235,7 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 		counter <= 0;
 		spi_enable_counter <= 0;
 		spi_enable <= 0;
+		myo_brick <= 0;
 	end else begin
 		// toggle registers need to be set to zero at every clock cycle
 		update_controller <= 0;
@@ -238,18 +255,14 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 			positions[motor][31:0] <= position[0:31];
 			velocitys[motor][15:0] <= velocity[0:15];
 			currents[motor][15:0] <= current[0:15];
-			if(mirrored_muscle_unit) begin 
-//				if(position[0:31]<0 && ((-1)*displacement[0:15])>0) begin // this fixes the displacement sensor missing some encoder ticks
-//					displacement_offsets[motor][15:0] <= (-1)*displacement[0:15];
-//				end
-//				- displacement_offsets[motor][15:0];
-				displacements[motor][15:0] <= (-1)*displacement[0:15]; 
+			if(~myo_brick[motor]) begin
+				if(mirrored_muscle_unit) begin 
+					displacements[motor][15:0] <= (-1)*displacement[0:15]; 
+				end else begin
+					displacements[motor][15:0] <= displacement[0:15];
+				end
 			end else begin
-//				if(position[0:31]<0 && displacement[0:15]>0) begin
-//					displacement_offsets[motor][15:0] <= displacement[0:15] ;
-//				end
-//				 - displacement_offsets[motor][15:0];
-				displacements[motor][15:0] <= displacement[0:15];
+				displacements[motor][15:0] <= angle[motor];
 			end
 			if(motor==0) begin // lazy update (we are updating the controller following the current spi transmission)
 				pid_update <= NUMBER_OF_MOTORS-1; 
@@ -294,7 +307,7 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 	
 		// if we are writing via avalon bus and waitrequest is deasserted, write the respective register
 		if(write && ~waitrequest) begin
-			if((address>>8)<=8'h0E && address[7:0]<NUMBER_OF_MOTORS) begin
+			if((address>>8)<=8'h11 && address[7:0]<NUMBER_OF_MOTORS) begin
 				case(address>>8)
 					8'h00: Kp[address[7:0]][15:0] <= writedata[15:0];
 					8'h01: Ki[address[7:0]][15:0] <= writedata[15:0];
@@ -312,6 +325,8 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 					8'h0D: reset_controller[address[7:0]] <= (writedata!=0);
 					8'h0E: update_frequency <= writedata;
 					8'h0F: gpio_enable <= (writedata!=0);
+					8'h10: myo_brick <= writedata;
+					8'h11: myo_brick_device_id[address[7:0]][6:0] <= writedata[6:0];
 				endcase
 			end
 		end
@@ -330,6 +345,46 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 		end
 	end 
 end
+
+reg read_angle;
+wire read_angle_done;
+reg [7:0] angle_motor_index;
+
+always @(posedge clock, posedge reset) begin: MYOBRICK_ANGLE_CONTROL_LOGIC
+	reg read_angle_done_prev;
+	if (reset == 1) begin
+		angle_motor_index <= 0;
+		read_angle_done_prev <= 0;
+	end else begin
+		read_angle_done_prev <= read_angle_done;
+		read_angle <= 0;
+		if(myo_brick[angle_motor_index]==1 && read_angle_done==1) begin
+			read_angle <= 1;
+		end
+		if((read_angle_done_prev==0 && read_angle_done==1) || myo_brick[angle_motor_index]==0) begin
+			if(angle_motor_index<NUMBER_OF_MOTORS-1) begin
+				angle_motor_index <= angle_motor_index + 1;
+			end else begin
+				angle_motor_index <= 0;
+			end
+		end
+	end 
+end
+
+A1335Control a1335(
+	.clock(clock),
+	.reset(reset),
+	.read_angle(read_angle),
+	.read_status(),
+	.sda(sda),
+	.scl(scl),
+//	.LED(LED[2:0]),
+	.device_id(myo_brick_device_id[angle_motor_index]),
+	.done(read_angle_done),
+	.angle(angle[angle_motor_index]),
+	.status(status[angle_motor_index])
+);
+
 
 wire di_req, wr_ack, do_valid, wren, spi_done, ss_n;
 wire [0:15] Word;
