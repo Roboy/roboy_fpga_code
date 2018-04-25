@@ -155,7 +155,7 @@ reg [15:0] displacement_offsets[NUMBER_OF_MOTORS-1:0];
 
 reg [NUMBER_OF_MOTORS-1:0] myo_brick;
 reg [6:0] myo_brick_device_id[NUMBER_OF_MOTORS-1:0];
-wire [31:0] angle[NUMBER_OF_MOTORS-1:0];
+wire [31:0] angle;
 wire [31:0] status[NUMBER_OF_MOTORS-1:0];
 
 
@@ -197,7 +197,7 @@ always @(posedge clock, posedge reset) begin: AVALON_READ_INTERFACE
 				8'h10: returnvalue <= actual_update_frequency;
 				8'h11: returnvalue <= (power_sense_n==0); // active low
 				8'h12: returnvalue <= gpio_enable;
-				8'h13: returnvalue <= angle[address[7:0]][31:0];
+				8'h13: returnvalue <= angle;
 				8'h14: returnvalue <= myo_brick;
 				8'h15: returnvalue <= myo_brick_device_id[address[7:0]][6:0];
 				default: returnvalue <= 32'hDEADBEEF;
@@ -262,7 +262,7 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 					displacements[motor][15:0] <= displacement[0:15];
 				end
 			end else begin
-				displacements[motor][15:0] <= angle[motor];
+				displacements[motor][15:0] <= angle;
 			end
 			if(motor==0) begin // lazy update (we are updating the controller following the current spi transmission)
 				pid_update <= NUMBER_OF_MOTORS-1; 
@@ -361,13 +361,13 @@ always @(posedge clock, posedge reset) begin: MYOBRICK_ANGLE_CONTROL_LOGIC
 		if(myo_brick[angle_motor_index]==1 && read_angle_done==1) begin
 			read_angle <= 1;
 		end
-		if((read_angle_done_prev==0 && read_angle_done==1) || myo_brick[angle_motor_index]==0) begin
-			if(angle_motor_index<NUMBER_OF_MOTORS-1) begin
-				angle_motor_index <= angle_motor_index + 1;
-			end else begin
-				angle_motor_index <= 0;
-			end
-		end
+//		if((read_angle_done_prev==0 && read_angle_done==1) || myo_brick[angle_motor_index]==0) begin
+//			if(angle_motor_index<NUMBER_OF_MOTORS-1) begin
+//				angle_motor_index <= angle_motor_index + 1;
+//			end else begin
+//				angle_motor_index <= 0;
+//			end
+//		end
 	end 
 end
 
@@ -381,7 +381,7 @@ A1335Control a1335(
 //	.LED(LED[2:0]),
 	.device_id(myo_brick_device_id[angle_motor_index]),
 	.done(read_angle_done),
-	.angle(angle[angle_motor_index]),
+	.angle(angle),
 	.status(status[angle_motor_index])
 );
 
