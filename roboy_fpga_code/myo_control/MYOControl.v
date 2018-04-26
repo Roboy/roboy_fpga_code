@@ -155,7 +155,7 @@ reg [15:0] displacement_offsets[NUMBER_OF_MOTORS-1:0];
 
 reg [NUMBER_OF_MOTORS-1:0] myo_brick;
 reg [6:0] myo_brick_device_id[NUMBER_OF_MOTORS-1:0];
-wire [31:0] angle;
+wire [15:0] angle;
 wire [31:0] status[NUMBER_OF_MOTORS-1:0];
 
 
@@ -197,7 +197,7 @@ always @(posedge clock, posedge reset) begin: AVALON_READ_INTERFACE
 				8'h10: returnvalue <= actual_update_frequency;
 				8'h11: returnvalue <= (power_sense_n==0); // active low
 				8'h12: returnvalue <= gpio_enable;
-				8'h13: returnvalue <= angle;
+				8'h13: returnvalue <= angle[15:0];
 				8'h14: returnvalue <= myo_brick;
 				8'h15: returnvalue <= myo_brick_device_id[address[7:0]][6:0];
 				default: returnvalue <= 32'hDEADBEEF;
