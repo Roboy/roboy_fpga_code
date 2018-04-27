@@ -110,7 +110,7 @@ module MYOControl (
 	inout sda
 );
 
-parameter NUMBER_OF_MOTORS = 6 ;
+parameter NUMBER_OF_MOTORS = 6;
 parameter CLOCK_SPEED_HZ = 50_000_000;
 
 // gains and shit
@@ -155,8 +155,8 @@ reg [15:0] displacement_offsets[NUMBER_OF_MOTORS-1:0];
 
 reg [NUMBER_OF_MOTORS-1:0] myo_brick;
 reg [6:0] myo_brick_device_id[NUMBER_OF_MOTORS-1:0];
-wire [15:0] angle;
-wire [31:0] status[NUMBER_OF_MOTORS-1:0];
+reg signed [31:0] motor_angle[NUMBER_OF_MOTORS-1:0];
+reg [31:0] status[NUMBER_OF_MOTORS-1:0];
 
 
 assign readdata = returnvalue;
@@ -197,7 +197,7 @@ always @(posedge clock, posedge reset) begin: AVALON_READ_INTERFACE
 				8'h10: returnvalue <= actual_update_frequency;
 				8'h11: returnvalue <= (power_sense_n==0); // active low
 				8'h12: returnvalue <= gpio_enable;
-				8'h13: returnvalue <= angle[15:0];
+				8'h13: returnvalue <= motor_angle[address[7:0]][31:0];
 				8'h14: returnvalue <= myo_brick;
 				8'h15: returnvalue <= myo_brick_device_id[address[7:0]][6:0];
 				default: returnvalue <= 32'hDEADBEEF;
@@ -262,7 +262,7 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 					displacements[motor][15:0] <= displacement[0:15];
 				end
 			end else begin
-				displacements[motor][15:0] <= angle;
+				displacements[motor][15:0] <= motor_angle[motor];
 			end
 			if(motor==0) begin // lazy update (we are updating the controller following the current spi transmission)
 				pid_update <= NUMBER_OF_MOTORS-1; 
@@ -348,28 +348,44 @@ end
 
 reg read_angle;
 wire read_angle_done;
-reg [7:0] angle_motor_index;
+integer angle_motor_index;
 
 always @(posedge clock, posedge reset) begin: MYOBRICK_ANGLE_CONTROL_LOGIC
 	reg read_angle_done_prev;
+	reg [11:0] motor_angle_prev[NUMBER_OF_MOTORS-1:0];
+	reg [7:0] motor_angle_counter[NUMBER_OF_MOTORS-1:0];
+	reg [7:0]i;
 	if (reset == 1) begin
 		angle_motor_index <= 0;
 		read_angle_done_prev <= 0;
+		for(i=0; i<NUMBER_OF_MOTORS; i = i+1) begin : reset_angle_counter
+			motor_angle_counter[i] <= 0;
+		end
 	end else begin
 		read_angle_done_prev <= read_angle_done;
 		read_angle <= 0;
 		if(myo_brick[angle_motor_index]==1 && read_angle_done==1) begin
 			read_angle <= 1;
 		end
-//		if((read_angle_done_prev==0 && read_angle_done==1) || myo_brick[angle_motor_index]==0) begin
-//			if(angle_motor_index<NUMBER_OF_MOTORS-1) begin
-//				angle_motor_index <= angle_motor_index + 1;
-//			end else begin
-//				angle_motor_index <= 0;
-//			end
-//		end
+		if((read_angle_done_prev==0 && read_angle_done==1) || myo_brick[angle_motor_index]==0) begin
+			if(motor_angle_prev[angle_motor_index]>4000 && angle < 230) begin
+				motor_angle_counter[angle_motor_index] <= motor_angle_counter[angle_motor_index] + 1;
+			end
+			if(motor_angle_prev[angle_motor_index]<230 && angle > 4000) begin
+				motor_angle_counter[angle_motor_index] <= motor_angle_counter[angle_motor_index] - 1;
+			end
+			motor_angle[angle_motor_index] <= angle + motor_angle_counter[angle_motor_index]*4095;
+			motor_angle_prev[angle_motor_index] <= angle;
+			if(angle_motor_index<NUMBER_OF_MOTORS-1) begin
+				angle_motor_index <= angle_motor_index + 1;
+			end else begin
+				angle_motor_index <= 0;
+			end
+		end
 	end 
 end
+
+wire [15:0] angle;
 
 A1335Control a1335(
 	.clock(clock),

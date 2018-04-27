@@ -8,7 +8,7 @@ module A1335Control (
 	 output [2:0] LED,
 	 input [6:0] device_id,
 	 output reg done,
-	 output reg [15:0] angle,
+	 output reg [11:0] angle,
 	 output reg [31:0] status
 );
 
@@ -60,7 +60,7 @@ always @(posedge clock, posedge reset) begin: A1335_CONTROL_LOGIC
 					case(command_counter)
 						0: begin data_wd <= {8'h20, 8'h00, 16'h0000}; ena <= 1; number_of_bytes <= 3; end
 						1: begin 
-								angle <= data_read_fifo[31:16];
+								angle <= data_read_fifo[27:16];
 								fifo_read_ack <= 1;
 							end	
 						default: data_wd <= 0; 
