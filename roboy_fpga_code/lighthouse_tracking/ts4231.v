@@ -247,14 +247,17 @@ module ts4231 (
                   E_control <= 0;
                 end  
                 6: begin 
-                  state[0] <= RESET_COUNTERS;
-                  state[1] <= GO_TO_WATCH;
+                  S0_count <= 0;
+                  SLEEP_count <= 0;
+                  WATCH_count <= 0;
+                  S3_count <= 0;
+                  votes <= 0;
                 end  
                 7: begin
                   delay_counter <= CLK_SPEED/10000; // 100 us
                   state[0] <= DELAY;
                   state[1] <= CHECK_BUS;
-                  state[2] <= GO_TO_WATCH;  
+                  state[2] <= IDLE;  
                 end
               endcase
               command_counter <= command_counter + 1;
@@ -291,14 +294,17 @@ module ts4231 (
                   E_control <= 0;
                 end  
                 8: begin 
-                  state[0] <= RESET_COUNTERS;
-                  state[1] <= GO_TO_WATCH;
+                  S0_count <= 0;
+                  SLEEP_count <= 0;
+                  WATCH_count <= 0;
+                  S3_count <= 0;
+                  votes <= 0;
                 end  
                 9: begin
                   delay_counter <= CLK_SPEED/10000; // 100 us
                   state[0] <= DELAY;
                   state[1] <= CHECK_BUS;
-                  state[2] <= GO_TO_WATCH;  
+                  state[2] <= IDLE;  
                 end
               endcase
               command_counter <= command_counter + 1;
