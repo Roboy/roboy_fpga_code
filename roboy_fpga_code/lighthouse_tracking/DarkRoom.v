@@ -46,8 +46,10 @@ module DarkRoom(
 	input read,
 	output signed [31:0] readdata,
 	output waitrequest,
-	// those are the sensor signals
-	input [NUMBER_OF_SENSORS-1:0]sensor_signals_i,
+	// those are the sensor data lines
+	input [NUMBER_OF_SENSORS-1:0]D_i,
+	// those are the sensor envelope lines
+	input [NUMBER_OF_SENSORS-1:0]E_i,
 	// this is a debug connection(triggers SPI transmission when there are no sensors connected)
 	input trigger_me,
 	output [NUMBER_OF_SENSORS-1:0]sync_o,
@@ -58,6 +60,8 @@ module DarkRoom(
 );
 
 parameter ENABLE_SPI_TRANSMITTER = 0;
+parameter NUMBER_OF_SENSORS = 8 ;
+parameter CLK_SPEED = 50_000_000 ;
 
 assign readdata = sensor_data_avalon;
 assign waitrequest = waitFlag;
@@ -88,11 +92,11 @@ always @(posedge clock, negedge reset_n) begin: AVALON_READ_INTERFACE
 	end
 end
 
-parameter NUMBER_OF_SENSORS = 8 ;
 localparam NUMBER_OF_SPI_FRAMES = (NUMBER_OF_SENSORS+8-1)/8; // ceil division to get eg 2 frames when using 15 sensors
 
 reg [255:0]sensor_data[NUMBER_OF_SPI_FRAMES-1:0] ;
 reg [NUMBER_OF_SENSORS-1:0] sync;
+reg [2:0] sensor_state[NUMBER_OF_SENSORS-1:0];
 assign sync_o = sync;
 
 genvar i,sensor_frame,sensor_counter;
@@ -101,9 +105,18 @@ generate
 	  localparam integer sensor_frame = i/8;
 	  localparam integer sensor_counter = i%8;
 	  localparam unsigned [9:0]sensor_id = i;
+	  
+	  ts4231 #(CLK_SPEED) sensor(
+		  .clk(clock),
+		  .rst(~reset_n),
+		  .D(D_i[i]),
+		  .E(E_i[i]),
+		  .sensor_STATE(sensor_state[i])
+		);
+	  
 	  lighthouse_sensor #(sensor_id) lighthouse_sensors(
 		.clk(clock),
-		.sensor(sensor_signals_i[i]),
+		.sensor(~E_i[i] && sensor_state[i]==3'b001), // activate envelope line when sensor is in watch state
 		.combined_data(sensor_data[sensor_frame][32*(sensor_counter+1)-1:32*sensor_counter]),
 		.sync(sync[i])
 	  );
