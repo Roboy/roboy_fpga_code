@@ -3,7 +3,10 @@ module ts4231 (
     input rst,  // reset
     inout D,
     inout E,
-    output wire [3:0] current_state
+    input continue,
+    output reg waiting,
+    output wire [2:0] sensor_STATE,
+    output wire [3:0] current_STATE
   );
   
   parameter CLK_SPEED = 50_000_000;
@@ -16,9 +19,11 @@ module ts4231 (
   
   assign D = D_control?D_out:1'bz;
   assign E = E_control?E_out:1'bz;
-  assign current_state = state[0];
+  assign current_STATE = state[0];
+  assign sensor_STATE = sensor_state;
   
   reg [3:0] state[3:0];
+  reg [2:0] sensor_state;
   always @(posedge clk) begin: TS4231_CONTROL_LOGIC
     reg [31:0] delay_counter;
     reg [7:0] command_counter;
@@ -29,11 +34,10 @@ module ts4231 (
     reg [1:0] SLEEP_count;
     reg [1:0] WATCH_count;
     reg [1:0] S3_count;
-    reg [2:0] sensor_state;
     reg [15:0] config_value;
     parameter IDLE  = 4'b0000, WAIT_FOR_LIGHT  = 4'b0001, CHECK_BUS = 4'b0010, RESET_COUNTERS = 4'b0011,
       DELAY = 4'b0100, READ_CONFIG = 4'b0101, CONFIG_DEVICE = 4'b0110, GO_TO_WATCH = 4'b0111,
-      WRITE_CONFIG = 4'b1000, WRITE_CONFIG_VALUE = 4'b1001;
+      WRITE_CONFIG = 4'b1000, WRITE_CONFIG_VALUE = 4'b1001, READ_CONFIG_VALUE = 4'b1010;
     parameter SLEEP_STATE = 3'b000, WATCH_STATE = 3'b001, S3_STATE = 3'b010, S0_STATE = 3'b011, UNKNOWN = 3'b100;
     parameter DATA = 2'b00, CLK_HIGH = 2'b01, CLK_LOW = 2'b10;
     if (rst) begin
@@ -43,6 +47,7 @@ module ts4231 (
       command_counter <= 0;
       votes <= 0;
       sensor_state <= S0_STATE;
+      waiting <= 0;
     end else begin
       case(state[0])
         IDLE: begin
@@ -51,7 +56,12 @@ module ts4231 (
         end
         WAIT_FOR_LIGHT: begin
           if(sensor_state!=S0_STATE) begin
-            state[0] <= state[3];
+            //if(continue) begin
+              state[0] <= state[3];
+            //  waiting <= 0;
+            //end else begin
+            //  waiting <= 1;
+            //end
           end else begin
             state[0] <= RESET_COUNTERS;
             state[1] <= CHECK_BUS;
@@ -83,7 +93,7 @@ module ts4231 (
                 S0_count <= S0_count + 1;
               end
             end
-            delay_counter <= CLK_SPEED/2000; // 500 us
+            delay_counter <= CLK_SPEED/1000000; // 1 us
             state[0] <= DELAY;
             state[1] <= CHECK_BUS;
             votes <= votes + 1;
@@ -171,7 +181,7 @@ module ts4231 (
               config_value <= 16'h392B;
               config_index <= 15;
               state[0] <= WRITE_CONFIG_VALUE;
-              config_state <= DATA;
+              config_state <= 0;
             end
             4: begin
                D_out <= 0;
@@ -186,8 +196,7 @@ module ts4231 (
               D_control <= 0;
               E_control <= 0;
               state[0] <= RESET_COUNTERS;
-              state[1] <= CHECK_BUS;
-              state[2] <= GO_TO_WATCH;
+              state[1] <= READ_CONFIG;
             end
             default: state[0] <= IDLE;
           endcase
@@ -196,26 +205,118 @@ module ts4231 (
         WRITE_CONFIG_VALUE: begin
           delay_counter <= CLK_SPEED/1000000; // 1 us
           state[0] <= DELAY;
-          state[1] <= WRITE_CONFIG_VALUE;
+          state[1] <= WRITE_CONFIG_VALUE;  
           case(config_state)
-            DATA: begin
+            0: begin
               if(config_index!=0) begin
-                command_counter <= command_counter + 1;   
                 D_out <= config_value[config_index-1];
                 config_index <= config_index -1;
-                config_state <= CLK_HIGH;
+                config_state <= config_state + 1;
               end else begin 
                 command_counter <= 4;
                 state[0] <= WRITE_CONFIG;
               end
             end
-            CLK_HIGH: begin
+            1: begin
               E_out <= 1;
-              config_state <= CLK_LOW;
+              config_state <= config_state + 1;
             end
-            CLK_LOW: begin
+            2: begin
               E_out <= 0;
-              config_state <= DATA;
+              config_state <= 0;
+            end
+          endcase
+        end
+        READ_CONFIG: begin
+          delay_counter <= CLK_SPEED/1000000; // 1 us
+          state[0] <= DELAY;
+          state[1] <= READ_CONFIG;
+          case(command_counter) 
+            0: begin
+              D_control <= 1;
+              E_control <= 1;
+              D_out <= 1;
+              E_out <= 1;
+            end
+            1: begin
+              D_out <= 0;
+            end
+            2: begin
+              E_out <= 0;
+            end
+            3: begin
+              D_out <= 1;
+            end
+            4: begin
+              E_out <= 1;
+            end
+            5: begin
+              D_control <= 0;
+            end
+            6: begin
+              E_out <= 0;
+            end
+            7: begin
+              config_value <= 0;
+              config_index <= 14;
+              state[0] <= READ_CONFIG_VALUE;
+              config_state <= 0;
+            end
+            8: begin
+               D_control <= 1;
+               D_out <= 0;
+            end
+            9: begin
+               E_out <= 1;
+            end
+            10: begin
+               D_out <= 1;
+            end
+            11: begin
+               D_control <= 0;
+               E_control <= 0;
+            end
+            12: begin
+              if(config_value!=16'h392B) begin
+                waiting <= 1;
+              end else begin
+                D_control <= 0;
+                E_control <= 0;
+                state[0] <= RESET_COUNTERS;
+                state[1] <= GO_TO_WATCH;
+              end
+            end
+            default: state[0] <= IDLE;
+          endcase
+          if(command_counter<12) begin
+            command_counter <= command_counter + 1; 
+          end
+        end
+        READ_CONFIG_VALUE: begin
+          delay_counter <= CLK_SPEED/1000000; // 1 us
+          case(config_state)
+            0: begin
+              E_out <= 1;
+              config_state <= config_state + 1;
+              state[0] <= DELAY;
+              state[1] <= READ_CONFIG_VALUE;  
+            end
+            1: begin
+              if(config_index!=0) begin
+                config_value[config_index-1] <= D;
+                config_index <= config_index - 1;
+                config_state <= config_state + 1;
+                state[0] <= READ_CONFIG_VALUE; 
+              end else begin 
+                command_counter <= 8;
+                state[0] <= READ_CONFIG;
+              end
+            end
+            2: begin
+              E_out <= 0;
+              config_state <= 0;
+              state[0] <= DELAY;
+              state[1] <= READ_CONFIG_VALUE;
             end
           endcase
         end
@@ -246,21 +347,22 @@ module ts4231 (
                 5: begin 
                   E_control <= 0;
                 end  
-                6: begin 
+                6: begin
+                  delay_counter <= CLK_SPEED/10000; // 100 us
+                  state[0] <= DELAY;
+                  state[1] <= CHECK_BUS;
+                  state[2] <= GO_TO_WATCH;  
+                  command_counter <= 0;
                   S0_count <= 0;
                   SLEEP_count <= 0;
                   WATCH_count <= 0;
                   S3_count <= 0;
                   votes <= 0;
-                end  
-                7: begin
-                  delay_counter <= CLK_SPEED/10000; // 100 us
-                  state[0] <= DELAY;
-                  state[1] <= CHECK_BUS;
-                  state[2] <= IDLE;  
                 end
               endcase
-              command_counter <= command_counter + 1;
+              if(command_counter<6) begin
+                command_counter <= command_counter + 1;
+              end
             end
             WATCH_STATE: begin
               state[0] <= IDLE;
@@ -293,21 +395,27 @@ module ts4231 (
                 7: begin 
                   E_control <= 0;
                 end  
-                8: begin 
-                  S0_count <= 0;
-                  SLEEP_count <= 0;
-                  WATCH_count <= 0;
-                  S3_count <= 0;
-                  votes <= 0;
-                end  
-                9: begin
-                  delay_counter <= CLK_SPEED/10000; // 100 us
-                  state[0] <= DELAY;
-                  state[1] <= CHECK_BUS;
-                  state[2] <= IDLE;  
+                8: begin
+                  //if(continue) begin
+                    delay_counter <= CLK_SPEED/10000; // 100 us
+                    state[0] <= DELAY;
+                    state[1] <= CHECK_BUS;
+                    state[2] <= IDLE;  
+                    command_counter <= 0;
+                    S0_count <= 0;
+                    SLEEP_count <= 0;
+                    WATCH_count <= 0;
+                    S3_count <= 0;
+                    votes <= 0;
+                    waiting <= 0;
+                  //end else begin
+                  //  waiting <= 1;
+                  //end
                 end
               endcase
-              command_counter <= command_counter + 1;
+              if(command_counter<8) begin
+                command_counter <= command_counter + 1;
+              end
             end
             default: state[1] <= IDLE;
           endcase
