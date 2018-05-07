@@ -110,7 +110,7 @@ end
 	
 reg [31:0] sensor_select;
 wire sensor;
-assign sensor = sensor_signals[sensor_select];
+assign sensor = ~sensor_signals[sensor_select];
 	
 wire [1:0] sync;
 wire uart_done;

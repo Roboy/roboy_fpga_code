@@ -24,9 +24,10 @@
 // [8'h10 8'hz]               [uint32] update_frequency - update frequency between pid an motor board
 // [8'h11 8'hz]               [uint32] power_sense_n - power sense pin
 // [8'h12 8'hz]               [bool ]gpio_enable - gpio status
-// [8'h13 8'h(motor)]         [uin16_t] angle - myo brick motor angle
-// [8'h14 8'hz]               [uint32] myo_brick  -myo_brick enable mask
-// [8'h15 8'h(motor)]         [uint8_t] myo_brick_device_id - myo brick i2c device id
+// [8'h13 8'h(motor)]         [uin16] angle - myo brick motor angle
+// [8'h14 8'hz]               [uint32] myo_brick - myo_brick enable mask
+// [8'h15 8'h(motor)]         [uint8] myo_brick_device_id - myo brick i2c device id
+// [8'h16 8'h(motor)]         [uint8] myo_brick_gear_box_ratio - myo brick gear box ratio
 //
 // Through the axi bridge, the following values can be WRITTEN
 //	address            -----   [type] value
@@ -46,8 +47,9 @@
 // [8'h0D 8'h(motor)]         [bool] reset_controller - resets individual PID controller
 // [8'h0E 8'hz]               [bool] update_frequency - motor pid update frequency
 // [8'h0F 8'hz]               [bool] gpio_enable - controls the gpio 
-// [8'h10 8'hz]               [uint32] myo_brics - bit mask for indicating which muscle is a myoBrick
+// [8'h10 8'hz]               [uint32] myo_brick - bit mask for indicating which muscle is a myoBrick
 // [8'h11 8'h(motor)]         [uint8] myo_brick_device_id - i2c device id for reading the motor angle
+// [8'h12 8'h(motor)]         [uint8] myo_brick_gear_box_ratio - myo brick gear box ratio
 // Features: 
 // * use the NUMBER_OF_MOTORS parameter to define how many motors are connected on one SPI bus (maximum 254)
 // * use the update_frequency to define at what rate the motors should be controlled
@@ -155,7 +157,10 @@ reg [15:0] displacement_offsets[NUMBER_OF_MOTORS-1:0];
 
 reg [NUMBER_OF_MOTORS-1:0] myo_brick;
 reg [6:0] myo_brick_device_id[NUMBER_OF_MOTORS-1:0];
+reg unsigned [7:0] myo_brick_gear_box_ratio[NUMBER_OF_MOTORS-1:0];
+reg signed [31:0] motor_spring_angle[NUMBER_OF_MOTORS-1:0];
 reg signed [31:0] motor_angle[NUMBER_OF_MOTORS-1:0];
+reg signed [31:0] motor_angle_offset[NUMBER_OF_MOTORS-1:0];
 reg [31:0] status[NUMBER_OF_MOTORS-1:0];
 
 
@@ -200,6 +205,7 @@ always @(posedge clock, posedge reset) begin: AVALON_READ_INTERFACE
 				8'h13: returnvalue <= motor_angle[address[7:0]][31:0];
 				8'h14: returnvalue <= myo_brick;
 				8'h15: returnvalue <= myo_brick_device_id[address[7:0]][6:0];
+				8'h16: returnvalue <= myo_brick_gear_box_ratio[address[7:0]][7:0];
 				default: returnvalue <= 32'hDEADBEEF;
 			endcase
 			if(waitFlag==1) begin // next clock cycle the returnvalue should be ready
@@ -262,7 +268,7 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 					displacements[motor][15:0] <= displacement[0:15];
 				end
 			end else begin
-				displacements[motor][15:0] <= motor_angle[motor];
+				displacements[motor][15:0] <= motor_spring_angle[motor];
 			end
 			if(motor==0) begin // lazy update (we are updating the controller following the current spi transmission)
 				pid_update <= NUMBER_OF_MOTORS-1; 
@@ -307,7 +313,7 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 	
 		// if we are writing via avalon bus and waitrequest is deasserted, write the respective register
 		if(write && ~waitrequest) begin
-			if((address>>8)<=8'h11 && address[7:0]<NUMBER_OF_MOTORS) begin
+			if((address>>8)<=8'h12 && address[7:0]<NUMBER_OF_MOTORS) begin
 				case(address>>8)
 					8'h00: Kp[address[7:0]][15:0] <= writedata[15:0];
 					8'h01: Ki[address[7:0]][15:0] <= writedata[15:0];
@@ -327,6 +333,7 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 					8'h0F: gpio_enable <= (writedata!=0);
 					8'h10: myo_brick <= writedata;
 					8'h11: myo_brick_device_id[address[7:0]][6:0] <= writedata[6:0];
+					8'h12: myo_brick_gear_box_ratio[address[7:0]][7:0] <= writedata[7:0];
 				endcase
 			end
 		end
@@ -335,6 +342,11 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 			if(spi_enable_counter<150000000) begin 
 				spi_enable_counter <= spi_enable_counter + 1;
 				reset_myo_control <= 1;
+				for(i=0; i<NUMBER_OF_MOTORS; i = i+1) begin : reset_motor_angle_offset
+					if(myo_brick[i]) begin
+						motor_angle_offset[i] <= motor_angle[i];
+					end
+				end
 			end else begin
 				reset_myo_control <= 0;
 				spi_activated <= 1;
@@ -358,8 +370,9 @@ always @(posedge clock, posedge reset) begin: MYOBRICK_ANGLE_CONTROL_LOGIC
 	if (reset == 1) begin
 		angle_motor_index <= 0;
 		read_angle_done_prev <= 0;
-		for(i=0; i<NUMBER_OF_MOTORS; i = i+1) begin : reset_angle_counter
+		for(i=0; i<NUMBER_OF_MOTORS; i = i+1) begin : reset_angle_counter_set_default_ratio
 			motor_angle_counter[i] <= 0;
+			myo_brick_gear_box_ratio[i] <= 63;
 		end
 	end else begin
 		read_angle_done_prev <= read_angle_done;
@@ -368,13 +381,18 @@ always @(posedge clock, posedge reset) begin: MYOBRICK_ANGLE_CONTROL_LOGIC
 			read_angle <= 1;
 		end
 		if((read_angle_done_prev==0 && read_angle_done==1) || myo_brick[angle_motor_index]==0) begin
+			// the angle sensor has no internal rotation counter, therefore we gotta count over-/underflow on ower own
 			if(motor_angle_prev[angle_motor_index]>4000 && angle < 230) begin
 				motor_angle_counter[angle_motor_index] <= motor_angle_counter[angle_motor_index] + 1;
 			end
 			if(motor_angle_prev[angle_motor_index]<230 && angle > 4000) begin
 				motor_angle_counter[angle_motor_index] <= motor_angle_counter[angle_motor_index] - 1;
 			end
-			motor_angle[angle_motor_index] <= angle + motor_angle_counter[angle_motor_index]*4095;
+			// motor_angle_offset is set to the angle after power on of the motor boards
+			motor_angle[angle_motor_index] <= angle + motor_angle_counter[angle_motor_index]*4095+motor_angle_offset[angle_motor_index];
+			// division by gearbox ration gives encoder ticks 0-1023, times 4 scales to range of angle sensor
+			motor_spring_angle[angle_motor_index] <= (positions[angle_motor_index]/myo_brick_gear_box_ratio[angle_motor_index]*4)  
+														 - (angle + motor_angle_counter[angle_motor_index]*4095+motor_angle_offset[angle_motor_index]);
 			motor_angle_prev[angle_motor_index] <= angle;
 			if(angle_motor_index<NUMBER_OF_MOTORS-1) begin
 				angle_motor_index <= angle_motor_index + 1;

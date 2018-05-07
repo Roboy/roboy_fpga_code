@@ -47,9 +47,9 @@ module DarkRoom(
 	output signed [31:0] readdata,
 	output waitrequest,
 	// those are the sensor data lines
-	input [NUMBER_OF_SENSORS-1:0]D_i,
+	inout [NUMBER_OF_SENSORS-1:0]D_io,
 	// those are the sensor envelope lines
-	input [NUMBER_OF_SENSORS-1:0]E_i,
+	inout [NUMBER_OF_SENSORS-1:0]E_io,
 	// this is a debug connection(triggers SPI transmission when there are no sensors connected)
 	input trigger_me,
 	output [NUMBER_OF_SENSORS-1:0]sync_o,
@@ -109,14 +109,14 @@ generate
 	  ts4231 #(CLK_SPEED) sensor(
 		  .clk(clock),
 		  .rst(~reset_n),
-		  .D(D_i[i]),
-		  .E(E_i[i]),
+		  .D(D_io[i]),
+		  .E(E_io[i]),
 		  .sensor_STATE(sensor_state[i])
 		);
 	  
 	  lighthouse_sensor #(sensor_id) lighthouse_sensors(
 		.clk(clock),
-		.sensor(~E_i[i] && sensor_state[i]==3'b001), // activate envelope line when sensor is in watch state
+		.sensor(~E_io[i] && sensor_state[i]==3'b001), // activate envelope line when sensor is in watch state
 		.combined_data(sensor_data[sensor_frame][32*(sensor_counter+1)-1:32*sensor_counter]),
 		.sync(sync[i])
 	  );

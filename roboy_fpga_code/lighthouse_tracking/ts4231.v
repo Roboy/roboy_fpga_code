@@ -43,30 +43,33 @@ module ts4231 (
     if (rst) begin
       D_control <= 0;
       E_control <= 0;
-      state[0] <= WAIT_FOR_LIGHT;
+      state[0] <= IDLE;
       command_counter <= 0;
       votes <= 0;
-      sensor_state <= S0_STATE;
+      sensor_state <= UNKNOWN;
       waiting <= 0;
     end else begin
       case(state[0])
         IDLE: begin
-          //state[0] <= WAIT_FOR_LIGHT;
-          //state[3] <= IDLE;
+          state[0] <= RESET_COUNTERS;
+			 state[1] <= CHECK_BUS;
+			 state[2] <= WAIT_FOR_LIGHT;
         end
         WAIT_FOR_LIGHT: begin
-          if(sensor_state!=S0_STATE) begin
-            //if(continue) begin
-              state[0] <= state[3];
-            //  waiting <= 0;
-            //end else begin
-            //  waiting <= 1;
-            //end
-          end else begin
-            state[0] <= RESET_COUNTERS;
-            state[1] <= CHECK_BUS;
-            state[2] <= WAIT_FOR_LIGHT;
-            state[3] <= CONFIG_DEVICE;
+			 if(sensor_state==SLEEP_STATE) begin
+    					state[0] <= GO_TO_WATCH;
+    		 end  
+          if(sensor_state==WATCH_STATE) begin
+    					state[0] <= IDLE;
+    			end  
+      		if(sensor_state==S0_STATE) begin
+      				state[0] <= CONFIG_DEVICE;
+      		end  
+      		if(sensor_state==S3_STATE) begin
+      				state[0] <= GO_TO_WATCH;
+      		end
+          if(sensor_state==UNKNOWN) begin
+              state[0] <= IDLE;
           end
         end
         RESET_COUNTERS: begin
@@ -93,7 +96,7 @@ module ts4231 (
                 S0_count <= S0_count + 1;
               end
             end
-            delay_counter <= CLK_SPEED/1000000; // 1 us
+            delay_counter <= CLK_SPEED/2000; // 500 us
             state[0] <= DELAY;
             state[1] <= CHECK_BUS;
             votes <= votes + 1;
@@ -278,7 +281,7 @@ module ts4231 (
             end
             12: begin
               if(config_value!=16'h392B) begin
-                waiting <= 1;
+                state[0] <= IDLE;
               end else begin
                 D_control <= 0;
                 E_control <= 0;
@@ -407,7 +410,7 @@ module ts4231 (
                     WATCH_count <= 0;
                     S3_count <= 0;
                     votes <= 0;
-                    waiting <= 0;
+                  //  waiting <= 0;
                   //end else begin
                   //  waiting <= 1;
                   //end
