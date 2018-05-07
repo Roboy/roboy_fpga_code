@@ -242,6 +242,9 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 		spi_enable_counter <= 0;
 		spi_enable <= 0;
 		myo_brick <= 0;
+		for(i=0; i<NUMBER_OF_MOTORS; i = i+1) begin : reset_reset_controller
+			myo_brick_gear_box_ratio[i] <= 63;
+		end
 	end else begin
 		// toggle registers need to be set to zero at every clock cycle
 		update_controller <= 0;
@@ -372,7 +375,6 @@ always @(posedge clock, posedge reset) begin: MYOBRICK_ANGLE_CONTROL_LOGIC
 		read_angle_done_prev <= 0;
 		for(i=0; i<NUMBER_OF_MOTORS; i = i+1) begin : reset_angle_counter_set_default_ratio
 			motor_angle_counter[i] <= 0;
-			myo_brick_gear_box_ratio[i] <= 63;
 		end
 	end else begin
 		read_angle_done_prev <= read_angle_done;
@@ -389,10 +391,10 @@ always @(posedge clock, posedge reset) begin: MYOBRICK_ANGLE_CONTROL_LOGIC
 				motor_angle_counter[angle_motor_index] <= motor_angle_counter[angle_motor_index] - 1;
 			end
 			// motor_angle_offset is set to the angle after power on of the motor boards
-			motor_angle[angle_motor_index] <= angle + motor_angle_counter[angle_motor_index]*4095+motor_angle_offset[angle_motor_index];
+			motor_angle[angle_motor_index] <= angle + motor_angle_counter[angle_motor_index]*4096+motor_angle_offset[angle_motor_index];
 			// division by gearbox ration gives encoder ticks 0-1023, times 4 scales to range of angle sensor
 			motor_spring_angle[angle_motor_index] <= (positions[angle_motor_index]/myo_brick_gear_box_ratio[angle_motor_index]*4)  
-														 - (angle + motor_angle_counter[angle_motor_index]*4095+motor_angle_offset[angle_motor_index]);
+														 - (angle + motor_angle_counter[angle_motor_index]*4096+motor_angle_offset[angle_motor_index]);
 			motor_angle_prev[angle_motor_index] <= angle;
 			if(angle_motor_index<NUMBER_OF_MOTORS-1) begin
 				angle_motor_index <= angle_motor_index + 1;

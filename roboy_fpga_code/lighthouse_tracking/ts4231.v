@@ -3,8 +3,6 @@ module ts4231 (
     input rst,  // reset
     inout D,
     inout E,
-    input continue,
-    output reg waiting,
     output wire [2:0] sensor_STATE,
     output wire [3:0] current_STATE
   );
@@ -47,7 +45,6 @@ module ts4231 (
       command_counter <= 0;
       votes <= 0;
       sensor_state <= UNKNOWN;
-      waiting <= 0;
     end else begin
       case(state[0])
         IDLE: begin

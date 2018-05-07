@@ -101,19 +101,21 @@ assign sync_o = sync;
 
 genvar i,sensor_frame,sensor_counter;
 generate 
-	for(i=0; i<NUMBER_OF_SENSORS; i = i+1) begin : instantiate_lighthouse_sensors
-	  localparam integer sensor_frame = i/8;
-	  localparam integer sensor_counter = i%8;
-	  localparam unsigned [9:0]sensor_id = i;
-	  
-	  ts4231 #(CLK_SPEED) sensor(
+	for(i=0; i<NUMBER_OF_SENSORS; i = i+1) begin : instantiate_ts4231_configurators
+		ts4231 #(CLK_SPEED) sensor(
 		  .clk(clock),
 		  .rst(~reset_n),
 		  .D(D_io[i]),
 		  .E(E_io[i]),
 		  .sensor_STATE(sensor_state[i])
 		);
-	  
+	end
+endgenerate 
+generate 
+	for(i=0; i<NUMBER_OF_SENSORS; i = i+1) begin : instantiate_lighthouse_sensors
+	  localparam integer sensor_frame = i/8;
+	  localparam integer sensor_counter = i%8;
+	  localparam unsigned [9:0]sensor_id = i;
 	  lighthouse_sensor #(sensor_id) lighthouse_sensors(
 		.clk(clock),
 		.sensor(~E_io[i] && sensor_state[i]==3'b001), // activate envelope line when sensor is in watch state
