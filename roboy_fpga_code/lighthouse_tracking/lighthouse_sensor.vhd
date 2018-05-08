@@ -93,15 +93,7 @@ architecture baustein42 of lighthouse_sensor is
 	-- AXIS & LIGHTHOUSE ID
 	signal current_axis : std_logic := '0';
 	signal current_lighthouse_id : std_logic := '0';
-	
-	-- OOTX 
-	constant ootx_preamble : std_logic_vector(16 downto 0) := "00000000000000001";
-	signal ootx_shift_register : std_logic_vector(16 downto 0) := (others => '1');
 	signal data : std_logic;
-	signal ootx_state : unsigned (1 downto 0);
-	signal data_counter : std_logic_vector (8 downto 0) := (others => '0');
-	signal bit_counter : std_logic_vector (8 downto 0) := (others => '0');
-	signal payload_length : std_logic_vector (15 downto 0) := (others => '0');
 begin
 	
 	process(clk)
