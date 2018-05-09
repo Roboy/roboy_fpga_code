@@ -42,7 +42,7 @@ module DarkRoom(
 	input clock,
 	input reset_n,
 	// this is for the avalon interface
-	input [6:0] address,
+	input [8:0] address,
 	input read,
 	output signed [31:0] readdata,
 	output waitrequest,
@@ -74,17 +74,21 @@ always @(posedge clock, negedge reset_n) begin: AVALON_READ_INTERFACE
 	end else begin
 		waitFlag <= 1;
 		if(read) begin	
-			case(address%8)
-				0: sensor_data_avalon <= sensor_data[address/8][31:0];
-				1: sensor_data_avalon <= sensor_data[address/8][63:32];
-				2: sensor_data_avalon <= sensor_data[address/8][95:64];
-				3: sensor_data_avalon <= sensor_data[address/8][127:96];
-				4: sensor_data_avalon <= sensor_data[address/8][159:128];
-				5: sensor_data_avalon <= sensor_data[address/8][191:160];
-				6: sensor_data_avalon <= sensor_data[address/8][223:192];
-				7: sensor_data_avalon <= sensor_data[address/8][255:224];
-				default: sensor_data_avalon <= 0;
-			endcase
+			if(address[8]==0) begin // return sensor data
+				case(address%8)
+					0: sensor_data_avalon <= sensor_data[address/8][31:0];
+					1: sensor_data_avalon <= sensor_data[address/8][63:32];
+					2: sensor_data_avalon <= sensor_data[address/8][95:64];
+					3: sensor_data_avalon <= sensor_data[address/8][127:96];
+					4: sensor_data_avalon <= sensor_data[address/8][159:128];
+					5: sensor_data_avalon <= sensor_data[address/8][191:160];
+					6: sensor_data_avalon <= sensor_data[address/8][223:192];
+					7: sensor_data_avalon <= sensor_data[address/8][255:224];
+					default: sensor_data_avalon <= 0;
+				endcase
+			end else begin // return sensor state
+				sensor_data_avalon <= sensor_state[address[7:0]];
+			end
 			if(waitFlag==1) begin // after one clock cycle the sensor_data_avalon should be stable
 				waitFlag <= 0;
 			end
