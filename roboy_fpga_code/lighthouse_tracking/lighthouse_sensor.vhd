@@ -93,7 +93,7 @@ architecture baustein42 of lighthouse_sensor is
 	-- AXIS & LIGHTHOUSE ID
 	signal current_axis : std_logic := '0';
 	signal current_lighthouse_id : std_logic := '0';
-	signal data : std_logic;
+--	signal data : std_logic;
 begin
 	
 	process(clk)
@@ -215,53 +215,53 @@ begin
 								-- Not skipping, axis = 0, data = 0  
 								-- (max 67 microseconds * 50 clock speed = 3350, real time = 62.5 microseconds)
 								current_axis <= '0';
-								data <= '0';
+--								data <= '0';
 								
 							elsif (counter_from_last_rise < 3900) then							
 								-- Not skipping, axis = 1, data = 0  
 								-- (max 78 microseconds * 50 clock speed = 3900, real time = 72.9 microseconds)
 								current_axis <= '1';	
-								data <= '0';							
+--								data <= '0';							
 								
 							elsif (counter_from_last_rise < 4400) then	
 								-- Not skipping, axis = 0, data = 1  
 								-- (max 88 microseconds * 50 clock speed = 4400, real time = 83.3 microseconds)
 								current_axis <= '0';		
-								data <= '1';
+--								data <= '1';
 								
 							else	
 								-- Not skipping, axis = 1, data = 1  
 								-- (max 99 microseconds * 50 clock speed = 3350, real time = 93.8 microseconds)
 								current_axis <= '1';		
-								data <= '1';
+--								data <= '1';
 								
 							end if;
 							
 							sync <= '1';  -- spike the sync output to trigger data transmission to host
 							
 						else 						
-							-- SKIPPING  (real time = 104 or more microseconds)
-							if (counter_from_last_rise < 5450) then
-								-- skipping, axis = 0, data = 0  
-								-- (max 109 microseconds * 50 clock speed = 5450, real time = 104 microseconds)
-								data <= '0';
-								
-							elsif (counter_from_last_rise < 6000) then							
-								-- skipping, axis = 1, data = 0  
-								-- (max 120 microseconds * 50 clock speed = 6000, real time = 115 microseconds)
-								data <= '0';							
-								
-							elsif (counter_from_last_rise < 6500) then	
-								-- skipping, axis = 0, data = 1  
-								-- (max 130 microseconds * 50 clock speed = 6500, real time = 125 microseconds)
-								data <= '1';
-								
-							else	
-								-- skipping, axis = 1, data = 1  
-								-- (max 140 microseconds * 50 clock speed = 7000, real time = 135 microseconds)
-								data <= '1';
-								
-							end if;
+--							-- SKIPPING  (real time = 104 or more microseconds)
+--							if (counter_from_last_rise < 5450) then
+--								-- skipping, axis = 0, data = 0  
+--								-- (max 109 microseconds * 50 clock speed = 5450, real time = 104 microseconds)
+----								data <= '0';
+--								
+--							elsif (counter_from_last_rise < 6000) then							
+--								-- skipping, axis = 1, data = 0  
+--								-- (max 120 microseconds * 50 clock speed = 6000, real time = 115 microseconds)
+----								data <= '0';							
+--								
+--							elsif (counter_from_last_rise < 6500) then	
+--								-- skipping, axis = 0, data = 1  
+--								-- (max 130 microseconds * 50 clock speed = 6500, real time = 125 microseconds)
+----								data <= '1';
+--								
+--							else	
+--								-- skipping, axis = 1, data = 1  
+--								-- (max 140 microseconds * 50 clock speed = 7000, real time = 135 microseconds)
+----								data <= '1';
+--								
+--							end if;
 						
 						end if;
 					else

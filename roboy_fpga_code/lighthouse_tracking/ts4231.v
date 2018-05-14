@@ -22,7 +22,7 @@ module ts4231 (
   
   reg [3:0] state[3:0];
   reg [2:0] sensor_state;
-  always @(posedge clk) begin: TS4231_CONTROL_LOGIC
+  always @(posedge clk, posedge rst) begin: TS4231_CONTROL_LOGIC
     reg [31:0] delay_counter;
     reg [7:0] command_counter;
     reg [7:0] config_index;
