@@ -224,12 +224,12 @@ assign gpio_n = !gpio_enable;
 	
 reg [7:0] motor;
 reg [7:0] pid_update;
+reg [31:0] spi_enable_counter;
 	
 always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 	reg spi_done_prev; 
 	reg [7:0]i;
 	reg [31:0] counter;
-	reg [31:0] spi_enable_counter;
 	reg spi_enable;
 	if (reset == 1) begin
 		reset_myo_control <= 0;
@@ -384,17 +384,21 @@ always @(posedge clock, posedge reset) begin: MYOBRICK_ANGLE_CONTROL_LOGIC
 		end
 		if((read_angle_done_prev==0 && read_angle_done==1) || myo_brick[angle_motor_index]==0) begin
 			// the angle sensor has no internal rotation counter, therefore we gotta count over-/underflow on ower own
-			if(motor_angle_prev[angle_motor_index]>4000 && angle < 230) begin
-				motor_angle_counter[angle_motor_index] <= motor_angle_counter[angle_motor_index] + 1;
-			end
-			if(motor_angle_prev[angle_motor_index]<230 && angle > 4000) begin
-				motor_angle_counter[angle_motor_index] <= motor_angle_counter[angle_motor_index] - 1;
+			if(spi_enable_counter<150000000) begin // if spi is not enabled yet, reset the overflow counters
+				motor_angle_counter[angle_motor_index] <= 0;
+			end else begin
+				if(motor_angle_prev[angle_motor_index]>4000 && angle < 230) begin
+					motor_angle_counter[angle_motor_index] <= motor_angle_counter[angle_motor_index] + 1;
+				end
+				if(motor_angle_prev[angle_motor_index]<230 && angle > 4000) begin
+					motor_angle_counter[angle_motor_index] <= motor_angle_counter[angle_motor_index] - 1;
+				end
 			end
 			// motor_angle_offset is set to the angle after power on of the motor boards
-			motor_angle[angle_motor_index] <= angle + motor_angle_counter[angle_motor_index]*4096+motor_angle_offset[angle_motor_index];
+			motor_angle[angle_motor_index] <= angle;
 			// division by gearbox ration gives encoder ticks 0-1023, times 4 scales to range of angle sensor
-			motor_spring_angle[angle_motor_index] <= (positions[angle_motor_index]/myo_brick_gear_box_ratio[angle_motor_index]*4)  
-														 - (angle + motor_angle_counter[angle_motor_index]*4096+motor_angle_offset[angle_motor_index]);
+			motor_spring_angle[angle_motor_index] <= (angle - motor_angle_offset[angle_motor_index] + motor_angle_counter[angle_motor_index]*4096)
+																	- (positions[angle_motor_index]/myo_brick_gear_box_ratio[angle_motor_index]*4);
 			motor_angle_prev[angle_motor_index] <= angle;
 			if(angle_motor_index<NUMBER_OF_MOTORS-1) begin
 				angle_motor_index <= angle_motor_index + 1;
