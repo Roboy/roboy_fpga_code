@@ -155,15 +155,6 @@ reg signed [15:0] currents[NUMBER_OF_MOTORS-1:0];
 reg [15:0] displacements[NUMBER_OF_MOTORS-1:0];
 reg [15:0] displacement_offsets[NUMBER_OF_MOTORS-1:0];
 
-reg [NUMBER_OF_MOTORS-1:0] myo_brick;
-reg [6:0] myo_brick_device_id[NUMBER_OF_MOTORS-1:0];
-reg unsigned [7:0] myo_brick_gear_box_ratio[NUMBER_OF_MOTORS-1:0];
-reg signed [31:0] motor_spring_angle[NUMBER_OF_MOTORS-1:0];
-reg signed [31:0] motor_angle[NUMBER_OF_MOTORS-1:0];
-reg signed [31:0] motor_angle_offset[NUMBER_OF_MOTORS-1:0];
-reg [31:0] status[NUMBER_OF_MOTORS-1:0];
-
-
 assign readdata = returnvalue;
 assign waitrequest = (waitFlag && read) || update_controller;
 reg [31:0] returnvalue;
@@ -336,7 +327,7 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 					8'h0F: gpio_enable <= (writedata!=0);
 					8'h10: myo_brick <= writedata;
 					8'h11: myo_brick_device_id[address[7:0]][6:0] <= writedata[6:0];
-					8'h12: myo_brick_gear_box_ratio[address[7:0]][7:0] <= writedata[7:0];
+					8'h12: myo_brick_gear_box_ratio[address[7:0]][31:0] <= writedata[31:0];
 				endcase
 			end
 		end
@@ -345,11 +336,6 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 			if(spi_enable_counter<150000000) begin 
 				spi_enable_counter <= spi_enable_counter + 1;
 				reset_myo_control <= 1;
-				for(i=0; i<NUMBER_OF_MOTORS; i = i+1) begin : reset_motor_angle_offset
-					if(myo_brick[i]) begin
-						motor_angle_offset[i] <= motor_angle[i];
-					end
-				end
 			end else begin
 				reset_myo_control <= 0;
 				spi_activated <= 1;
@@ -361,19 +347,30 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 	end 
 end
 
+reg [NUMBER_OF_MOTORS-1:0] myo_brick;
+reg [6:0] myo_brick_device_id[NUMBER_OF_MOTORS-1:0];
+reg signed [31:0] myo_brick_gear_box_ratio[NUMBER_OF_MOTORS-1:0];
+reg signed [31:0] motor_spring_angle[NUMBER_OF_MOTORS-1:0];
+reg signed [31:0] motor_angle[NUMBER_OF_MOTORS-1:0];
+reg signed [31:0] motor_angle_offset[NUMBER_OF_MOTORS-1:0];
+reg [31:0] status[NUMBER_OF_MOTORS-1:0];
+
 reg read_angle;
 wire read_angle_done;
 integer angle_motor_index;
+wire [11:0] angle;
+wire signed [31:0] angle_signed;
+assign angle_signed = angle;
 
 always @(posedge clock, posedge reset) begin: MYOBRICK_ANGLE_CONTROL_LOGIC
 	reg read_angle_done_prev;
 	reg [11:0] motor_angle_prev[NUMBER_OF_MOTORS-1:0];
-	reg [7:0] motor_angle_counter[NUMBER_OF_MOTORS-1:0];
+	reg signed [31:0] motor_angle_counter[NUMBER_OF_MOTORS-1:0];
 	reg [7:0]i;
 	if (reset == 1) begin
 		angle_motor_index <= 0;
 		read_angle_done_prev <= 0;
-		for(i=0; i<NUMBER_OF_MOTORS; i = i+1) begin : reset_angle_counter_set_default_ratio
+		for(i=0; i<NUMBER_OF_MOTORS; i = i+1) begin : reset_angle_counter
 			motor_angle_counter[i] <= 0;
 		end
 	end else begin
@@ -384,21 +381,22 @@ always @(posedge clock, posedge reset) begin: MYOBRICK_ANGLE_CONTROL_LOGIC
 		end
 		if((read_angle_done_prev==0 && read_angle_done==1) || myo_brick[angle_motor_index]==0) begin
 			// the angle sensor has no internal rotation counter, therefore we gotta count over-/underflow on ower own
-			if(spi_enable_counter<150000000) begin // if spi is not enabled yet, reset the overflow counters
+			if(power_sense_n) begin // if power sense is off (high), reset the overflow counters
 				motor_angle_counter[angle_motor_index] <= 0;
+				motor_angle_offset[angle_motor_index] <= angle_signed;
 			end else begin
-				if(motor_angle_prev[angle_motor_index]>4000 && angle < 230) begin
+				if(motor_angle_prev[angle_motor_index]>3500 && angle < 500) begin
 					motor_angle_counter[angle_motor_index] <= motor_angle_counter[angle_motor_index] + 1;
 				end
-				if(motor_angle_prev[angle_motor_index]<230 && angle > 4000) begin
+				if(motor_angle_prev[angle_motor_index]<500 && angle > 3500) begin
 					motor_angle_counter[angle_motor_index] <= motor_angle_counter[angle_motor_index] - 1;
 				end
 			end
 			// motor_angle_offset is set to the angle after power on of the motor boards
-			motor_angle[angle_motor_index] <= angle;
-			// division by gearbox ration gives encoder ticks 0-1023, times 4 scales to range of angle sensor
-			motor_spring_angle[angle_motor_index] <= (angle - motor_angle_offset[angle_motor_index] + motor_angle_counter[angle_motor_index]*4096)
-																	- (positions[angle_motor_index]/myo_brick_gear_box_ratio[angle_motor_index]*4);
+			motor_angle[angle_motor_index] <= (angle_signed - motor_angle_offset[angle_motor_index] + motor_angle_counter[angle_motor_index]*4096); 
+			// division by gearbox ration gives encoder ticks 0-1023 , angle sensor divide by gives the same range
+			motor_spring_angle[angle_motor_index] <= (positions[angle_motor_index]/myo_brick_gear_box_ratio[angle_motor_index]) 
+																	- ((angle_signed - motor_angle_offset[angle_motor_index] + motor_angle_counter[angle_motor_index]*4096)/4);
 			motor_angle_prev[angle_motor_index] <= angle;
 			if(angle_motor_index<NUMBER_OF_MOTORS-1) begin
 				angle_motor_index <= angle_motor_index + 1;
@@ -408,8 +406,6 @@ always @(posedge clock, posedge reset) begin: MYOBRICK_ANGLE_CONTROL_LOGIC
 		end
 	end 
 end
-
-wire [15:0] angle;
 
 A1335Control a1335(
 	.clock(clock),
