@@ -53,6 +53,7 @@ module PIDController (
 	input signed [31:0] position,
 	input signed [15:0] velocity,
 	input wire [15:0] displacement,
+	input signed [31:0] outputDivider,
 	input update_controller,
 	output reg signed [15:0] pwmRef
 	);
@@ -110,7 +111,7 @@ always @(posedge clock, posedge reset) begin: PID_CONTROLLER_PID_CONTROLLERLOGIC
 				end
 				dterm = ((err - lastError) * Kd);
 				ffterm = (forwardGain * sp);
-				result = (((ffterm + pterm) + integral) + dterm);
+				result = (((ffterm + pterm) + integral) + dterm)/outputDivider;
 				if ((result < outputNegMax)) begin
 					 result = outputNegMax;
 				end else if ((result > outputPosMax)) begin

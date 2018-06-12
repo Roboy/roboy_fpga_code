@@ -27,7 +27,8 @@
 // [8'h13 8'h(motor)]         [uin16] angle - myo brick motor angle
 // [8'h14 8'hz]               [uint32] myo_brick - myo_brick enable mask
 // [8'h15 8'h(motor)]         [uint8] myo_brick_device_id - myo brick i2c device id
-// [8'h16 8'h(motor)]         [uint8] myo_brick_gear_box_ratio - myo brick gear box ratio
+// [8'h16 8'h(motor)]         [int32] myo_brick_gear_box_ratio - myo brick gear box ratio
+// [8'h17 8'h(motor)]         [int32] myo_brick_encoder_multiplier - myo brick encoder mulitiplier
 //
 // Through the axi bridge, the following values can be WRITTEN
 //	address            -----   [type] value
@@ -49,7 +50,8 @@
 // [8'h0F 8'hz]               [bool] gpio_enable - controls the gpio 
 // [8'h10 8'hz]               [uint32] myo_brick - bit mask for indicating which muscle is a myoBrick
 // [8'h11 8'h(motor)]         [uint8] myo_brick_device_id - i2c device id for reading the motor angle
-// [8'h12 8'h(motor)]         [uint8] myo_brick_gear_box_ratio - myo brick gear box ratio
+// [8'h12 8'h(motor)]         [int32] myo_brick_gear_box_ratio - myo brick gear box ratio
+// [8'h13 8'h(motor)]         [int32] myo_brick_encoder_multiplier - myo brick encoder mulitiplier
 // Features: 
 // * use the NUMBER_OF_MOTORS parameter to define how many motors are connected on one SPI bus (maximum 254)
 // * use the update_frequency to define at what rate the motors should be controlled
@@ -140,6 +142,8 @@ reg signed [15:0] deadBand[NUMBER_OF_MOTORS-1:0];
 reg [1:0] control_mode[NUMBER_OF_MOTORS-1:0];
 // reset pid_controller
 reg reset_controller[NUMBER_OF_MOTORS-1:0];
+// output divider
+reg signed [31:0] outputDivider[NUMBER_OF_MOTORS-1:0];
 
 // pwm output to motors 
 wire signed [0:15] pwmRefs[NUMBER_OF_MOTORS-1:0];
@@ -197,6 +201,8 @@ always @(posedge clock, posedge reset) begin: AVALON_READ_INTERFACE
 				8'h14: returnvalue <= myo_brick;
 				8'h15: returnvalue <= myo_brick_device_id[address[7:0]][6:0];
 				8'h16: returnvalue <= myo_brick_gear_box_ratio[address[7:0]][7:0];
+				8'h17: returnvalue <= myo_brick_encoder_multiplier[address[7:0]][31:0];
+				8'h18: returnvalue <= outputDivider[address[7:0]][31:0];
 				default: returnvalue <= 32'hDEADBEEF;
 			endcase
 			if(waitFlag==1) begin // next clock cycle the returnvalue should be ready
@@ -234,7 +240,9 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 		spi_enable <= 0;
 		myo_brick <= 0;
 		for(i=0; i<NUMBER_OF_MOTORS; i = i+1) begin : reset_reset_controller
-			myo_brick_gear_box_ratio[i] <= 63;
+			myo_brick_gear_box_ratio[i] <= 62;
+			myo_brick_encoder_multiplier[i] <= 1;
+			outputDivider[i] <= 1;
 		end
 	end else begin
 		// toggle registers need to be set to zero at every clock cycle
@@ -307,7 +315,7 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 	
 		// if we are writing via avalon bus and waitrequest is deasserted, write the respective register
 		if(write && ~waitrequest) begin
-			if((address>>8)<=8'h12 && address[7:0]<NUMBER_OF_MOTORS) begin
+			if((address>>8)<=8'h14 && address[7:0]<NUMBER_OF_MOTORS) begin
 				case(address>>8)
 					8'h00: Kp[address[7:0]][15:0] <= writedata[15:0];
 					8'h01: Ki[address[7:0]][15:0] <= writedata[15:0];
@@ -328,6 +336,8 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 					8'h10: myo_brick <= writedata;
 					8'h11: myo_brick_device_id[address[7:0]][6:0] <= writedata[6:0];
 					8'h12: myo_brick_gear_box_ratio[address[7:0]][31:0] <= writedata[31:0];
+					8'h13: myo_brick_encoder_multiplier[address[7:0]][31:0] <= writedata[31:0];
+					8'h14: outputDivider[address[7:0]][31:0] <= writedata[31:0];
 				endcase
 			end
 		end
@@ -350,6 +360,7 @@ end
 reg [NUMBER_OF_MOTORS-1:0] myo_brick;
 reg [6:0] myo_brick_device_id[NUMBER_OF_MOTORS-1:0];
 reg signed [31:0] myo_brick_gear_box_ratio[NUMBER_OF_MOTORS-1:0];
+reg signed [31:0] myo_brick_encoder_multiplier[NUMBER_OF_MOTORS-1:0];
 reg signed [31:0] motor_spring_angle[NUMBER_OF_MOTORS-1:0];
 reg signed [31:0] motor_angle[NUMBER_OF_MOTORS-1:0];
 reg signed [31:0] motor_angle_offset[NUMBER_OF_MOTORS-1:0];
@@ -394,8 +405,8 @@ always @(posedge clock, posedge reset) begin: MYOBRICK_ANGLE_CONTROL_LOGIC
 			end
 			// motor_angle_offset is set to the angle after power on of the motor boards
 			motor_angle[angle_motor_index] <= (angle_signed - motor_angle_offset[angle_motor_index] + motor_angle_counter[angle_motor_index]*4096); 
-			// division by gearbox ration gives encoder ticks 0-1023 , angle sensor divide by gives the same range
-			motor_spring_angle[angle_motor_index] <= (positions[angle_motor_index]/myo_brick_gear_box_ratio[angle_motor_index]) 
+			// division by gearbox ration gives encoder ticks, angle sensor divided by 4 gives the same range
+			motor_spring_angle[angle_motor_index] <= (positions[angle_motor_index]/myo_brick_gear_box_ratio[angle_motor_index])*myo_brick_encoder_multiplier[angle_motor_index] 
 																	- ((angle_signed - motor_angle_offset[angle_motor_index] + motor_angle_counter[angle_motor_index]*4096)/4);
 			motor_angle_prev[angle_motor_index] <= angle;
 			if(angle_motor_index<NUMBER_OF_MOTORS-1) begin
@@ -496,6 +507,7 @@ generate
 			.position(positions[j]),
 			.velocity(velocitys[j]),
 			.displacement(displacements[j]),
+			.outputDivider(outputDivider[j]),
 			.update_controller(pid_update==j && update_controller),
 			.pwmRef(pwmRefs[j])
 		);
