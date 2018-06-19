@@ -29,6 +29,7 @@
 // [8'h15 8'h(motor)]         [uint8] myo_brick_device_id - myo brick i2c device id
 // [8'h16 8'h(motor)]         [int32] myo_brick_gear_box_ratio - myo brick gear box ratio
 // [8'h17 8'h(motor)]         [int32] myo_brick_encoder_multiplier - myo brick encoder mulitiplier
+// [9'h18 8'h(motor)]		  [int32] outputDivider- PID output divider
 //
 // Through the axi bridge, the following values can be WRITTEN
 //	address            -----   [type] value
@@ -52,6 +53,7 @@
 // [8'h11 8'h(motor)]         [uint8] myo_brick_device_id - i2c device id for reading the motor angle
 // [8'h12 8'h(motor)]         [int32] myo_brick_gear_box_ratio - myo brick gear box ratio
 // [8'h13 8'h(motor)]         [int32] myo_brick_encoder_multiplier - myo brick encoder mulitiplier
+// [8'h14 8'h(motor)]         [int32] outputDivider- PID output divider
 // Features: 
 // * use the NUMBER_OF_MOTORS parameter to define how many motors are connected on one SPI bus (maximum 254)
 // * use the update_frequency to define at what rate the motors should be controlled
