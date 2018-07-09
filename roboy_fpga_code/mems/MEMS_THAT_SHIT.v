@@ -3,7 +3,7 @@ module MEMS_THAT_SHIT(
 	input reset,
 	output reg [31:0] address,
 	output reg write,
-	output reg [31:0] write_data,
+	output reg [7:0] write_data,
 	input waitrequest
 );
 
@@ -19,7 +19,7 @@ always @(posedge clock, posedge reset) begin: AVALON_WRITE_ONCHIP_INTERFACE
 		write <= 0;
 		case(onchip_state)
 			IDLE: begin
-						if(counter<4095) begin // if trigger me or if any sensor detects a non-skipping sweep 
+						if(counter<4095) begin // our onchip memory 
 							counter <= counter + 1;
 							address <= counter;
 							write_data <= counter;
