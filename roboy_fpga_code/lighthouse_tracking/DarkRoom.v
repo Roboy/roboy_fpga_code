@@ -63,7 +63,7 @@ module DarkRoom(
 parameter ENABLE_AVALON_INTERFACE = 1;
 parameter ENABLE_SPI_TRANSMITTER = 0;
 parameter NUMBER_OF_SENSORS = 8 ;
-parameter CLK_SPEED = 50_000_000 ;
+parameter CLK_SPEED = 16_000_000 ;
 
 generate 
 if(ENABLE_AVALON_INTERFACE!=0) begin
@@ -116,9 +116,9 @@ generate
 		localparam integer sensor_frame = i/8;
 		localparam integer sensor_counter = i%8;
 		localparam unsigned [9:0]sensor_id = i;
-		lighthouse_sensor #(sensor_id) lighthouse_sensors(
+		lighthouse_sensor #(sensor_id,CLK_SPEED) lighthouse_sensors(
 			.clk(clock),
-			.sensor((~E_io[i]) && sensor_states[i]==3'b001), // activate envelope line when sensor is in watch state
+			.sensor((~E_io[i]) && watch_state[i]), // activate envelope line when sensor is in watch state
 			.combined_data(sensor_data[sensor_frame][32*(sensor_counter+1)-1:32*sensor_counter]),
 			.sync(sync[i])
 		);
@@ -128,6 +128,7 @@ endgenerate
 reg [2:0] sensor_states[NUMBER_OF_SENSORS-1:0];
 reg [3:0] current_states[NUMBER_OF_SENSORS-1:0];
 
+wire [NUMBER_OF_SENSORS-1:0] watch_state;
 wire [7:0] current_sensor;
 wire [2:0] sensor_state;
 wire [3:0] current_state;
@@ -135,18 +136,13 @@ wire [3:0] current_state;
 ts4231 #(CLK_SPEED,NUMBER_OF_SENSORS)(
 	.clk(clock),
 	.rst(~reset_n),
+	.watch_state(watch_state),
 	.current_sensor(current_sensor),
 	.current_STATE(current_state),
 	.sensor_STATE(sensor_state),
 	.D_io(D_io),
 	.E_io(E_io)
 );
-
-
-always @(posedge clock, negedge reset_n) begin: TS4231_INIT_INTERFACE
-	sensor_states[current_sensor] <= sensor_state;
-	current_states[current_sensor] <= current_state;
-end
 
 generate
 	if(ENABLE_SPI_TRANSMITTER!=0) begin

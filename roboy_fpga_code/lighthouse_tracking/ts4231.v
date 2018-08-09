@@ -3,6 +3,7 @@ module ts4231 (
     input rst,  // reset
     inout [NUMBER_OF_SENSORS-1:0] D_io,
     inout [NUMBER_OF_SENSORS-1:0] E_io,
+	 output [NUMBER_OF_SENSORS-1:0] watch_state,
 	 output reg [7:0] current_sensor,
     output wire [2:0] sensor_STATE,
     output wire [3:0] current_STATE
@@ -22,6 +23,7 @@ generate
 	for(i=0; i<NUMBER_OF_SENSORS; i = i+1) begin : assign_lines
 		assign D_io[i] = (D_control&&current_sensor==i)?D_out:1'bz;
 		assign E_io[i] = (E_control&&current_sensor==i)?E_out:1'bz;
+		assign watch_state[i] = (sensor_state[i]==3'b001); // if sensor is in WATCH_STATE
 	end
 endgenerate 
   
