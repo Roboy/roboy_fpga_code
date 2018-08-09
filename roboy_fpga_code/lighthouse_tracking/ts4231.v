@@ -1,13 +1,15 @@
 module ts4231 (
     input clk,  // clock
     input rst,  // reset
-    inout D,
-    inout E,
+    inout [NUMBER_OF_SENSORS-1:0] D_io,
+    inout [NUMBER_OF_SENSORS-1:0] E_io,
+	 output reg [7:0] current_sensor,
     output wire [2:0] sensor_STATE,
     output wire [3:0] current_STATE
   );
   
   parameter CLK_SPEED = 50_000_000;
+  parameter NUMBER_OF_SENSORS = 8;
   
   reg D_out;
   reg E_out;
@@ -15,15 +17,22 @@ module ts4231 (
   reg D_control;
   reg E_control;
   
-  assign D = D_control?D_out:1'bz;
-  assign E = E_control?E_out:1'bz;
+genvar i;
+generate 
+	for(i=0; i<NUMBER_OF_SENSORS; i = i+1) begin : assign_lines
+		assign D_io[i] = (D_control&&current_sensor==i)?D_out:1'bz;
+		assign E_io[i] = (E_control&&current_sensor==i)?E_out:1'bz;
+	end
+endgenerate 
+  
   assign current_STATE = state[0];
-  assign sensor_STATE = sensor_state;
+  assign sensor_STATE = sensor_state[current_sensor];
   
   reg [3:0] state[3:0];
-  reg [2:0] sensor_state;
+  reg [2:0] sensor_state[NUMBER_OF_SENSORS-1:0];
   always @(posedge clk, posedge rst) begin: TS4231_CONTROL_LOGIC
     reg [31:0] delay_counter;
+	 integer timeout;
     reg [7:0] command_counter;
     reg [7:0] config_index;
     reg [1:0] config_state;
@@ -44,8 +53,29 @@ module ts4231 (
       state[0] <= IDLE;
       command_counter <= 0;
       votes <= 0;
-      sensor_state <= UNKNOWN;
+		current_sensor <= 0;
+      sensor_state[current_sensor] <= UNKNOWN;
     end else begin
+		if(timeout>0) begin
+			timeout <= timeout-1;
+		end else begin
+			if(current_sensor < NUMBER_OF_SENSORS-1) begin
+				current_sensor <= current_sensor+1;
+			end else begin
+				current_sensor <= 0;
+			end
+			state[0] <= IDLE;
+			state[1] <= IDLE;
+			state[2] <= IDLE;
+			state[3] <= IDLE;
+			timeout <= CLK_SPEED/10;
+			D_control <= 0;
+			E_control <= 0;
+			command_counter <= 0;
+			votes <= 0;
+			sensor_state[current_sensor] <= UNKNOWN;
+		end
+	 
       case(state[0])
         IDLE: begin
           state[0] <= RESET_COUNTERS;
@@ -53,19 +83,19 @@ module ts4231 (
 			 state[2] <= WAIT_FOR_LIGHT;
         end
         WAIT_FOR_LIGHT: begin
-			 if(sensor_state==SLEEP_STATE) begin
+			 if(sensor_state[current_sensor]==SLEEP_STATE) begin
     					state[0] <= GO_TO_WATCH;
     		 end  
-          if(sensor_state==WATCH_STATE) begin
+          if(sensor_state[current_sensor]==WATCH_STATE) begin
     					state[0] <= IDLE;
     			end  
-      		if(sensor_state==S0_STATE) begin
+      		if(sensor_state[current_sensor]==S0_STATE) begin
       				state[0] <= CONFIG_DEVICE;
       		end  
-      		if(sensor_state==S3_STATE) begin
+      		if(sensor_state[current_sensor]==S3_STATE) begin
       				state[0] <= GO_TO_WATCH;
       		end
-          if(sensor_state==UNKNOWN) begin
+          if(sensor_state[current_sensor]==UNKNOWN) begin
               state[0] <= IDLE;
           end
         end
@@ -80,14 +110,14 @@ module ts4231 (
         end
         CHECK_BUS: begin
           if(votes<3) begin
-            if(D) begin
-              if(E) begin
+            if(D_io[current_sensor]) begin
+              if(E_io[current_sensor]) begin
                 S3_count <= S3_count + 1;
               end else begin
                 SLEEP_count <= SLEEP_count + 1;
               end
             end else begin
-              if(E) begin
+              if(E_io[current_sensor]) begin
                 WATCH_count <= WATCH_count + 1;
               end else begin
                 S0_count <= S0_count + 1;
@@ -98,27 +128,31 @@ module ts4231 (
             state[1] <= CHECK_BUS;
             votes <= votes + 1;
           end else begin
-            sensor_state <= SLEEP_STATE;
+            sensor_state[current_sensor] <= SLEEP_STATE;
             if(SLEEP_count >= 2) begin
-              sensor_state <= SLEEP_STATE;
+              sensor_state[current_sensor] <= SLEEP_STATE;
             end else if(WATCH_count) begin
-              sensor_state <= WATCH_STATE;
+              sensor_state[current_sensor] <= WATCH_STATE;
             end else if(S3_count) begin
-              sensor_state <= S3_STATE;
+              sensor_state[current_sensor] <= S3_STATE;
             end else if(S0_count) begin
-              sensor_state <= S0_STATE;
+              sensor_state[current_sensor] <= S0_STATE;
             end else begin
-              sensor_state <= UNKNOWN;
+              sensor_state[current_sensor] <= UNKNOWN;
             end
             state[0] <= state[2];
           end
         end
         DELAY: begin
-          if(delay_counter>0) begin
-            delay_counter <= delay_counter - 1;
-          end else begin
-            state[0] <= state[1];
-          end
+			 if(timeout==0) begin 
+				state[0] <= IDLE;
+			 end else begin
+				 if(delay_counter>0) begin
+					delay_counter <= delay_counter - 1;
+				 end else begin
+					state[0] <= state[1];
+				 end
+			end
         end
         CONFIG_DEVICE: begin 
           delay_counter <= CLK_SPEED/1000000; // 1 us
@@ -303,7 +337,7 @@ module ts4231 (
             end
             1: begin
               if(config_index!=0) begin
-                config_value[config_index-1] <= D;
+                config_value[config_index-1] <= D_io[current_sensor];
                 config_index <= config_index - 1;
                 config_state <= config_state + 1;
                 state[0] <= READ_CONFIG_VALUE; 
@@ -321,7 +355,7 @@ module ts4231 (
           endcase
         end
         GO_TO_WATCH: begin
-          case(sensor_state) 
+          case(sensor_state[current_sensor]) 
             S0_STATE: begin
               state[0] <= IDLE;
             end

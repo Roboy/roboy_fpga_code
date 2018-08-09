@@ -53,6 +53,7 @@ module DarkRoom(
 	// this is a debug connection(triggers SPI transmission when there are no sensors connected)
 	input trigger_me,
 	output [NUMBER_OF_SENSORS-1:0]sync_o,
+	output reg [1:0] LED,
 	// SPI
 	output sck_o, // clock
 	output ss_n_o, // slave select
@@ -126,48 +127,25 @@ endgenerate
 
 reg [2:0] sensor_states[NUMBER_OF_SENSORS-1:0];
 reg [3:0] current_states[NUMBER_OF_SENSORS-1:0];
-wire D;
-wire E;
-assign D = (sensor_to_configure<NUMBER_OF_SENSORS)?D_io[sensor_to_configure]:1'bz;
-assign E = (sensor_to_configure<NUMBER_OF_SENSORS)?E_io[sensor_to_configure]:1'bz;
 
+wire [7:0] current_sensor;
 wire [2:0] sensor_state;
 wire [3:0] current_state;
 
-ts4231 #(CLK_SPEED) sensor(
+ts4231 #(CLK_SPEED,NUMBER_OF_SENSORS)(
 	.clk(clock),
-	.rst(reset_ts4231_config),
-	.D(D),
-	.E(E),
+	.rst(~reset_n),
+	.current_sensor(current_sensor),
+	.current_STATE(current_state),
 	.sensor_STATE(sensor_state),
-	.current_STATE(current_state)
+	.D_io(D_io),
+	.E_io(E_io)
 );
 
-reg reset_ts4231_config;
-reg [7:0] sensor_to_configure;
 
 always @(posedge clock, negedge reset_n) begin: TS4231_INIT_INTERFACE
-	reg [31:0] timeout;
-	if (reset_n == 0) begin
-		timeout <= 0;
-		sensor_to_configure<=0;
-		reset_ts4231_config <= 1; 
-	end else begin
-		reset_ts4231_config <= 0;
-		if(timeout>0) begin
-			timeout <= timeout - 1;
-		end else begin
-			sensor_states[sensor_to_configure] <= sensor_state;
-			current_states[sensor_to_configure] <= current_state;
-			if(sensor_to_configure<NUMBER_OF_SENSORS-1) begin
-				sensor_to_configure <= sensor_to_configure + 1;
-			end else begin
-				sensor_to_configure <= 0;
-			end
-			reset_ts4231_config <= 1;
-			timeout <= CLK_SPEED/10; // 100ms timeout
-		end
-	end
+	sensor_states[current_sensor] <= sensor_state;
+	current_states[current_sensor] <= current_state;
 end
 
 generate
