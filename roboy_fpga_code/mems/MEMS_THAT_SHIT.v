@@ -5,6 +5,7 @@ module MEMS_THAT_SHIT(
 	input pdm_clk,
 	input dec_clk,
 	output pdm_clk_out,
+	output dec_clk_out,
 	output reg [31:0] address,
 	output reg write,
 	output reg [7:0] write_data,
@@ -12,32 +13,33 @@ module MEMS_THAT_SHIT(
 );
 
 
-
+assign pdm_clk_out = pdm_clk;
+assign dec_clk_out = dec_clk;
 reg [31:0] addr_cntr;
 parameter IDLE  = 2'b00,  TRANSMIT = 2'b01, WAIT_FOR_TRANSMIT = 2'b10;
 parameter MEM_SIZE = 23'd4096; // 4k
 reg [1:0] onchip_state;
-//reg dec_clk_prev;
+reg dec_clk_prev;
 
 always @(posedge clock, posedge reset) begin: AVALON_WRITE_ONCHIP_INTERFACE
 	if (reset == 1) begin
 		addr_cntr <= 0;
 	end else begin
 		write <= 0;
-//		dec_clk_prev <= dec_clk;
+		dec_clk_prev <= dec_clk;
 		case(onchip_state)
 			IDLE: begin
-//				if (dec_clk_prev == 0 &&  dec_clk == 1) begin 
+				if (dec_clk_prev == 0 &&  dec_clk == 1) begin 
 					if (addr_cntr < 300) begin
 						addr_cntr <= addr_cntr + 1;
 						address <= addr_cntr;
-						write_data <= 8'hc5;//filt_pdm_data_7[7:0];
+						write_data <= addr_cntr; //filt_pdm_data_7[7:0];
 						onchip_state <= WAIT_FOR_TRANSMIT;
 						write <= 1;
 					end else begin
 						addr_cntr <= 0;
 					end
-//				end
+				end
 			end
 //			TRANSMIT: begin
 //			end
@@ -54,7 +56,6 @@ end
 
 endmodule
 
-//assign pdm_clk_out = pdm_clk;
 ////reg slow_clk_prev;
 //reg [8:0] pdm_bit_counter;
 ////reg [7:0] raw_pdm_data;
