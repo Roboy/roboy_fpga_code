@@ -53,6 +53,7 @@ module DarkRoom(
 	// this is a debug connection(triggers SPI transmission when there are no sensors connected)
 	input trigger_me,
 	output [NUMBER_OF_SENSORS-1:0]sync_o,
+	output reg [1:0] LED,
 	// SPI
 	output sck_o, // clock
 	output ss_n_o, // slave select
@@ -62,7 +63,7 @@ module DarkRoom(
 parameter ENABLE_AVALON_INTERFACE = 1;
 parameter ENABLE_SPI_TRANSMITTER = 0;
 parameter NUMBER_OF_SENSORS = 8 ;
-parameter CLK_SPEED = 50_000_000 ;
+parameter CLK_SPEED = 16_000_000 ;
 
 generate 
 if(ENABLE_AVALON_INTERFACE!=0) begin
@@ -115,9 +116,9 @@ generate
 		localparam integer sensor_frame = i/8;
 		localparam integer sensor_counter = i%8;
 		localparam unsigned [9:0]sensor_id = i;
-		lighthouse_sensor #(sensor_id) lighthouse_sensors(
+		lighthouse_sensor #(sensor_id,CLK_SPEED) lighthouse_sensors(
 			.clk(clock),
-			.sensor((~E_io[i]) && sensor_states[i]==3'b001), // activate envelope line when sensor is in watch state
+			.sensor((~E_io[i]) && watch_state[i]), // activate envelope line when sensor is in watch state
 			.combined_data(sensor_data[sensor_frame][32*(sensor_counter+1)-1:32*sensor_counter]),
 			.sync(sync[i])
 		);
@@ -126,49 +127,22 @@ endgenerate
 
 reg [2:0] sensor_states[NUMBER_OF_SENSORS-1:0];
 reg [3:0] current_states[NUMBER_OF_SENSORS-1:0];
-wire D;
-wire E;
-assign D = (sensor_to_configure<NUMBER_OF_SENSORS)?D_io[sensor_to_configure]:1'bz;
-assign E = (sensor_to_configure<NUMBER_OF_SENSORS)?E_io[sensor_to_configure]:1'bz;
 
+wire [NUMBER_OF_SENSORS-1:0] watch_state;
+wire [7:0] current_sensor;
 wire [2:0] sensor_state;
 wire [3:0] current_state;
 
-ts4231 #(CLK_SPEED) sensor(
+ts4231 #(CLK_SPEED,NUMBER_OF_SENSORS)(
 	.clk(clock),
-	.rst(reset_ts4231_config),
-	.D(D),
-	.E(E),
+	.rst(~reset_n),
+	.watch_state(watch_state),
+	.current_sensor(current_sensor),
+	.current_STATE(current_state),
 	.sensor_STATE(sensor_state),
-	.current_STATE(current_state)
+	.D_io(D_io),
+	.E_io(E_io)
 );
-
-reg reset_ts4231_config;
-reg [7:0] sensor_to_configure;
-
-always @(posedge clock, negedge reset_n) begin: TS4231_INIT_INTERFACE
-	reg [31:0] timeout;
-	if (reset_n == 0) begin
-		timeout <= 0;
-		sensor_to_configure<=0;
-		reset_ts4231_config <= 1; 
-	end else begin
-		reset_ts4231_config <= 0;
-		if(timeout>0) begin
-			timeout <= timeout - 1;
-		end else begin
-			sensor_states[sensor_to_configure] <= sensor_state;
-			current_states[sensor_to_configure] <= current_state;
-			if(sensor_to_configure<NUMBER_OF_SENSORS-1) begin
-				sensor_to_configure <= sensor_to_configure + 1;
-			end else begin
-				sensor_to_configure <= 0;
-			end
-			reset_ts4231_config <= 1;
-			timeout <= CLK_SPEED/10; // 100ms timeout
-		end
-	end
-end
 
 generate
 	if(ENABLE_SPI_TRANSMITTER!=0) begin
