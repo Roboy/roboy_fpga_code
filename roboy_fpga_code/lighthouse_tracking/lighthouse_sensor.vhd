@@ -52,9 +52,10 @@ use IEEE.std_logic_signed.all;
 
 
 entity lighthouse_sensor is 
-	generic (sensor_id : unsigned(9 downto 0):=(others => '0'));
+	generic (sensor_id : unsigned(9 downto 0):=(others => '0');
+				CLK_SPEED : positive := 16_000_000);
 	port (
-		clk : in std_logic;		-- 50 MHz clock
+		clk : in std_logic;		-- clock
 		sensor : in std_logic;	-- sensor INPUT
 		duration_nskip_to_sweep: out unsigned(31 downto 0); -- duration NSKIP to SWEEP
 		lighthouse_id : out std_logic;	-- which lighthouse emitted the sweep
@@ -73,7 +74,6 @@ entity lighthouse_sensor is
 		-- bits 18:0	duration (divide by 50 to get microseconds)
 	);
 end lighthouse_sensor;
-
 
 architecture baustein42 of lighthouse_sensor is
 	-- INPUT STATES
@@ -120,7 +120,7 @@ begin
 				else -- sensor = '1'
 				
 					-- check if state can be switched (no noise)
-					if (sensor_state_switch_counter > 25) then		
+					if (sensor_state_switch_counter > CLK_SPEED/2_000_000) then		
 					
 						-- GO TO HIGH PHASE == rising_edge(sensor)
 						sensor_state <= '1';
@@ -154,14 +154,14 @@ begin
 				else -- sensor = '0' 
 
 					-- check if state can be switched (no noise)
-					if (sensor_state_switch_counter > 25) then		
+					if (sensor_state_switch_counter > CLK_SPEED/2_000_000) then		
 					
 						-- GO TO LOW PHASE == falling_edge(sensor)
 						sensor_state <= '0';
 						sensor_state_switch_counter <= "000000";	
 						
 						-- CHECK PULSE DURATION, we use 50 MHz clock
-						if (counter_from_last_rise < 2500) then 
+						if (counter_from_last_rise < CLK_SPEED/20_000) then 
 						
 							-- last pulse was a SWEEP (max 50 microseconds * 50 clock speed = 2500)		
 							-- UPDATE ALL OUTPUTS with previously saved data
@@ -175,7 +175,7 @@ begin
 							combined_data(30) <= current_axis;
 							
 							-- valid when (300 * 50) < duration < (8000 * 50)
-							if (15000 < duration_from_nskip_rise_to_last_rise) and (duration_from_nskip_rise_to_last_rise < 400000) then
+							if (CLK_SPEED/3333 < duration_from_nskip_rise_to_last_rise) and (duration_from_nskip_rise_to_last_rise < CLK_SPEED/125) then
 								valid <= '1';
 								combined_data(29) <= '1';
 							else							
@@ -189,18 +189,18 @@ begin
 							combined_data(18 downto 0) <= duration_from_nskip_rise_to_last_rise(18 downto 0);
 							
 							
-						elsif (counter_from_last_rise < 4950) then
+						elsif (counter_from_last_rise < CLK_SPEED/10101) then
 						
 							-- last pulse was NOT SKIPPING	
 							-- save data but publish only on next SWEEP
 						
 							-- check if active lighthouse has changed
-							if (counter_from_nskip_rise < 401650) then
+							if (counter_from_nskip_rise <  CLK_SPEED/124) then
 								-- (8333-300) * 50 = 401650
 								-- first lighthouse became active
 								current_lighthouse_id <= '0'; 
 
-							elsif (counter_from_nskip_rise > 431650) then
+							elsif (counter_from_nskip_rise >  CLK_SPEED/115) then
 								-- (8333+300) * 50 = 431650
 								-- second lighthouse became active
 								current_lighthouse_id <= '1';  
@@ -211,19 +211,19 @@ begin
 							counter_from_nskip_rise <= counter_from_last_rise + 1;
 		
 							
-							if (counter_from_last_rise < 3350) then
+							if (counter_from_last_rise <  CLK_SPEED/14925) then
 								-- Not skipping, axis = 0, data = 0  
 								-- (max 67 microseconds * 50 clock speed = 3350, real time = 62.5 microseconds)
 								current_axis <= '0';
 --								data <= '0';
 								
-							elsif (counter_from_last_rise < 3900) then							
+							elsif (counter_from_last_rise < CLK_SPEED/12820) then							
 								-- Not skipping, axis = 1, data = 0  
 								-- (max 78 microseconds * 50 clock speed = 3900, real time = 72.9 microseconds)
 								current_axis <= '1';	
 --								data <= '0';							
 								
-							elsif (counter_from_last_rise < 4400) then	
+							elsif (counter_from_last_rise < CLK_SPEED/11363) then	
 								-- Not skipping, axis = 0, data = 1  
 								-- (max 88 microseconds * 50 clock speed = 4400, real time = 83.3 microseconds)
 								current_axis <= '0';		
