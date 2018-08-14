@@ -24,15 +24,15 @@ reg signed [31:0] y_2;
  
 always @(posedge clk or posedge reset) begin
 	if (reset) begin
-		x_1 <= 24'd0;
-		x_2 <= 24'd0;
-		y_1 <= 24'd0;
-		y_2 <= 24'd0;
-		y <= 24'd0;
-		x_1_out <= 24'd0;
-		x_2_out <= 24'd0;
-		y_1_out <= 24'd0;
-		y_2_out <= 24'd0;
+		x_1 <= 32'd0;
+		x_2 <= 32'd0;
+		y_1 <= 32'd0;
+		y_2 <= 32'd0;
+		y <= 32'd0;
+		x_1_out <= 32'd0;
+		x_2_out <= 32'd0;
+		y_1_out <= 32'd0;
+		y_2_out <= 32'd0;
 
 	end else begin 
 		y <= ((b0 * x) + (b1 * x_1) + (b2 * x_2) - (a1 * y_1) - (a2 * y_2)) / a0;// / (a0 >> 31);
@@ -49,36 +49,3 @@ end
 endmodule
 
 
-module filter_testbench;
-
-reg pdm_clk, reset;
-reg [63:0] raw_pdm_data;
-reg [63:0] filt_pdm_data_1;
-
-
-filter #(
-	.b0(24'd311),
-	.b1(24'd623),
-	.b2(24'd311), 
-	.a0(24'd4203641),
-	.a1(24'd8388608),
-	.a2(24'd4186212)
-	) layer_1 (
-	.clk(pdm_clk), 
-	.reset(reset), 
-	.x(raw_pdm_data), 
-	.y(filt_pdm_data_1)
-	);
-	
-	
-initial begin
-	pdm_clk = 0;
-	reset = 0;
-	raw_pdm_data = 0;
-	end
-	
-	always 
-		#5 pdm_clk = ! pdm_clk;
-		
-		
-endmodule

@@ -42,12 +42,12 @@ always @(posedge pdm_clk) begin
 		raw_pdm_data <= 0;
 end
 
-iir git_filter(
-	.clk(pdm_clk), 
-	.rst(reset), 
-	.x(raw_pdm_data), 
-	.y(filt_pdm_data_1)
-	);
+//iir git_filter(
+//	.clk(pdm_clk), 
+//	.rst(reset), 
+//	.x(raw_pdm_data), 
+//	.y(filt_pdm_data_1)
+//	);
 
 always @(posedge clock, posedge reset) begin: AVALON_WRITE_ONCHIP_INTERFACE
 	if (reset == 1) begin
@@ -138,19 +138,19 @@ end
 
 
 //621		1243	621	8388608	-16739949	8353827
-//filter #(
-//	.b0(621),
-//	.b1(1243),
-//	.b2(621), 
-//	.a0(8388608),
-//	.a1(-16739949),
-//	.a2(8353827)
-//	) layer_1 (
-//	.clk(pdm_clk), 
-//	.reset(reset), 
-//	.x(raw_pdm_data), 
-//	.y(filt_pdm_data_1)
-//	);
+filter #(
+	.b0(621),
+	.b1(1243),
+	.b2(621), 
+	.a0(8388608),
+	.a1(-16739949),
+	.a2(8353827)
+	) layer_1 (
+	.clk(pdm_clk), 
+	.reset(reset), 
+	.x(raw_pdm_data), 
+	.y(filt_pdm_data_1)
+	);
 //
 ////619		1238	619	8388608	-16672830	8286698
 //filter #(
