@@ -29,8 +29,14 @@
 // [8'h15 8'h(motor)]         [uint8] myo_brick_device_id - myo brick i2c device id
 // [8'h16 8'h(motor)]         [int32] myo_brick_gear_box_ratio - myo brick gear box ratio
 // [8'h17 8'h(motor)]         [int32] myo_brick_encoder_multiplier - myo brick encoder mulitiplier
-// [8'h18 8'h(motor)]		 [int32] outputDivider- PID output divider
-// [8'h19 8'h(motor)]		 [bool] i2c_ack_error - I2C ackowledge error (myoBrick angle sensor)
+// [8'h18 8'h(motor)]		   [int32] outputDivider- PID output divider
+// [8'h19 8'h(motor)]		   [bool] i2c_ack_error - I2C ackowledge error (myoBrick angle sensor)
+// [8'h20 8'hz]		         [int32] joint_angle_error - setpoint error joint angle
+// [8'h21 8'hz]		         [int32] Kp_joint_angle - gain of joint angle PD controller
+// [8'h22 8'hz]		         [int32] Kd_joint_angle - gain of joint angle PD controller
+// [8'h23 8'h(motor)]		   [int32] joint_angle_control_motors - motors controlling the 1DOF joint
+// [8'h24 8'hz]       		   [int32] joint_angle_setpoint - setpoint for 1DOF joint
+// [8'h25 8'hz]       		   [int32] joint_angle_device_id - joint_angle_device_id for 1DOF joint
 //
 // Through the axi bridge, the following values can be WRITTEN
 //	address            -----   [type] value
@@ -55,6 +61,11 @@
 // [8'h12 8'h(motor)]         [int32] myo_brick_gear_box_ratio - myo brick gear box ratio
 // [8'h13 8'h(motor)]         [int32] myo_brick_encoder_multiplier - myo brick encoder mulitiplier
 // [8'h14 8'h(motor)]         [int32] outputDivider- PID output divider
+// [8'h15 8'hz]		         [int32] Kp_joint_angle - gain of joint angle PD controller
+// [8'h16 8'hz]		         [int32] Kd_joint_angle - gain of joint angle PD controller
+// [8'h17 8'h(motor)]		   [int32] joint_angle_control_motors - motors controlling the 1DOF joint
+// [8'h18 8'hz]		   		[int32] joint_angle_setpoint - setpoint for 1DOF joint
+// [8'h19 8'hz]       		   [int32] joint_angle_device_id - joint_angle_device_id for 1DOF joint
 // Features: 
 // * use the NUMBER_OF_MOTORS parameter to define how many motors are connected on one SPI bus (maximum 254)
 // * use the update_frequency to define at what rate the motors should be controlled
@@ -113,13 +124,16 @@ module MYOControl (
 	input mirrored_muscle_unit,
 	input power_sense_n,
 	output gpio_n,
-	output scl,
-	inout sda
+	output myobrick_scl,
+	inout myobrick_sda,
+	output joint_angle_scl,
+	inout joint_angle_sda
 );
 
 parameter NUMBER_OF_MOTORS = 6;
 parameter CLOCK_SPEED_HZ = 50_000_000;
 parameter ENABLE_MYOBRICK_CONTROL = 0;
+parameter ENABLE_JOINTANGLE_CONTROL = 0;
 
 // gains and shit
 // p gains
@@ -208,6 +222,12 @@ always @(posedge clock, posedge reset) begin: AVALON_READ_INTERFACE
 				8'h17: returnvalue <= myo_brick_encoder_multiplier[address[7:0]][31:0];
 				8'h18: returnvalue <= outputDivider[address[7:0]][31:0];
 				8'h19: returnvalue <= myo_brick_ack_error[address[7:0]];
+				8'h20: returnvalue <= joint_angle_error[31:0];
+				8'h21: returnvalue <= Kp_joint_angle[31:0];
+				8'h22: returnvalue <= Kd_joint_angle[31:0];
+				8'h23: returnvalue <= joint_angle_control_motors[address[7:0]];
+				8'h24: returnvalue <= joint_angle_setpoint;
+				8'h25: returnvalue <= joint_angle_device_id[6:0];
 				default: returnvalue <= 32'hDEADBEEF;
 			endcase
 			if(waitFlag==1) begin // next clock cycle the returnvalue should be ready
@@ -315,12 +335,20 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 					actual_update_frequency <= CLOCK_SPEED_HZ/counter;
 					counter <= 0;
 				end
+				if(joint_angle_control_motors[0]==motor) begin
+					control_mode[motor] <= 2; // overwrite DISPLACEMENT control
+					sp[motor] <= joint_angle_control_setpoint[0];
+				end
+				if(joint_angle_control_motors[1]==motor) begin
+					control_mode[motor] <= 2; // overwrite DISPLACEMENT control
+					sp[motor] <= joint_angle_control_setpoint[1];
+				end
 			end
 		end
 	
 		// if we are writing via avalon bus and waitrequest is deasserted, write the respective register
 		if(write && ~waitrequest) begin
-			if((address>>8)<=8'h14 && address[7:0]<NUMBER_OF_MOTORS) begin
+			if((address>>8)<=8'h18 && address[7:0]<NUMBER_OF_MOTORS) begin
 				case(address>>8)
 					8'h00: Kp[address[7:0]][15:0] <= writedata[15:0];
 					8'h01: Ki[address[7:0]][15:0] <= writedata[15:0];
@@ -343,6 +371,11 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 					8'h12: myo_brick_gear_box_ratio[address[7:0]][31:0] <= writedata[31:0];
 					8'h13: myo_brick_encoder_multiplier[address[7:0]][31:0] <= writedata[31:0];
 					8'h14: outputDivider[address[7:0]][31:0] <= writedata[31:0];
+					8'h15: Kp_joint_angle[31:0] <= writedata[31:0];
+					8'h16: Kp_joint_angle[31:0] <= writedata[31:0];
+					8'h17: joint_angle_control_motors[address[7:0]][31:0] <= writedata[31:0];
+					8'h18: joint_angle_setpoint[31:0] <= writedata[31:0];
+					8'h19: joint_angle_device_id[6:0] <= writedata[31:0];
 				endcase
 			end
 		end
@@ -435,8 +468,8 @@ generate
 			.reset(reset),
 			.read_angle(read_angle),
 			.read_status(),
-			.sda(sda),
-			.scl(scl),
+			.sda(myobrick_sda),
+			.scl(myobrick_scl),
 		//	.LED(LED[2:0]),
 			.device_id(myo_brick_device_id[angle_motor_index]),
 			.done(read_angle_done),
@@ -452,6 +485,73 @@ generate
 
 endgenerate 
 
+reg signed [31:0] Kp_joint_angle;
+reg signed [31:0] Kd_joint_angle;
+reg [31:0] joint_angle_control_motors[NUMBER_OF_MOTORS-1:0];
+reg signed [31:0] joint_angle_setpoint;
+reg signed [31:0] joint_angle_control_setpoint[1:0];
+reg [6:0] joint_angle_device_id;
+wire signed [31:0] joint_angle_signed;
+wire joint_angle_ack_error;
+reg signed [31:0] joint_angle_error;
+
+generate
+	if(ENABLE_JOINTANGLE_CONTROL!=0) begin
+		reg read_joint_angle;
+		wire read_joint_angle_done;
+		integer joint_angle_motor_index;
+		wire [11:0] joint_angle;
+		assign joint_angle_signed = joint_angle;
+
+		always @(posedge clock, posedge reset) begin: JOINT_ANGLE_CONTROL_LOGIC
+			reg read_joint_angle_done_prev;
+			reg [7:0]i;
+			if (reset == 1) begin
+				joint_angle_motor_index <= 0;
+				read_joint_angle_done_prev <= 0;
+				joint_angle_error <= 0;
+			end else begin
+				read_joint_angle_done_prev <= read_joint_angle_done;
+				read_joint_angle <= 0;
+				if(read_joint_angle_done==1) begin
+					read_joint_angle <= 1;
+				end
+				if(read_joint_angle_done_prev==0 && read_joint_angle_done==1) begin
+					if(joint_angle_ack_error==0) begin // only use valid sensor values
+						joint_angle_error = Kp_joint_angle * (joint_angle_setpoint - joint_angle_signed);
+						if(joint_angle_error>0) begin 
+							joint_angle_control_setpoint[0] = joint_angle_error;
+							joint_angle_control_setpoint[1] = -joint_angle_error;
+						end else begin 
+							joint_angle_control_setpoint[0] = -joint_angle_error;
+							joint_angle_control_setpoint[1] = joint_angle_error;
+						end
+					end
+				end
+			end 
+		end
+		
+		A1335Control a1335(
+			.clock(clock),
+			.reset(reset),
+			.read_angle(read_joint_angle),
+			.read_status(),
+			.sda(joint_angle_sda),
+			.scl(joint_angle_scl),
+		//	.LED(LED[2:0]),
+			.device_id(joint_angle_device_id),
+			.done(read_joint_angle_done),
+			.angle(joint_angle),
+			.status(),
+			.ack_error(joint_angle_ack_error)
+		);
+	
+	end else begin
+		assign scl = 1'bz;
+		assign sda = 1'bz;
+	end
+
+endgenerate 
 
 
 wire di_req, wr_ack, do_valid, wren, spi_done, ss_n;
