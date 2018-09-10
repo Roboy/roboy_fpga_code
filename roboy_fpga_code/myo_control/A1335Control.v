@@ -9,12 +9,12 @@ module A1335Control (
 	 input [6:0] device_id,
 	 output reg done,
 	 output reg [11:0] angle,
-	 output reg [31:0] status
+	 output reg [31:0] status,
+	 output reg ack_error
 );
 
 reg rw;
 reg busy;
-reg ack_error;
 reg ena; 
 reg ena_prev;
 wire [7:0] byte_counter;
@@ -133,7 +133,7 @@ oneshot oneshot(
    .level_sig(fifo_write)
 );
 
-i2c_master #(50000000, 400000) i2c(
+i2c_master #(50000000, 100000) i2c(
 	.clk(clock),
 	.reset_n(~reset),
 	.ena(ena),

@@ -29,7 +29,8 @@
 // [8'h15 8'h(motor)]         [uint8] myo_brick_device_id - myo brick i2c device id
 // [8'h16 8'h(motor)]         [int32] myo_brick_gear_box_ratio - myo brick gear box ratio
 // [8'h17 8'h(motor)]         [int32] myo_brick_encoder_multiplier - myo brick encoder mulitiplier
-// [9'h18 8'h(motor)]		  [int32] outputDivider- PID output divider
+// [8'h18 8'h(motor)]		 [int32] outputDivider- PID output divider
+// [8'h19 8'h(motor)]		 [bool] i2c_ack_error - I2C ackowledge error (myoBrick angle sensor)
 //
 // Through the axi bridge, the following values can be WRITTEN
 //	address            -----   [type] value
@@ -206,6 +207,7 @@ always @(posedge clock, posedge reset) begin: AVALON_READ_INTERFACE
 				8'h16: returnvalue <= myo_brick_gear_box_ratio[address[7:0]][7:0];
 				8'h17: returnvalue <= myo_brick_encoder_multiplier[address[7:0]][31:0];
 				8'h18: returnvalue <= outputDivider[address[7:0]][31:0];
+				8'h19: returnvalue <= myo_brick_ack_error[address[7:0]];
 				default: returnvalue <= 32'hDEADBEEF;
 			endcase
 			if(waitFlag==1) begin // next clock cycle the returnvalue should be ready
@@ -368,6 +370,7 @@ reg signed [31:0] motor_spring_angle[NUMBER_OF_MOTORS-1:0];
 reg signed [31:0] motor_angle[NUMBER_OF_MOTORS-1:0];
 reg signed [31:0] motor_angle_offset[NUMBER_OF_MOTORS-1:0];
 reg [31:0] status[NUMBER_OF_MOTORS-1:0];
+reg [NUMBER_OF_MOTORS-1:0] myo_brick_ack_error;
 
 generate
 	if(ENABLE_MYOBRICK_CONTROL!=0) begin
@@ -377,6 +380,7 @@ generate
 		wire [11:0] angle;
 		wire signed [31:0] angle_signed;
 		assign angle_signed = angle;
+		reg ack_error;
 
 		always @(posedge clock, posedge reset) begin: MYOBRICK_ANGLE_CONTROL_LOGIC
 			reg read_angle_done_prev;
@@ -393,6 +397,7 @@ generate
 				read_angle_done_prev <= read_angle_done;
 				read_angle <= 0;
 				if(myo_brick[angle_motor_index]==1 && read_angle_done==1) begin
+					myo_brick_ack_error[angle_motor_index] <= ack_error;
 					read_angle <= 1;
 				end
 				if((read_angle_done_prev==0 && read_angle_done==1) || myo_brick[angle_motor_index]==0) begin
@@ -408,12 +413,14 @@ generate
 							motor_angle_counter[angle_motor_index] <= motor_angle_counter[angle_motor_index] - 1;
 						end
 					end
-					// motor_angle_offset is set to the angle after power on of the motor boards
-					motor_angle[angle_motor_index] <= (angle_signed - motor_angle_offset[angle_motor_index] + motor_angle_counter[angle_motor_index]*4096); 
-					// division by gearbox ration gives encoder ticks, angle sensor divided by 4 gives the same range
-					motor_spring_angle[angle_motor_index] <= (positions[angle_motor_index]/myo_brick_gear_box_ratio[angle_motor_index])*myo_brick_encoder_multiplier[angle_motor_index] 
-																			- ((angle_signed - motor_angle_offset[angle_motor_index] + motor_angle_counter[angle_motor_index]*4096)/4);
-					motor_angle_prev[angle_motor_index] <= angle;
+					if(ack_error==0) begin // only use valid sensor values
+						// motor_angle_offset is set to the angle after power on of the motor boards
+						motor_angle[angle_motor_index] <= (angle_signed - motor_angle_offset[angle_motor_index] + motor_angle_counter[angle_motor_index]*4096); 
+						// division by gearbox ration gives encoder ticks, angle sensor divided by 4 gives the same range
+						motor_spring_angle[angle_motor_index] <= (positions[angle_motor_index]/myo_brick_gear_box_ratio[angle_motor_index])*myo_brick_encoder_multiplier[angle_motor_index] 
+																				- ((angle_signed - motor_angle_offset[angle_motor_index] + motor_angle_counter[angle_motor_index]*4096)/4);
+						motor_angle_prev[angle_motor_index] <= angle;
+					end
 					if(angle_motor_index<NUMBER_OF_MOTORS-1) begin
 						angle_motor_index <= angle_motor_index + 1;
 					end else begin
@@ -422,7 +429,7 @@ generate
 				end
 			end 
 		end
-
+		
 		A1335Control a1335(
 			.clock(clock),
 			.reset(reset),
@@ -434,9 +441,13 @@ generate
 			.device_id(myo_brick_device_id[angle_motor_index]),
 			.done(read_angle_done),
 			.angle(angle),
-			.status(status[angle_motor_index])
+			.status(status[angle_motor_index]),
+			.ack_error(ack_error)
 		);
-
+	
+	end else begin
+		assign scl = 1'bz;
+		assign sda = 1'bz;
 	end
 
 endgenerate 
