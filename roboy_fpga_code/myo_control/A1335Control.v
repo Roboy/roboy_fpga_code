@@ -133,7 +133,7 @@ oneshot oneshot(
    .level_sig(fifo_write)
 );
 
-i2c_master #(50000000, 100000) i2c(
+i2c_master #(50000000, 400000) i2c(
 	.clk(clock),
 	.reset_n(~reset),
 	.ena(ena),
