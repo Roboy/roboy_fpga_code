@@ -269,6 +269,7 @@ always @(posedge clock, posedge reset) begin: AVALON_READ_INTERFACE
 				8'h2B: returnvalue <= motor3[address[7:0]];
 				8'h2C: returnvalue <= motor4[address[7:0]];
 				8'h2D: returnvalue <= arm_board_ack_error;
+				8'h2E: returnvalue <= elbow_smooth_distance[31:0];
 				// [8'h26 8'hz]       		   [bool]  hand_control - enables hand conrol
 // [8'h27 8'h(board)]		   [int32] arm_board_device_id - i2c device for the respective board
 // [8'h28 4'h(board) 4'h(board)] [uint8] arm_board_setpoint - setpoint for motor of arm board
@@ -317,6 +318,7 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 		elbow_joint_angle_offset<=0;
 		elbow_agonist <= NUMBER_OF_MOTORS;
 		elbow_antagonist <= NUMBER_OF_MOTORS;
+		elbow_smooth_distance <= 20;
 	end else begin
 		// toggle registers need to be set to zero at every clock cycle
 		update_controller <= 0;
@@ -414,7 +416,7 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 	
 		// if we are writing via avalon bus and waitrequest is deasserted, write the respective register
 		if(write && ~waitrequest) begin
-			if((address>>8)<=8'h25 && address[7:0]<NUMBER_OF_MOTORS) begin
+			if((address>>8)<=8'h26 && address[7:0]<NUMBER_OF_MOTORS) begin
 				case(address>>8)
 					8'h00: Kp[address[7:0]][15:0] <= writedata[15:0];
 					8'h01: Ki[address[7:0]][15:0] <= writedata[15:0];
@@ -454,6 +456,7 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 					8'h23: motor2[address[7:0]] <= writedata[7:0];
 					8'h24: motor3[address[7:0]] <= writedata[7:0];
 					8'h25: motor4[address[7:0]] <= writedata[7:0];
+					8'h26: elbow_smooth_distance <= writedata[31:0];
 				endcase
 			end
 		end
@@ -581,6 +584,7 @@ reg signed [31:0] elbow_joint_angle_curr;
 reg signed [31:0] elbow_joint_angle_prev;
 reg signed [31:0] elbow_joint_angle_error;
 reg signed [31:0] elbow_joint_angle_error_prev;
+reg signed [31:0] elbow_smooth_distance;
 
 reg hand_control;
 reg [1:0] arm_board_ack_error;
@@ -603,7 +607,7 @@ generate
 			assign arm_board_commandFrame[k][31:24] = motor3[k];
 			assign arm_board_commandFrame[k][39:32] = motor4[k];
 		end
-	
+		reg [31:0] number_of_samples;
 		reg elbow_read_joint_angle;
 		reg write_hand;
 		wire arm_control_done;
@@ -618,6 +622,7 @@ generate
 			if (reset == 1) begin
 				arm_control_done_prev <= 0;
 				elbow_joint_angle_error <= 0;
+				elbow_joint_angle_prev <= 0;
 				write_hand <= 0;
 				arm_control_state <= IDLE;
 			end else begin
@@ -639,16 +644,22 @@ generate
 						elbow_joint_angle_ack_error <= ack_error;
 						if(arm_control_done_prev==0 && arm_control_done==1) begin
 							if(elbow_joint_angle_ack_error==0) begin // only use valid sensor values
-								elbow_joint_angle_curr = (99*elbow_joint_angle_prev + (1*elbow_joint_angle_signed + elbow_joint_angle_offset))/100;
+								// moving average filter joint angle
+								elbow_joint_angle_curr = (9*elbow_joint_angle_prev + 1*(elbow_joint_angle_signed + elbow_joint_angle_offset))/10;
 								elbow_joint_angle_error = (elbow_joint_angle_setpoint - elbow_joint_angle_curr);
 								if((elbow_joint_angle_error>elbow_joint_deadband) || (elbow_joint_angle_error<elbow_joint_deadband)) begin
 									elbow_joint_control_result = elbow_Kp_joint_angle * elbow_joint_angle_error + elbow_Kd_joint_angle * (elbow_joint_angle_error - elbow_joint_angle_error_prev);
-									if(elbow_joint_control_result>0) begin 
-										elbow_joint_angle_control_setpoint[0] = elbow_joint_pretension + elbow_joint_control_result;
-										elbow_joint_angle_control_setpoint[1] = elbow_joint_pretension;
-									end else begin 
-										elbow_joint_angle_control_setpoint[0] = elbow_joint_pretension;
+									if(elbow_joint_control_result<= -1*elbow_smooth_distance) begin 
 										elbow_joint_angle_control_setpoint[1] = elbow_joint_pretension - elbow_joint_control_result;
+										elbow_joint_angle_control_setpoint[0] = elbow_joint_pretension;
+									end else if (elbow_joint_control_result<= elbow_smooth_distance) begin 
+										elbow_joint_angle_control_setpoint[1] = elbow_joint_pretension + 
+												(elbow_joint_control_result-elbow_smooth_distance)*(elbow_joint_control_result-elbow_smooth_distance)/(4*elbow_smooth_distance);
+										elbow_joint_angle_control_setpoint[0] = elbow_joint_pretension + 
+												(elbow_joint_control_result+elbow_smooth_distance)*(elbow_joint_control_result+elbow_smooth_distance)/(4*elbow_smooth_distance);
+									end else begin
+										elbow_joint_angle_control_setpoint[1] = elbow_joint_pretension;
+										elbow_joint_angle_control_setpoint[0] = elbow_joint_pretension + elbow_joint_control_result;
 									end
 								end
 								elbow_joint_angle_error_prev = elbow_joint_angle_error;

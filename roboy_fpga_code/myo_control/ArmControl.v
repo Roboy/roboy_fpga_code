@@ -61,8 +61,7 @@ always @(posedge clock, posedge reset) begin: A1335_CONTROL_LOGIC
 							a1335_state <= READ_ANGLE;
 							command_counter <= 0;
 							done <= 0;
-						end
-						if(write_hand) begin // write that shit
+						end else if (write_hand) begin // write that shit
 							a1335_state <= WRITE_HAND;
 							command_counter <= 0;
 							done <= 0;
