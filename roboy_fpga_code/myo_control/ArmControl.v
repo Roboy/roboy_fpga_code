@@ -41,6 +41,7 @@ reg [7:0] a1335_state;
 reg [7:0] a1335_next_state;
 reg [6:0] device_id;
 
+reg [87:0] arm_board_commandFrame_prev[3:0];
 
 always @(posedge clock, posedge reset) begin: A1335_CONTROL_LOGIC
 	parameter IDLE  = 0, WAIT_FOR_I2C_TRANSMISSION = 1, DONE = 2, READ_ANGLE = 3, WRITE_HAND = 4;
@@ -92,54 +93,58 @@ always @(posedge clock, posedge reset) begin: A1335_CONTROL_LOGIC
 					a1335_next_state <= WRITE_HAND;
 					rw <= 0; 
 					case(command_counter)
-						0: begin data_wd <= {8'h01, arm_board_commandFrame_0[23:0]}; ena <= 1; number_of_bytes <= 3; 
-							device_id <= arm_board_device_id_0;
+						0: begin 
+							if(arm_board_commandFrame_0!=arm_board_commandFrame_prev[0]) begin
+								data_wd <= {8'h01, arm_board_commandFrame_0[23:0]}; ena <= 1; number_of_bytes <= 4; 
+								device_id <= arm_board_device_id_0;
+								arm_board_commandFrame_prev[0] <= arm_board_commandFrame_0;
+							end else begin
+								command_counter <= 4;
+								a1335_state <= WRITE_HAND;
+							end
 						end
-						1: begin data_wd <= {8'h02, arm_board_commandFrame_0[47:24]}; ena <= 1; number_of_bytes <= 3; 
-							device_id <= arm_board_device_id_1;
+						1: begin data_wd <= {8'h02, arm_board_commandFrame_0[47:24]}; ena <= 1; number_of_bytes <= 4; end
+						2: begin data_wd <= {8'h03, arm_board_commandFrame_0[71:48]}; ena <= 1; number_of_bytes <= 4; end
+						3: begin data_wd <= {8'h04, 8'h00, arm_board_commandFrame_0[87:72]}; ena <= 1; number_of_bytes <= 4; end
+						4: begin 
+							if(arm_board_commandFrame_1!=arm_board_commandFrame_prev[1]) begin
+								data_wd <= {8'h01, arm_board_commandFrame_1[23:0]}; ena <= 1; number_of_bytes <= 4; 
+								device_id <= arm_board_device_id_1;
+								arm_board_commandFrame_prev[1] <= arm_board_commandFrame_1;
+							end else begin
+								command_counter <= 8;
+								a1335_state <= WRITE_HAND;
+							end
 						end
-						2: begin data_wd <= {8'h03, arm_board_commandFrame_0[71:48]}; ena <= 1; number_of_bytes <= 3; 
-							device_id <= arm_board_device_id_2;
+						5: begin data_wd <= {8'h02, arm_board_commandFrame_1[47:24]}; ena <= 1; number_of_bytes <= 4; end
+						6: begin data_wd <= {8'h03, arm_board_commandFrame_1[71:48]}; ena <= 1; number_of_bytes <= 4; end
+						7: begin data_wd <= {8'h04, 8'h00, arm_board_commandFrame_1[87:72]}; ena <= 1; number_of_bytes <= 4; end
+						8: begin 
+							if(arm_board_commandFrame_2!=arm_board_commandFrame_prev[2]) begin
+								data_wd <= {8'h01, arm_board_commandFrame_1[23:0]}; ena <= 1; number_of_bytes <= 4; 
+								device_id <= arm_board_device_id_2;
+								arm_board_commandFrame_prev[2] <= arm_board_commandFrame_2;
+							end else begin
+								command_counter <= 12;
+								a1335_state <= WRITE_HAND;
+							end
 						end
-						3: begin data_wd <= {8'h04, 8'h00, arm_board_commandFrame_0[87:72]}; ena <= 1; number_of_bytes <= 3; 
-							device_id <= arm_board_device_id_3;
+						9: begin data_wd <= {8'h02, arm_board_commandFrame_2[47:24]}; ena <= 1; number_of_bytes <= 4; end
+						10: begin data_wd <= {8'h03, arm_board_commandFrame_2[71:48]}; ena <= 1; number_of_bytes <= 4; end
+						11: begin data_wd <= {8'h04, 8'h00, arm_board_commandFrame_2[87:72]}; ena <= 1; number_of_bytes <= 4; end
+						12: begin 
+							if(arm_board_commandFrame_3!=arm_board_commandFrame_prev[3]) begin
+								data_wd <= {8'h01, arm_board_commandFrame_3[23:0]}; ena <= 1; number_of_bytes <= 4; 
+								device_id <= arm_board_device_id_3;
+								arm_board_commandFrame_prev[3] <= arm_board_commandFrame_3;
+							end else begin
+								command_counter <= 0;
+								a1335_state <= DONE;
+							end
 						end
-						4: begin data_wd <= {8'h01, arm_board_commandFrame_1[23:0]}; ena <= 1; number_of_bytes <= 3; 
-							device_id <= arm_board_device_id_0;
-						end
-						5: begin data_wd <= {8'h02, arm_board_commandFrame_1[47:24]}; ena <= 1; number_of_bytes <= 3; 
-							device_id <= arm_board_device_id_1;
-						end
-						6: begin data_wd <= {8'h03, arm_board_commandFrame_1[71:48]}; ena <= 1; number_of_bytes <= 3; 
-							device_id <= arm_board_device_id_2;
-						end
-						7: begin data_wd <= {8'h04, 8'h00, arm_board_commandFrame_1[87:72]}; ena <= 1; number_of_bytes <= 3; 
-							device_id <= arm_board_device_id_3;
-						end
-						8: begin data_wd <= {8'h01, arm_board_commandFrame_2[23:0]}; ena <= 1; number_of_bytes <= 3; 
-							device_id <= arm_board_device_id_0;
-						end
-						9: begin data_wd <= {8'h02, arm_board_commandFrame_2[47:24]}; ena <= 1; number_of_bytes <= 3; 
-							device_id <= arm_board_device_id_1;
-						end
-						10: begin data_wd <= {8'h03, arm_board_commandFrame_2[71:48]}; ena <= 1; number_of_bytes <= 3; 
-							device_id <= arm_board_device_id_2;
-						end
-						11: begin data_wd <= {8'h04, 8'h00, arm_board_commandFrame_2[87:72]}; ena <= 1; number_of_bytes <= 3; 
-							device_id <= arm_board_device_id_3;
-						end
-						12: begin data_wd <= {8'h01, arm_board_commandFrame_3[23:0]}; ena <= 1; number_of_bytes <= 3; 
-							device_id <= arm_board_device_id_0;
-						end
-						13: begin data_wd <= {8'h02, arm_board_commandFrame_3[47:24]}; ena <= 1; number_of_bytes <= 3; 
-							device_id <= arm_board_device_id_1;
-						end
-						14: begin data_wd <= {8'h03, arm_board_commandFrame_3[71:48]}; ena <= 1; number_of_bytes <= 3; 
-							device_id <= arm_board_device_id_2;
-						end
-						15: begin data_wd <= {8'h04, 8'h00, arm_board_commandFrame_3[87:72]}; ena <= 1; number_of_bytes <= 3; 
-							device_id <= arm_board_device_id_3;
-						end
+						13: begin data_wd <= {8'h02, arm_board_commandFrame_3[47:24]}; ena <= 1; number_of_bytes <= 4; end
+						14: begin data_wd <= {8'h03, arm_board_commandFrame_3[71:48]}; ena <= 1; number_of_bytes <= 4; end
+						15: begin data_wd <= {8'h04, 8'h00, arm_board_commandFrame_3[87:72]}; ena <= 1; number_of_bytes <= 4; end
 						default: data_wd <= 0; 
 					endcase
 				end else begin
@@ -210,7 +215,7 @@ oneshot oneshot(
    .level_sig(fifo_write)
 );
 
-i2c_master #(50000000, 400000) i2c(
+i2c_master #(50000000, 100000) i2c(
 	.clk(clock),
 	.reset_n(~reset),
 	.ena(ena),

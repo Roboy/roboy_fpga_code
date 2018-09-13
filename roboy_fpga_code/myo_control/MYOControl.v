@@ -587,7 +587,7 @@ reg signed [31:0] elbow_joint_angle_error_prev;
 reg signed [31:0] elbow_smooth_distance;
 
 reg hand_control;
-reg [1:0] arm_board_ack_error;
+reg arm_board_ack_error;
 reg [6:0] arm_board_device_id[3:0];
 wire [87:0] arm_board_commandFrame[3:0];
 reg [7:0] write_arm_board;
@@ -637,7 +637,6 @@ generate
 						end else if(hand_control) begin
 							arm_control_state <= WRITE_HAND;
 							write_hand <= 1;
-							write_arm_board  <= 0;
 						end
 					end
 					READ_ELBOW: begin
@@ -668,21 +667,15 @@ generate
 							if(hand_control) begin
 								arm_control_state <= WRITE_HAND;
 								write_hand <= 1;
-								write_arm_board  <= 0;
 							end else begin 
 								arm_control_state <= IDLE;
 							end
 						end
 					end
 					WRITE_HAND: begin
-						arm_board_ack_error[write_arm_board] <= ack_error;
+						arm_board_ack_error <= ack_error;
 						if(arm_control_done_prev==0 && arm_control_done==1) begin
-							if(write_arm_board>=4) begin 
-								arm_control_state <= IDLE;
-							end else begin
-								write_hand <= 1;
-								write_arm_board <= write_arm_board +1;
-							end
+							arm_control_state <= IDLE;
 						end
 					end
 					default: arm_control_state <= IDLE;
