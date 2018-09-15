@@ -107,7 +107,7 @@ always @(posedge clock, posedge reset) begin: A1335_CONTROL_LOGIC
 						1: begin data_wd <= {8'h02, arm_board_commandFrame_0[47:24]}; ena <= 1; number_of_bytes <= 4; end
 						2: begin data_wd <= {8'h03, arm_board_commandFrame_0[71:48]}; ena <= 1; number_of_bytes <= 4; end
 						3: begin data_wd <= {8'h04, 8'h00, arm_board_commandFrame_0[87:72]}; ena <= 1; number_of_bytes <= 4; end
-						4: begin delay_counter <= 100; a1335_state <= DELAY; end
+						4: begin delay_counter <= 255; a1335_state <= DELAY; end
 						5: begin 
 							if(arm_board_commandFrame_1!=arm_board_commandFrame_prev[1]) begin
 								data_wd <= {8'h01, arm_board_commandFrame_1[23:0]}; ena <= 1; number_of_bytes <= 4; 
@@ -121,7 +121,7 @@ always @(posedge clock, posedge reset) begin: A1335_CONTROL_LOGIC
 						6: begin data_wd <= {8'h02, arm_board_commandFrame_1[47:24]}; ena <= 1; number_of_bytes <= 4; end
 						7: begin data_wd <= {8'h03, arm_board_commandFrame_1[71:48]}; ena <= 1; number_of_bytes <= 4; end
 						8: begin data_wd <= {8'h04, 8'h00, arm_board_commandFrame_1[87:72]}; ena <= 1; number_of_bytes <= 4; end
-						9: begin delay_counter <= 100; a1335_state <= DELAY; end
+						9: begin delay_counter <= 255; a1335_state <= DELAY; end
 						10: begin 
 							if(arm_board_commandFrame_2!=arm_board_commandFrame_prev[2]) begin
 								data_wd <= {8'h01, arm_board_commandFrame_1[23:0]}; ena <= 1; number_of_bytes <= 4; 
@@ -135,7 +135,7 @@ always @(posedge clock, posedge reset) begin: A1335_CONTROL_LOGIC
 						11: begin data_wd <= {8'h02, arm_board_commandFrame_2[47:24]}; ena <= 1; number_of_bytes <= 4; end
 						12: begin data_wd <= {8'h03, arm_board_commandFrame_2[71:48]}; ena <= 1; number_of_bytes <= 4; end
 						13: begin data_wd <= {8'h04, 8'h00, arm_board_commandFrame_2[87:72]}; ena <= 1; number_of_bytes <= 4; end
-						14: begin delay_counter <= 100; a1335_state <= DELAY; end
+						14: begin delay_counter <= 255; a1335_state <= DELAY; end
 						15: begin 
 							if(arm_board_commandFrame_3!=arm_board_commandFrame_prev[3]) begin
 								data_wd <= {8'h01, arm_board_commandFrame_3[23:0]}; ena <= 1; number_of_bytes <= 4; 
