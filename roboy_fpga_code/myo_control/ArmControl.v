@@ -44,8 +44,9 @@ reg [6:0] device_id;
 reg [87:0] arm_board_commandFrame_prev[3:0];
 
 always @(posedge clock, posedge reset) begin: A1335_CONTROL_LOGIC
-	parameter IDLE  = 0, WAIT_FOR_I2C_TRANSMISSION = 1, DONE = 2, READ_ANGLE = 3, WRITE_HAND = 4;
+	parameter IDLE  = 0, WAIT_FOR_I2C_TRANSMISSION = 1, DONE = 2, READ_ANGLE = 3, WRITE_HAND = 4, DELAY = 5;
 	reg [7:0] command_counter;
+	reg [7:0] delay_counter;
 	if (reset == 1) begin 
 		data_wd <= 0;
 		ena <= 0;
@@ -88,7 +89,7 @@ always @(posedge clock, posedge reset) begin: A1335_CONTROL_LOGIC
 				end
 			end
 			WRITE_HAND: begin
-				if(command_counter<16) begin
+				if(command_counter<=18) begin
 					a1335_state <= WAIT_FOR_I2C_TRANSMISSION;
 					a1335_next_state <= WRITE_HAND;
 					rw <= 0; 
@@ -99,40 +100,43 @@ always @(posedge clock, posedge reset) begin: A1335_CONTROL_LOGIC
 								device_id <= arm_board_device_id_0;
 								arm_board_commandFrame_prev[0] <= arm_board_commandFrame_0;
 							end else begin
-								command_counter <= 4;
+								command_counter <= 5;
 								a1335_state <= WRITE_HAND;
 							end
 						end
 						1: begin data_wd <= {8'h02, arm_board_commandFrame_0[47:24]}; ena <= 1; number_of_bytes <= 4; end
 						2: begin data_wd <= {8'h03, arm_board_commandFrame_0[71:48]}; ena <= 1; number_of_bytes <= 4; end
 						3: begin data_wd <= {8'h04, 8'h00, arm_board_commandFrame_0[87:72]}; ena <= 1; number_of_bytes <= 4; end
-						4: begin 
+						4: begin delay_counter <= 100; a1335_state <= DELAY; end
+						5: begin 
 							if(arm_board_commandFrame_1!=arm_board_commandFrame_prev[1]) begin
 								data_wd <= {8'h01, arm_board_commandFrame_1[23:0]}; ena <= 1; number_of_bytes <= 4; 
 								device_id <= arm_board_device_id_1;
 								arm_board_commandFrame_prev[1] <= arm_board_commandFrame_1;
 							end else begin
-								command_counter <= 8;
+								command_counter <= 10;
 								a1335_state <= WRITE_HAND;
 							end
 						end
-						5: begin data_wd <= {8'h02, arm_board_commandFrame_1[47:24]}; ena <= 1; number_of_bytes <= 4; end
-						6: begin data_wd <= {8'h03, arm_board_commandFrame_1[71:48]}; ena <= 1; number_of_bytes <= 4; end
-						7: begin data_wd <= {8'h04, 8'h00, arm_board_commandFrame_1[87:72]}; ena <= 1; number_of_bytes <= 4; end
-						8: begin 
+						6: begin data_wd <= {8'h02, arm_board_commandFrame_1[47:24]}; ena <= 1; number_of_bytes <= 4; end
+						7: begin data_wd <= {8'h03, arm_board_commandFrame_1[71:48]}; ena <= 1; number_of_bytes <= 4; end
+						8: begin data_wd <= {8'h04, 8'h00, arm_board_commandFrame_1[87:72]}; ena <= 1; number_of_bytes <= 4; end
+						9: begin delay_counter <= 100; a1335_state <= DELAY; end
+						10: begin 
 							if(arm_board_commandFrame_2!=arm_board_commandFrame_prev[2]) begin
 								data_wd <= {8'h01, arm_board_commandFrame_1[23:0]}; ena <= 1; number_of_bytes <= 4; 
 								device_id <= arm_board_device_id_2;
 								arm_board_commandFrame_prev[2] <= arm_board_commandFrame_2;
 							end else begin
-								command_counter <= 12;
+								command_counter <= 15;
 								a1335_state <= WRITE_HAND;
 							end
 						end
-						9: begin data_wd <= {8'h02, arm_board_commandFrame_2[47:24]}; ena <= 1; number_of_bytes <= 4; end
-						10: begin data_wd <= {8'h03, arm_board_commandFrame_2[71:48]}; ena <= 1; number_of_bytes <= 4; end
-						11: begin data_wd <= {8'h04, 8'h00, arm_board_commandFrame_2[87:72]}; ena <= 1; number_of_bytes <= 4; end
-						12: begin 
+						11: begin data_wd <= {8'h02, arm_board_commandFrame_2[47:24]}; ena <= 1; number_of_bytes <= 4; end
+						12: begin data_wd <= {8'h03, arm_board_commandFrame_2[71:48]}; ena <= 1; number_of_bytes <= 4; end
+						13: begin data_wd <= {8'h04, 8'h00, arm_board_commandFrame_2[87:72]}; ena <= 1; number_of_bytes <= 4; end
+						14: begin delay_counter <= 100; a1335_state <= DELAY; end
+						15: begin 
 							if(arm_board_commandFrame_3!=arm_board_commandFrame_prev[3]) begin
 								data_wd <= {8'h01, arm_board_commandFrame_3[23:0]}; ena <= 1; number_of_bytes <= 4; 
 								device_id <= arm_board_device_id_3;
@@ -142,9 +146,9 @@ always @(posedge clock, posedge reset) begin: A1335_CONTROL_LOGIC
 								a1335_state <= DONE;
 							end
 						end
-						13: begin data_wd <= {8'h02, arm_board_commandFrame_3[47:24]}; ena <= 1; number_of_bytes <= 4; end
-						14: begin data_wd <= {8'h03, arm_board_commandFrame_3[71:48]}; ena <= 1; number_of_bytes <= 4; end
-						15: begin data_wd <= {8'h04, 8'h00, arm_board_commandFrame_3[87:72]}; ena <= 1; number_of_bytes <= 4; end
+						16: begin data_wd <= {8'h02, arm_board_commandFrame_3[47:24]}; ena <= 1; number_of_bytes <= 4; end
+						17: begin data_wd <= {8'h03, arm_board_commandFrame_3[71:48]}; ena <= 1; number_of_bytes <= 4; end
+						18: begin data_wd <= {8'h04, 8'h00, arm_board_commandFrame_3[87:72]}; ena <= 1; number_of_bytes <= 4; end
 						default: data_wd <= 0; 
 					endcase
 				end else begin
@@ -152,6 +156,14 @@ always @(posedge clock, posedge reset) begin: A1335_CONTROL_LOGIC
 					a1335_state <= DONE;
 				end
 			end
+			DELAY: begin
+				if(delay_counter!=0) begin
+					delay_counter <= delay_counter-1;
+				end else begin
+					command_counter <= command_counter+1;
+					a1335_state <= WRITE_HAND;
+				end
+			end 
 			DONE: begin 
 				a1335_state <= IDLE;
 				done <= 1;
@@ -215,7 +227,7 @@ oneshot oneshot(
    .level_sig(fifo_write)
 );
 
-i2c_master #(50000000, 100000) i2c(
+i2c_master #(50000000, 400000) i2c(
 	.clk(clock),
 	.reset_n(~reset),
 	.ena(ena),
