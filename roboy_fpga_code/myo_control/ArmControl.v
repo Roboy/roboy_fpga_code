@@ -46,7 +46,7 @@ reg [87:0] arm_board_commandFrame_prev[3:0];
 always @(posedge clock, posedge reset) begin: A1335_CONTROL_LOGIC
 	parameter IDLE  = 0, WAIT_FOR_I2C_TRANSMISSION = 1, DONE = 2, READ_ANGLE = 3, WRITE_HAND = 4, DELAY = 5;
 	reg [7:0] command_counter;
-	reg [7:0] delay_counter;
+	reg [16:0] delay_counter;
 	if (reset == 1) begin 
 		data_wd <= 0;
 		ena <= 0;
@@ -89,7 +89,7 @@ always @(posedge clock, posedge reset) begin: A1335_CONTROL_LOGIC
 				end
 			end
 			WRITE_HAND: begin
-				if(command_counter<=18) begin
+				if(command_counter<=27) begin
 					a1335_state <= WAIT_FOR_I2C_TRANSMISSION;
 					a1335_next_state <= WRITE_HAND;
 					rw <= 0; 
@@ -100,55 +100,61 @@ always @(posedge clock, posedge reset) begin: A1335_CONTROL_LOGIC
 								device_id <= arm_board_device_id_0;
 								arm_board_commandFrame_prev[0] <= arm_board_commandFrame_0;
 							end else begin
-								command_counter <= 5;
+								command_counter <= 7;
 								a1335_state <= WRITE_HAND;
 							end
 						end
-						1: begin data_wd <= {8'h02, arm_board_commandFrame_0[47:24]}; ena <= 1; number_of_bytes <= 4; end
-						2: begin data_wd <= {8'h03, arm_board_commandFrame_0[71:48]}; ena <= 1; number_of_bytes <= 4; end
-						3: begin data_wd <= {8'h04, 8'h00, arm_board_commandFrame_0[87:72]}; ena <= 1; number_of_bytes <= 4; end
-						4: begin delay_counter <= 255; a1335_state <= DELAY; end
-						5: begin 
-							if(arm_board_commandFrame_1!=arm_board_commandFrame_prev[1]) begin
+						1: begin delay_counter <= 5000; a1335_state <= DELAY; end
+						2: begin data_wd <= {8'h02, arm_board_commandFrame_0[47:24]}; ena <= 1; number_of_bytes <= 4; end
+						3: begin delay_counter <= 5000; a1335_state <= DELAY; end
+						4: begin data_wd <= {8'h03, arm_board_commandFrame_0[71:48]}; ena <= 1; number_of_bytes <= 4; end
+						5: begin delay_counter <= 5000; a1335_state <= DELAY; end
+						6: begin data_wd <= {8'h04, 8'h00, arm_board_commandFrame_0[87:72]}; ena <= 1; number_of_bytes <= 4; end
+						7: if(arm_board_commandFrame_1!=arm_board_commandFrame_prev[1]) begin
+								arm_board_commandFrame_prev[1] <= arm_board_commandFrame_1;
 								data_wd <= {8'h01, arm_board_commandFrame_1[23:0]}; ena <= 1; number_of_bytes <= 4; 
 								device_id <= arm_board_device_id_1;
-								arm_board_commandFrame_prev[1] <= arm_board_commandFrame_1;
 							end else begin
-								command_counter <= 10;
+								command_counter <= 14;
 								a1335_state <= WRITE_HAND;
 							end
-						end
-						6: begin data_wd <= {8'h02, arm_board_commandFrame_1[47:24]}; ena <= 1; number_of_bytes <= 4; end
-						7: begin data_wd <= {8'h03, arm_board_commandFrame_1[71:48]}; ena <= 1; number_of_bytes <= 4; end
-						8: begin data_wd <= {8'h04, 8'h00, arm_board_commandFrame_1[87:72]}; ena <= 1; number_of_bytes <= 4; end
-						9: begin delay_counter <= 255; a1335_state <= DELAY; end
-						10: begin 
+						8: begin delay_counter <= 5000; a1335_state <= DELAY; end
+						9: begin data_wd <= {8'h02, arm_board_commandFrame_1[47:24]}; ena <= 1; number_of_bytes <= 4; end
+						10: begin delay_counter <= 5000; a1335_state <= DELAY; end
+						11: begin data_wd <= {8'h03, arm_board_commandFrame_1[71:48]}; ena <= 1; number_of_bytes <= 4; end
+						12: begin delay_counter <= 5000; a1335_state <= DELAY; end
+						13: begin data_wd <= {8'h04, 8'h00, arm_board_commandFrame_1[87:72]}; ena <= 1; number_of_bytes <= 4; end
+						14: begin 
 							if(arm_board_commandFrame_2!=arm_board_commandFrame_prev[2]) begin
+								arm_board_commandFrame_prev[2] <= arm_board_commandFrame_2;
 								data_wd <= {8'h01, arm_board_commandFrame_1[23:0]}; ena <= 1; number_of_bytes <= 4; 
 								device_id <= arm_board_device_id_2;
-								arm_board_commandFrame_prev[2] <= arm_board_commandFrame_2;
 							end else begin
-								command_counter <= 15;
+								command_counter <= 21;
 								a1335_state <= WRITE_HAND;
 							end
 						end
-						11: begin data_wd <= {8'h02, arm_board_commandFrame_2[47:24]}; ena <= 1; number_of_bytes <= 4; end
-						12: begin data_wd <= {8'h03, arm_board_commandFrame_2[71:48]}; ena <= 1; number_of_bytes <= 4; end
-						13: begin data_wd <= {8'h04, 8'h00, arm_board_commandFrame_2[87:72]}; ena <= 1; number_of_bytes <= 4; end
-						14: begin delay_counter <= 255; a1335_state <= DELAY; end
-						15: begin 
+						15: begin delay_counter <= 5000; a1335_state <= DELAY; end
+						16: begin data_wd <= {8'h02, arm_board_commandFrame_2[47:24]}; ena <= 1; number_of_bytes <= 4; end
+						17: begin delay_counter <= 5000; a1335_state <= DELAY; end
+						18: begin data_wd <= {8'h03, arm_board_commandFrame_2[71:48]}; ena <= 1; number_of_bytes <= 4; end
+						19: begin delay_counter <= 5000; a1335_state <= DELAY; end
+						20: begin data_wd <= {8'h04, 8'h00, arm_board_commandFrame_2[87:72]}; ena <= 1; number_of_bytes <= 4; end
+						21: begin 
 							if(arm_board_commandFrame_3!=arm_board_commandFrame_prev[3]) begin
+								arm_board_commandFrame_prev[3] <= arm_board_commandFrame_3;
 								data_wd <= {8'h01, arm_board_commandFrame_3[23:0]}; ena <= 1; number_of_bytes <= 4; 
 								device_id <= arm_board_device_id_3;
-								arm_board_commandFrame_prev[3] <= arm_board_commandFrame_3;
 							end else begin
-								command_counter <= 0;
 								a1335_state <= DONE;
 							end
 						end
-						16: begin data_wd <= {8'h02, arm_board_commandFrame_3[47:24]}; ena <= 1; number_of_bytes <= 4; end
-						17: begin data_wd <= {8'h03, arm_board_commandFrame_3[71:48]}; ena <= 1; number_of_bytes <= 4; end
-						18: begin data_wd <= {8'h04, 8'h00, arm_board_commandFrame_3[87:72]}; ena <= 1; number_of_bytes <= 4; end
+						22: begin delay_counter <= 5000; a1335_state <= DELAY; end
+						23: begin data_wd <= {8'h02, arm_board_commandFrame_3[47:24]}; ena <= 1; number_of_bytes <= 4; end
+						24: begin delay_counter <= 5000; a1335_state <= DELAY; end
+						25: begin data_wd <= {8'h03, arm_board_commandFrame_3[71:48]}; ena <= 1; number_of_bytes <= 4; end
+						26: begin delay_counter <= 5000; a1335_state <= DELAY; end
+						27: begin data_wd <= {8'h04, 8'h00, arm_board_commandFrame_3[87:72]}; ena <= 1; number_of_bytes <= 4; end
 						default: data_wd <= 0; 
 					endcase
 				end else begin

@@ -590,7 +590,6 @@ reg hand_control;
 reg arm_board_ack_error;
 reg [6:0] arm_board_device_id[3:0];
 wire [87:0] arm_board_commandFrame[3:0];
-reg [7:0] write_arm_board;
 reg [7:0] motor0[3:0];
 reg [7:0] motor1[3:0];
 reg [7:0] motor2[3:0];
@@ -688,7 +687,6 @@ generate
 			.reset(reset),
 			.elbow_read_joint_angle(elbow_read_joint_angle),
 			.write_hand(write_hand),
-			.write_arm_board(),
 			.read_status(),
 			.sda(arm_sda),
 			.scl(arm_scl),
