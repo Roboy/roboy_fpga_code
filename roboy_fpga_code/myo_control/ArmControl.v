@@ -2,6 +2,7 @@ module ArmControl (
     input clock,
 	 input reset,
 	 input wire elbow_read_joint_angle,
+	 input wire wrist_read_joint_angle,
 	 input wire read_status,
 	 input wire write_hand,
 	 input wire read_hand,
@@ -9,6 +10,7 @@ module ArmControl (
 	 output wire scl,
 	 output [2:0] LED,
 	 input wire [6:0] elbow_device_id,
+	 input wire [6:0] wrist_device_id,
 	 input wire [6:0] arm_board_device_id_0,
 	 input wire [6:0] arm_board_device_id_1,
 	 input wire [6:0] arm_board_device_id_2,
@@ -61,6 +63,12 @@ always @(posedge clock, posedge reset) begin: A1335_CONTROL_LOGIC
 						ena <= 0;
 						if(elbow_read_joint_angle) begin // read that shit
 							a1335_state <= READ_ANGLE;
+							device_id <= elbow_device_id;
+							command_counter <= 0;
+							done <= 0;
+						end else if(wrist_read_joint_angle) begin
+							a1335_state <= READ_ANGLE;
+							device_id <= wrist_device_id;
 							command_counter <= 0;
 							done <= 0;
 						end else if (write_hand) begin // write that shit
@@ -71,7 +79,6 @@ always @(posedge clock, posedge reset) begin: A1335_CONTROL_LOGIC
 					end 
 			READ_ANGLE: begin
 				if(command_counter< 2) begin
-					device_id <= elbow_device_id;
 					a1335_state <= WAIT_FOR_I2C_TRANSMISSION;
 					a1335_next_state <= READ_ANGLE;
 					rw <= 1; 
