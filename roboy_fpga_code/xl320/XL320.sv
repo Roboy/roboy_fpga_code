@@ -1,64 +1,161 @@
 module XL320 (
    input       clock,
    input       reset,
-	inout 		serial_io
+	inout 		serial_io,
+	// this is for the avalon interface
+	input [15:0] address,
+	input write,
+	input signed [31:0] writedata,
+	input read,
+	output signed [31:0] readdata,
+	output waitrequest
    );
+
+parameter NUMBER_OF_MOTORS = 8;
 	
-parameter DXL_INST_PING          = 8'h01; /**< checks if ID is associated to a Device */
-parameter DXL_INST_READ          = 8'h02; /**< read data from the Device */
-parameter DXL_INST_WRITE         = 8'h03; /**< write data on the Device */
-parameter DXL_INST_REG_WRITE     = 8'h04; /**< registers the write instruction to a standby status */
-parameter DXL_INST_ACTION        = 8'h05; /**< executes the write instruction previously registered */
-parameter DXL_INST_FACTORY_RESET = 8'h06; /**< resets the Control Table to its initial factory default settings */
-parameter DXL_INST_REBOOT        = 8'h08; /**< reboot the Device */
-parameter DXL_INST_STATUS        = 8'h55; /**< Return Instruction for the Instruction Packet */
-parameter DXL_INST_SYNC_READ     = 8'h82; /**< (Multiple devices) read data with same Address and length at once */
-parameter DXL_INST_SYNC_WRITE    = 8'h83; /**< (Multiple devices) write data on the same Address and length at once */
-parameter DXL_INST_BULK_READ     = 8'h92; /**< (Multiple devices) read data from different Addresses and lengths at once */
-parameter DXL_INST_BULK_WRITE    = 8'h93; /**< (Multiple devices) write data on different Addresses and lengths at once */
+reg [7:0] motor_id;
+reg [7:0] instruction;
+reg [15:0] motor_address;
+reg [15:0] value;
+
+reg [15:0] model_number[NUMBER_OF_MOTORS-1:0];
+reg [15:0] version[NUMBER_OF_MOTORS-1:0];
+reg [15:0] id[NUMBER_OF_MOTORS-1:0];
+reg [1:0] baud_rate[NUMBER_OF_MOTORS-1:0];
+reg [7:0] return_delay_time[NUMBER_OF_MOTORS-1:0];
+reg [15:0] cw_angle_limit[NUMBER_OF_MOTORS-1:0];
+reg [15:0] ccw_angle_limit[NUMBER_OF_MOTORS-1:0];
+reg [1:0] control_mode[NUMBER_OF_MOTORS-1:0];
+reg [7:0] limit_temperature[NUMBER_OF_MOTORS-1:0];
+reg [7:0] lower_limit_voltage[NUMBER_OF_MOTORS-1:0];
+reg [7:0] upper_limit_voltage[NUMBER_OF_MOTORS-1:0];
+reg [15:0] max_torque[NUMBER_OF_MOTORS-1:0];
+reg [1:0] return_level[NUMBER_OF_MOTORS-1:0];
+reg [3:0] alarm_shutdown[NUMBER_OF_MOTORS-1:0];
+reg [1:0] torque_enable[NUMBER_OF_MOTORS-1:0];
+reg [15:0] led[NUMBER_OF_MOTORS-1:0];
+reg [15:0] d_gain[NUMBER_OF_MOTORS-1:0];
+reg [15:0] i_gain[NUMBER_OF_MOTORS-1:0];
+reg [15:0] p_gain[NUMBER_OF_MOTORS-1:0];
+reg [15:0] goal_position[NUMBER_OF_MOTORS-1:0];
+reg [15:0] goal_speed[NUMBER_OF_MOTORS-1:0];
+reg [15:0] goal_torque[NUMBER_OF_MOTORS-1:0];
+reg [15:0] present_position[NUMBER_OF_MOTORS-1:0];
+reg [15:0] present_speed[NUMBER_OF_MOTORS-1:0];
+reg [15:0] present_load[NUMBER_OF_MOTORS-1:0];
+reg [15:0] present_voltage[NUMBER_OF_MOTORS-1:0];
+reg [15:0] present_temperature[NUMBER_OF_MOTORS-1:0];
+reg [15:0] registered_instruction[NUMBER_OF_MOTORS-1:0];
+reg [15:0] moving[NUMBER_OF_MOTORS-1:0];
+reg [15:0] hardware_error[NUMBER_OF_MOTORS-1:0];
+reg [15:0] punch[NUMBER_OF_MOTORS-1:0];
+
+	
+assign readdata = returnvalue;
+assign waitrequest = (waitFlag && read);
+reg [31:0] returnvalue;
+reg waitFlag;
+// the following iterface handles read requests via lightweight axi bridge
+// the upper 8 bit of the read address define which value we want to read
+// the lower 8 bit of the read address define for which motor
+always @(posedge clock, posedge reset) begin: AVALON_READ_INTERFACE
+	if (reset == 1) begin
+		waitFlag <= 1;
+	end else begin
+		waitFlag <= 1;
+		if(read) begin
+			case(address>>8)
+				MODEL_NUMBER: 				returnvalue <= model_number[address[7:0]];
+				VERSION: 					returnvalue <= version[address[7:0]];
+				ID: 							returnvalue <= id[address[7:0]];
+				BAUD_RATE: 					returnvalue <= baud_rate[address[7:0]];
+				RETURN_DELAY_TIME: 		returnvalue <= return_delay_time[address[7:0]];
+				CW_ANGLE_LIMIT: 			returnvalue <= cw_angle_limit[address[7:0]];
+				CCW_ANGLE_LIMIT: 			returnvalue <= ccw_angle_limit[address[7:0]];
+				CONTROL_MODE: 				returnvalue <= control_mode[address[7:0]];
+				LIMIT_TEMPERATURE: 		returnvalue <= limit_temperature[address[7:0]];
+				LOWER_LIMIT_VOLTAGE: 	returnvalue <= lower_limit_voltage[address[7:0]];
+				UPPPER_LIMIT_VOLTAGE: 	returnvalue <= upper_limit_voltage[address[7:0]];
+				MAX_TORQUE: 				returnvalue <= max_torque[address[7:0]];
+				RETURN_LEVEL: 				returnvalue <= return_level[address[7:0]];
+				ALARM_SHUTDOWN: 			returnvalue <= alarm_shutdown[address[7:0]];
+				TORQUE_ENABLE: 			returnvalue <= torque_enable[address[7:0]];
+				LED: 							returnvalue <= led[address[7:0]];
+				D_GAIN: 						returnvalue <= d_gain[address[7:0]];
+				I_GAIN: 						returnvalue <= i_gain[address[7:0]];
+				P_GAIN: 						returnvalue <= p_gain[address[7:0]];
+				GOAL_POSITION: 			returnvalue <= goal_position[address[7:0]];
+				GOAL_SPEED: 				returnvalue <= goal_speed[address[7:0]];
+				GOAL_TORQUE: 				returnvalue <= goal_torque[address[7:0]];
+				PRESENT_LOAD: 				returnvalue <= present_load[address[7:0]];
+				PRESENT_SPEED: 			returnvalue <= present_speed[address[7:0]];
+				PRESENT_VOLTAGE: 			returnvalue <= present_voltage[address[7:0]];
+				RETURN_LEVEL: 				returnvalue <= return_level[address[7:0]];
+				PRESENT_TEMPERATURE: 	returnvalue <= present_temperature[address[7:0]];
+				REGISTERED_INSTRUCTION: returnvalue <= registered_instruction[address[7:0]];
+				MOVING: 						returnvalue <= moving[address[7:0]];
+				HARDWARE_ERROR: 			returnvalue <= hardware_error[address[7:0]];
+				PUNCH: 						returnvalue <= punch[address[7:0]];
+				default: returnvalue <= 32'hDEADBEEF;
+			endcase
+			if(waitFlag==1) begin // next clock cycle the returnvalue should be ready
+				waitFlag <= 0;
+			end
+		end
+	end
+end
+	
+localparam DXL_INST_PING          = 8'h01; /**< checks if ID is associated to a Device */
+localparam DXL_INST_READ          = 8'h02; /**< read data from the Device */
+localparam DXL_INST_WRITE         = 8'h03; /**< write data on the Device */
+localparam DXL_INST_REG_WRITE     = 8'h04; /**< registers the write instruction to a standby status */
+localparam DXL_INST_ACTION        = 8'h05; /**< executes the write instruction previously registered */
+localparam DXL_INST_FACTORY_RESET = 8'h06; /**< resets the Control Table to its initial factory default settings */
+localparam DXL_INST_REBOOT        = 8'h08; /**< reboot the Device */
+localparam DXL_INST_STATUS        = 8'h55; /**< Return Instruction for the Instruction Packet */
+localparam DXL_INST_SYNC_READ     = 8'h82; /**< (Multiple devices) read data with same Address and length at once */
+localparam DXL_INST_SYNC_WRITE    = 8'h83; /**< (Multiple devices) write data on the same Address and length at once */
+localparam DXL_INST_BULK_READ     = 8'h92; /**< (Multiple devices) read data from different Addresses and lengths at once */
+localparam DXL_INST_BULK_WRITE    = 8'h93; /**< (Multiple devices) write data on different Addresses and lengths at once */
 
 	/*EEPROM Area*/
-parameter MODEL_NUMBER             = 0; /**< Model number [R] (default=350) */
-parameter VERSION                  = 2; /**< Information on the version of firmware [R] */
-parameter ID                       = 3; /**< ID of Dynamixel [RW] (default=1 ; min=0 ; max=252) */
-parameter BAUD_RATE                = 4; /**< Baud Rate of Dynamixel [RW] (default=3 ; min=0 ; max=3) 0: 9600; 1:57600; 2:115200; 3:1Mbps*/
-parameter RETURN_DELAY_TIME        = 5; /**< Return Delay Time [RW] (default=250 ; min=0 ; max=254) */
-parameter CW_ANGLE_LIMIT           = 6; /**< clockwise Angle Limit [RW] (default=0 ; min=0 ; max=1023) */
-parameter CCW_ANGLE_LIMIT          = 8; /**< counterclockwise Angle Limit [RW] (default=1023 ; min=0 ; max=1023) */
-parameter CONTROL_MODE             = 11; /**< Control Mode [RW] (default=2 ; min=1 ; max=2) */
-parameter LIMIT_TEMPERATURE        = 12; /**< Internal Limit Temperature [RW] (default=65 ; min=0 ; max=150) */
-parameter LOWER_LIMIT_VOLTAGE      = 13; /**< Lowest Limit Voltage [RW] (default=60 ; min=50 ; max=250) */
-parameter UPPPER_LIMIT_VOLTAGE     = 14; /**< Upper Limit Voltage [RW] (default=90 ; min=50 ; max=250) */
-parameter MAX_TORQUE               = 15; /**< Lowest byte of Max. Torque [RW] (default=1023 ; min=0 ; max=1023) */
-parameter RETURN_LEVEL             = 17; /**< Return Level [RW] (default=2 ; min=0 ; max=2) */
-parameter ALARM_SHUTDOWN           = 18; /**< Shutdown for Alarm [RW] (default=3 ; min=0 ; max=7) */
+localparam MODEL_NUMBER             = 0; /**< Model number [R] (default=350) */
+localparam VERSION                  = 2; /**< Information on the version of firmware [R] */
+localparam ID                       = 3; /**< ID of Dynamixel [RW] (default=1 ; min=0 ; max=252) */
+localparam BAUD_RATE                = 4; /**< Baud Rate of Dynamixel [RW] (default=3 ; min=0 ; max=3) 0: 9600; 1:57600; 2:115200; 3:1Mbps*/
+localparam RETURN_DELAY_TIME        = 5; /**< Return Delay Time [RW] (default=250 ; min=0 ; max=254) */
+localparam CW_ANGLE_LIMIT           = 6; /**< clockwise Angle Limit [RW] (default=0 ; min=0 ; max=1023) */
+localparam CCW_ANGLE_LIMIT          = 8; /**< counterclockwise Angle Limit [RW] (default=1023 ; min=0 ; max=1023) */
+localparam CONTROL_MODE             = 11; /**< Control Mode [RW] (default=2 ; min=1 ; max=2) */
+localparam LIMIT_TEMPERATURE        = 12; /**< Internal Limit Temperature [RW] (default=65 ; min=0 ; max=150) */
+localparam LOWER_LIMIT_VOLTAGE      = 13; /**< Lowest Limit Voltage [RW] (default=60 ; min=50 ; max=250) */
+localparam UPPPER_LIMIT_VOLTAGE     = 14; /**< Upper Limit Voltage [RW] (default=90 ; min=50 ; max=250) */
+localparam MAX_TORQUE               = 15; /**< Lowest byte of Max. Torque [RW] (default=1023 ; min=0 ; max=1023) */
+localparam RETURN_LEVEL             = 17; /**< Return Level [RW] (default=2 ; min=0 ; max=2) */
+localparam ALARM_SHUTDOWN           = 18; /**< Shutdown for Alarm [RW] (default=3 ; min=0 ; max=7) */
 	/*RAM Area*/
-parameter TORQUE_ENABLE            = 24; /**< Torque On/Off [RW] (default=0 ; min=0 ; max=1) */
-parameter LED                      = 25; /**< LED On/Off [RW] (default=0 ; min=0 ; max=7) */
-parameter D_GAIN     				  = 27; /**< D Gain [RW] (default=0 ; min=0 ; max=254) */
-parameter I_GAIN                   = 28; /**< I Gain [RW] (default=0 ; min=0 ; max=254) */
-parameter P_GAIN                   = 29; /**< P Gain [RW] (default=32 ; min=0 ; max=254) */
-parameter GOAL_POSITION            = 30; /**< Goal Position [RW] (min=0 ; max=1023) */
-parameter GOAL_SPEED               = 32; /**< Goal Speed [RW] (min=0 ; max=2047) */
-parameter GOAL_TORQUE 			     = 35; /**< Goal Torque [RW] (min=0 ; max=1023) */
-parameter PRESENT_POSITION         = 37; /**< Current Position [R] */
-parameter PRESENT_SPEED            = 39; /**< Current Speed [R] */
-parameter PRESENT_LOAD             = 41; /**< Current Load [R] */
-parameter PRESENT_VOLTAGE          = 45; /**< Current Voltage [R] */
-parameter PRESENT_TEMPERATURE      = 46; /**< Present temperature [R] */
-parameter REGISTERED_INSTRUCTION   = 47; /**< Registered Instruction [R] (default=0) */
-parameter MOVING                   = 49; /**< Moving [R] (default=0) */
-parameter HARDWARE_ERROR           = 50; /**< Hardware error status [R] (default=0) */
-parameter PUNCH                    = 51;  /**< Punch [RW] (default=32 ; min=0 ; max=1023) */
+localparam TORQUE_ENABLE            = 24; /**< Torque On/Off [RW] (default=0 ; min=0 ; max=1) */
+localparam LED                      = 25; /**< LED On/Off [RW] (default=0 ; min=0 ; max=7) */
+localparam D_GAIN     				  = 27; /**< D Gain [RW] (default=0 ; min=0 ; max=254) */
+localparam I_GAIN                   = 28; /**< I Gain [RW] (default=0 ; min=0 ; max=254) */
+localparam P_GAIN                   = 29; /**< P Gain [RW] (default=32 ; min=0 ; max=254) */
+localparam GOAL_POSITION            = 30; /**< Goal Position [RW] (min=0 ; max=1023) */
+localparam GOAL_SPEED               = 32; /**< Goal Speed [RW] (min=0 ; max=2047) */
+localparam GOAL_TORQUE 			     = 35; /**< Goal Torque [RW] (min=0 ; max=1023) */
+localparam PRESENT_POSITION         = 37; /**< Current Position [R] */
+localparam PRESENT_SPEED            = 39; /**< Current Speed [R] */
+localparam PRESENT_LOAD             = 41; /**< Current Load [R] */
+localparam PRESENT_VOLTAGE          = 45; /**< Current Voltage [R] */
+localparam PRESENT_TEMPERATURE      = 46; /**< Present temperature [R] */
+localparam REGISTERED_INSTRUCTION   = 47; /**< Registered Instruction [R] (default=0) */
+localparam MOVING                   = 49; /**< Moving [R] (default=0) */
+localparam HARDWARE_ERROR           = 50; /**< Hardware error status [R] (default=0) */
+localparam PUNCH                    = 51;  /**< Punch [RW] (default=32 ; min=0 ; max=1023) */
 
-reg [7:0] id;
-reg [7:0] instruction;
 reg getValue;
-reg [15:0] address;
-reg [15:0] value;
 reg crc_calculate, crc_calculated, crc_calculate_done;
 
-parameter bit [15:0] crc_table [255:0] = '{16'h0000,
+localparam bit [15:0] crc_table [255:0] = '{16'h0000,
 										  16'h8005, 16'h800F, 16'h000A, 16'h801B, 16'h001E, 16'h0014, 16'h8011,
 										  16'h8033, 16'h0036, 16'h003C, 16'h8039, 16'h0028, 16'h802D, 16'h8027,
 										  16'h0022, 16'h8063, 16'h0066, 16'h006C, 16'h8069, 16'h0078, 16'h807D,
@@ -115,7 +212,7 @@ begin
 end
 
 reg transmit, receive, direction;
-reg [7:0] tx_byte;
+reg [7:0] tx_byte; 
 wire [7:0] rx_byte;
 wire tx_active;
 wire tx_done, rx_done;
@@ -123,17 +220,16 @@ reg package_valid;
 reg [7:0] byte_counter;
 reg [7:0] state;
 reg [7:0] next_state;
-parameter IDLE = 0, SENDPACKET = 1, RECEIVE = 2, TRANSMIT = 3, CALCULATE_CRC_AND_TRANSMIT = 4, WAIT_FOR_TRANSMIT_DONE = 5, CHECK_PACKAGE_VALID = 6;
+localparam IDLE = 0, SENDPACKET = 1, RECEIVE = 2, TRANSMIT = 3, CALCULATE_CRC_AND_TRANSMIT = 4, WAIT_FOR_TRANSMIT_DONE = 5, CHECK_PACKAGE_VALID = 6;
 reg [7:0] receive_state;
-parameter HEADER_FF_1 = 0, HEADER_FF_2 = 1, HEADER_FD = 2, HEADER_RESERVED = 3, HEADER_ID = 4, LENGTH_1 = 5, LENGTH_2 = 6, INSTR = 7, PARAMS = 8, CRC_1 = 9, CRC_2 = 10;
+localparam HEADER_FF_1 = 0, HEADER_FF_2 = 1, HEADER_FD = 2, HEADER_RESERVED = 3, HEADER_ID = 4, LENGTH_1 = 5, LENGTH_2 = 6, INSTR = 7, PARAMS = 8, CRC_1 = 9, CRC_2 = 10;
 always @(posedge clock, posedge reset)
 begin
 	if(reset) begin
 		state <= IDLE;
 		transmit<=0; 
-		id <= 1;
 		value <= 115200;
-		address <= BAUD_RATE;
+		motor_address <= BAUD_RATE;
 		instruction <= DXL_INST_WRITE;
 	end else begin 
 		case (state) 
@@ -142,9 +238,9 @@ begin
 			end
 			SENDPACKET: begin
 				if(!tx_active) begin
-					if (address==MODEL_NUMBER||address==CW_ANGLE_LIMIT||address==CCW_ANGLE_LIMIT||address==MAX_TORQUE||
-					address==GOAL_POSITION||address==GOAL_SPEED||address==GOAL_TORQUE||address==PRESENT_POSITION||address==PRESENT_SPEED||
-					address==PRESENT_LOAD||address==PUNCH ) begin
+					if (motor_address==MODEL_NUMBER||motor_address==CW_ANGLE_LIMIT||motor_address==CCW_ANGLE_LIMIT||motor_address==MAX_TORQUE||
+					motor_address==GOAL_POSITION||motor_address==GOAL_SPEED||motor_address==GOAL_TORQUE||motor_address==PRESENT_POSITION||motor_address==PRESENT_SPEED||
+					motor_address==PRESENT_LOAD||motor_address==PUNCH ) begin
 						length = 2; 
 					end else begin
 						length = 1;
@@ -153,12 +249,12 @@ begin
 					packet[1] = 8'hFF;
 					packet[2] = 8'hFD;
 					packet[3] = 8'h00;
-					packet[4] = id; 
+					packet[4] = motor_id; 
 					packet[5] = (length & 8'hff);
 					packet[6] = ((length >> 8) & 8'hff);
 					packet[7] = instruction;
-					packet[8] = (address & 8'hff);
-					packet[9] = ((address >> 8) & 8'hff);
+					packet[8] = (motor_address & 8'hff);
+					packet[9] = ((motor_address >> 8) & 8'hff);
 					packet[10] = (value & 8'hff);
 					if(length==2) begin
 						packet[11] = ((value >> 8) & 8'hff);
@@ -249,8 +345,8 @@ begin
 							byte_counter=byte_counter+1;
 						end
 						ID: begin 
-							if(rx_byte==id) begin
-								packet[4]=id;
+							if(rx_byte==motor_id) begin
+								packet[4]=motor_id;
 								receive_state=LENGTH_1;
 								byte_counter=byte_counter+1;
 							end else begin
