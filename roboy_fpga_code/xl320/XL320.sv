@@ -13,6 +13,7 @@ module XL320 (
 
 parameter NUMBER_OF_MOTORS = 8;
 reg send;
+reg getValue;
 	
 reg [7:0] motor_id;
 reg [7:0] instruction;
@@ -32,7 +33,7 @@ reg [7:0] lower_limit_voltage[NUMBER_OF_MOTORS-1:0];
 reg [7:0] upper_limit_voltage[NUMBER_OF_MOTORS-1:0];
 reg [15:0] max_torque[NUMBER_OF_MOTORS-1:0];
 reg [1:0] return_level[NUMBER_OF_MOTORS-1:0];
-reg [3:0] alarm_shutdown[NUMBER_OF_MOTORS-1:0];
+reg [3:0] alarm_shutdown[NUMBER_OF_MOTORS-1:0]; 
 reg [1:0] torque_enable[NUMBER_OF_MOTORS-1:0];
 reg [15:0] led[NUMBER_OF_MOTORS-1:0];
 reg [15:0] d_gain[NUMBER_OF_MOTORS-1:0];
@@ -54,7 +55,6 @@ reg [15:0] punch[NUMBER_OF_MOTORS-1:0];
 reg [31:0] returnvalue; 
 reg waitFlag;	
 assign readdata = returnvalue;
-assign waitrequest = (waitFlag && read);
 
 	/*EEPROM Area*/
 localparam MODEL_NUMBER             = 0; /**< Model number [R] (default=350) */
@@ -90,11 +90,8 @@ localparam MOVING                   = 49; /**< Moving [R] (default=0) */
 localparam HARDWARE_ERROR           = 50; /**< Hardware error status [R] (default=0) */
 localparam PUNCH                    = 51;  /**< Punch [RW] (default=32 ; min=0 ; max=1023) */
 
-localparam MOTOR_ID = 52;
-localparam VALUE = 53;
-localparam MOTOR_ADDRESS = 54;
-localparam INSTRUCTION = 55;
-localparam SEND = 56;
+localparam READ = 69;
+localparam WRITE = 70;
 
 integer i, j;
 // the following iterface handles read requests via lightweight axi bridge
@@ -104,132 +101,49 @@ always @(posedge clock, posedge reset) begin: AVALON_READ_INTERFACE
 	if (reset == 1) begin
 		waitFlag <= 1;
 	end else begin
-		waitFlag = 1;
+		waitFlag <= 1;
 		if(read) begin
 			case(address>>8)
-				MODEL_NUMBER: 				returnvalue = model_number[address[7:0]];
-				VERSION: 					returnvalue = version[address[7:0]];
-				ID: 							returnvalue = id[address[7:0]];
-				BAUD_RATE: 					returnvalue = baud_rate[address[7:0]];
-				RETURN_DELAY_TIME: 		returnvalue = return_delay_time[address[7:0]];
-				CW_ANGLE_LIMIT: 			returnvalue = cw_angle_limit[address[7:0]];
-				CCW_ANGLE_LIMIT: 			returnvalue = ccw_angle_limit[address[7:0]];
-				CONTROL_MODE: 				returnvalue = control_mode[address[7:0]];
-				LIMIT_TEMPERATURE: 		returnvalue = limit_temperature[address[7:0]];
-				LOWER_LIMIT_VOLTAGE: 	returnvalue = lower_limit_voltage[address[7:0]];
-				UPPPER_LIMIT_VOLTAGE: 	returnvalue = upper_limit_voltage[address[7:0]];
-				MAX_TORQUE: 				returnvalue = max_torque[address[7:0]];
-				RETURN_LEVEL: 				returnvalue = return_level[address[7:0]];
-				ALARM_SHUTDOWN: 			returnvalue = alarm_shutdown[address[7:0]];
-				TORQUE_ENABLE: 			returnvalue = torque_enable[address[7:0]];
-				LED: 							returnvalue = led[address[7:0]];
-				D_GAIN: 						returnvalue = d_gain[address[7:0]];
-				I_GAIN: 						returnvalue = i_gain[address[7:0]];
-				P_GAIN: 						returnvalue = p_gain[address[7:0]];
-				GOAL_POSITION: 			returnvalue = goal_position[address[7:0]];
-				GOAL_SPEED: 				returnvalue = goal_speed[address[7:0]];
-				GOAL_TORQUE: 				returnvalue = goal_torque[address[7:0]];
-				PRESENT_POSITION: 		returnvalue = present_position[address[7:0]];
-				PRESENT_LOAD: 				returnvalue = present_load[address[7:0]];
-				PRESENT_SPEED: 			returnvalue = present_speed[address[7:0]];
-				PRESENT_VOLTAGE: 			returnvalue = present_voltage[address[7:0]];
-				PRESENT_TEMPERATURE: 	returnvalue = present_temperature[address[7:0]];
-				REGISTERED_INSTRUCTION: returnvalue = registered_instruction[address[7:0]];
-				MOVING: 						returnvalue = moving[address[7:0]];
-				HARDWARE_ERROR: 			returnvalue = hardware_error[address[7:0]];
-				PUNCH: 						returnvalue = punch[address[7:0]];
+				MODEL_NUMBER: 				returnvalue <= model_number[address[7:0]];
+				VERSION: 					returnvalue <= version[address[7:0]];
+				ID: 							returnvalue <= id[address[7:0]];
+				BAUD_RATE: 					returnvalue <= baud_rate[address[7:0]];
+				RETURN_DELAY_TIME: 		returnvalue <= return_delay_time[address[7:0]];
+				CW_ANGLE_LIMIT: 			returnvalue <= cw_angle_limit[address[7:0]];
+				CCW_ANGLE_LIMIT: 			returnvalue <= ccw_angle_limit[address[7:0]];
+				CONTROL_MODE: 				returnvalue <= control_mode[address[7:0]];
+				LIMIT_TEMPERATURE: 		returnvalue <= limit_temperature[address[7:0]];
+				LOWER_LIMIT_VOLTAGE: 	returnvalue <= lower_limit_voltage[address[7:0]];
+				UPPPER_LIMIT_VOLTAGE: 	returnvalue <= upper_limit_voltage[address[7:0]];
+				MAX_TORQUE: 				returnvalue <= max_torque[address[7:0]];
+				RETURN_LEVEL: 				returnvalue <= return_level[address[7:0]];
+				ALARM_SHUTDOWN: 			returnvalue <= alarm_shutdown[address[7:0]];
+				TORQUE_ENABLE: 			returnvalue <= torque_enable[address[7:0]];
+				LED: 							returnvalue <= led[address[7:0]];
+				D_GAIN: 						returnvalue <= d_gain[address[7:0]];
+				I_GAIN: 						returnvalue <= i_gain[address[7:0]];
+				P_GAIN: 						returnvalue <= p_gain[address[7:0]];
+				GOAL_POSITION: 			returnvalue <= goal_position[address[7:0]];
+				GOAL_SPEED: 				returnvalue <= goal_speed[address[7:0]];
+				GOAL_TORQUE: 				returnvalue <= goal_torque[address[7:0]];
+				PRESENT_POSITION: 		returnvalue <= present_position[address[7:0]];
+				PRESENT_LOAD: 				returnvalue <= present_load[address[7:0]];
+				PRESENT_SPEED: 			returnvalue <= present_speed[address[7:0]];
+				PRESENT_VOLTAGE: 			returnvalue <= present_voltage[address[7:0]];
+				PRESENT_TEMPERATURE: 	returnvalue <= present_temperature[address[7:0]];
+				REGISTERED_INSTRUCTION: returnvalue <= registered_instruction[address[7:0]];
+				MOVING: 						returnvalue <= moving[address[7:0]];
+				HARDWARE_ERROR: 			returnvalue <= hardware_error[address[7:0]];
+				PUNCH: 						returnvalue <= punch[address[7:0]];
 				default: returnvalue <= 32'hDEADBEEF;
 			endcase
 			if(waitFlag==1) begin // next clock cycle the returnvalue should be ready
-				waitFlag = 0;
+				waitFlag <= 0;
 			end
 		end
 	end
 end
 
-always @(posedge clock, posedge reset) begin: AVALON_WRITE_INTERFACE
-	if (reset == 1) begin
-		for(i=0; i<NUMBER_OF_MOTORS; i = i+1) begin : reset_default_values
-			model_number[i] = 350;
-			version[i] = 0;
-			id[i] = i;
-			baud_rate[i] = 3;
-			return_delay_time[i] = 250;
-			cw_angle_limit[i] = 0;
-			ccw_angle_limit[i] = 1023;
-			control_mode[i] = 2;
-			limit_temperature[i] = 65;
-			lower_limit_voltage[i] = 60;
-			upper_limit_voltage[i] = 90;
-			max_torque[i] = 1023;
-			return_level[i] = 2;
-			alarm_shutdown[i] = 3;
-			torque_enable[i] = 0;
-			led[i] = 0;
-			d_gain[i] = 0;
-			i_gain[i] = 0;
-			p_gain[i] = 32;
-			goal_position[i] = 0;
-			goal_speed[i] = 0;
-			goal_torque[i] = 0;
-			present_position[i] = 0;
-			present_load[i] = 0;
-			present_speed[i] = 0;
-			present_voltage[i] = 0;
-			present_temperature[i] = 0;
-			registered_instruction[i] = 0;
-			moving[i] = 0;
-			hardware_error[i] = 0;
-			punch[i] = 0;
-		end
-	end else begin
-		send<=0;
-		// if we are writing via avalon bus and waitrequest is deasserted, write the respective register
-		if(write && ~waitrequest) begin
-			if(address[7:0]<NUMBER_OF_MOTORS) begin
-				case(address>>8)
-					MODEL_NUMBER: 				model_number[address[7:0]] = writedata;
-					VERSION: 					version[address[7:0]] = writedata;
-					ID: 							id[address[7:0]] = writedata;
-					BAUD_RATE: 					baud_rate[address[7:0]] = writedata;
-					RETURN_DELAY_TIME: 		return_delay_time[address[7:0]] = writedata;
-					CW_ANGLE_LIMIT: 			cw_angle_limit[address[7:0]] = writedata;
-					CCW_ANGLE_LIMIT: 			ccw_angle_limit[address[7:0]] = writedata;
-					CONTROL_MODE: 				control_mode[address[7:0]] = writedata;
-					LIMIT_TEMPERATURE: 		limit_temperature[address[7:0]] = writedata;
-					LOWER_LIMIT_VOLTAGE: 	lower_limit_voltage[address[7:0]] = writedata;
-					UPPPER_LIMIT_VOLTAGE: 	upper_limit_voltage[address[7:0]] = writedata;
-					MAX_TORQUE: 				max_torque[address[7:0]] = writedata;
-					RETURN_LEVEL: 				return_level[address[7:0]] = writedata;
-					ALARM_SHUTDOWN: 			alarm_shutdown[address[7:0]] = writedata;
-					TORQUE_ENABLE: 			torque_enable[address[7:0]] = writedata;
-					LED: 							led[address[7:0]] = writedata;
-					D_GAIN: 						d_gain[address[7:0]] = writedata;
-					I_GAIN: 						i_gain[address[7:0]] = writedata;
-					P_GAIN: 						p_gain[address[7:0]] = writedata;
-					GOAL_POSITION: 			goal_position[address[7:0]] = writedata;
-					GOAL_SPEED: 				goal_speed[address[7:0]] = writedata;
-					GOAL_TORQUE: 				goal_torque[address[7:0]] = writedata;
-					PRESENT_POSITION: 		present_position[address[7:0]] = writedata;
-					PRESENT_LOAD: 				present_load[address[7:0]] = writedata;
-					PRESENT_SPEED: 			present_speed[address[7:0]] = writedata;
-					PRESENT_VOLTAGE: 			present_voltage[address[7:0]] = writedata;
-					PRESENT_TEMPERATURE: 	present_temperature[address[7:0]] = writedata;
-					REGISTERED_INSTRUCTION: registered_instruction[address[7:0]] = writedata;
-					MOVING: 						moving[address[7:0]] = writedata;
-					HARDWARE_ERROR: 			hardware_error[address[7:0]] = writedata;
-					PUNCH: 						punch[address[7:0]] = writedata;
-					MOTOR_ID: 					motor_id = writedata;
-					VALUE: 						value = writedata;
-					MOTOR_ADDRESS:	 			motor_address = writedata;
-					INSTRUCTION: 				instruction = writedata;
-					SEND:							send=(writedata!=0);
-				endcase
-			end
-		end
-	end 
-end
-	
 localparam DXL_INST_PING          = 8'h01; /**< checks if ID is associated to a Device */
 localparam DXL_INST_READ          = 8'h02; /**< read data from the Device */
 localparam DXL_INST_WRITE         = 8'h03; /**< write data on the Device */
@@ -243,7 +157,102 @@ localparam DXL_INST_SYNC_WRITE    = 8'h83; /**< (Multiple devices) write data on
 localparam DXL_INST_BULK_READ     = 8'h92; /**< (Multiple devices) read data from different Addresses and lengths at once */
 localparam DXL_INST_BULK_WRITE    = 8'h93; /**< (Multiple devices) write data on different Addresses and lengths at once */
 
-reg getValue;
+always @(posedge clock, posedge reset) begin: AVALON_WRITE_INTERFACE
+	if (reset == 1) begin
+		for(i=0; i<NUMBER_OF_MOTORS; i = i+1) begin : reset_default_values
+			model_number[i] <= 350;
+			version[i] <= 0;
+			id[i] <= i;
+			baud_rate[i] <= 3;
+			return_delay_time[i] <= 250;
+			cw_angle_limit[i] <= 0;
+			ccw_angle_limit[i] <= 1023;
+			control_mode[i] <= 2;
+			limit_temperature[i] <= 65;
+			lower_limit_voltage[i] <= 60;
+			upper_limit_voltage[i] <= 90;
+			max_torque[i] <= 1023;
+			return_level[i] <= 2;
+			alarm_shutdown[i] <= 3;
+			torque_enable[i] <= 0;
+			led[i] <= 0;
+			d_gain[i] <= 0;
+			i_gain[i] <= 0;
+			p_gain[i] <= 32;
+			goal_position[i] <= 0;
+			goal_speed[i] <= 0;
+			goal_torque[i] <= 0;
+			present_position[i] <= 0;
+			present_load[i] <= 0;
+			present_speed[i] <= 0;
+			present_voltage[i] <= 0;
+			present_temperature[i] <= 0;
+			registered_instruction[i] <= 0;
+			moving[i] <= 0;
+			hardware_error[i] <= 0;
+			punch[i] <= 0;
+		end
+	end else begin
+		send<=0;
+		// if we are writing via avalon bus and waitrequest is deasserted, write the respective register
+		if(write && ~waitrequest) begin
+			if(address[7:0]<NUMBER_OF_MOTORS) begin
+				case((writedata>>16))
+					MODEL_NUMBER: 				model_number[address[7:0]] <= (writedata&16'hFF);
+					VERSION: 					version[address[7:0]] <= (writedata&16'hFF);
+					ID: 							id[address[7:0]] <= (writedata&16'hFF);
+					BAUD_RATE: 					baud_rate[address[7:0]] <= (writedata&16'hFF);
+					RETURN_DELAY_TIME: 		return_delay_time[address[7:0]] <= (writedata&16'hFF);
+					CW_ANGLE_LIMIT: 			cw_angle_limit[address[7:0]] <= (writedata&16'hFF);
+					CCW_ANGLE_LIMIT: 			ccw_angle_limit[address[7:0]] <= (writedata&16'hFF);
+					CONTROL_MODE: 				control_mode[address[7:0]] <= (writedata&16'hFF);
+					LIMIT_TEMPERATURE: 		limit_temperature[address[7:0]] <= (writedata&16'hFF);
+					LOWER_LIMIT_VOLTAGE: 	lower_limit_voltage[address[7:0]] <= (writedata&16'hFF);
+					UPPPER_LIMIT_VOLTAGE: 	upper_limit_voltage[address[7:0]] <= (writedata&16'hFF);
+					MAX_TORQUE: 				max_torque[address[7:0]] <= (writedata&16'hFF);
+					RETURN_LEVEL: 				return_level[address[7:0]] <= (writedata&16'hFF);
+					ALARM_SHUTDOWN: 			alarm_shutdown[address[7:0]] <= (writedata&16'hFF);
+					TORQUE_ENABLE: 			torque_enable[address[7:0]] <= (writedata&16'hFF);
+					LED: 							led[address[7:0]] <= (writedata&16'hFF);
+					D_GAIN: 						d_gain[address[7:0]] <= (writedata&16'hFF);
+					I_GAIN: 						i_gain[address[7:0]] <= (writedata&16'hFF);
+					P_GAIN: 						p_gain[address[7:0]] <= (writedata&16'hFF);
+					GOAL_POSITION: 			goal_position[address[7:0]] <= (writedata&16'hFF);
+					GOAL_SPEED: 				goal_speed[address[7:0]] <= (writedata&16'hFF);
+					GOAL_TORQUE: 				goal_torque[address[7:0]] <= (writedata&16'hFF);
+					PRESENT_POSITION: 		present_position[address[7:0]] <= (writedata&16'hFF);
+					PRESENT_LOAD: 				present_load[address[7:0]] <= (writedata&16'hFF);
+					PRESENT_SPEED: 			present_speed[address[7:0]] <= (writedata&16'hFF);
+					PRESENT_VOLTAGE: 			present_voltage[address[7:0]] <= (writedata&16'hFF);
+					PRESENT_TEMPERATURE: 	present_temperature[address[7:0]] <= (writedata&16'hFF);
+					REGISTERED_INSTRUCTION: registered_instruction[address[7:0]] <= (writedata&16'hFF);
+					MOVING: 						moving[address[7:0]] <= (writedata&16'hFF);
+					HARDWARE_ERROR: 			hardware_error[address[7:0]] <= (writedata&16'hFF);
+					PUNCH: 						punch[address[7:0]] <= (writedata&16'hFF);
+				endcase
+				case(address>>8)
+					READ: begin
+						motor_id <= id[address[7:0]];
+						motor_address <= (writedata>>16);
+						value <= (writedata&16'hFF);
+						instruction <= DXL_INST_READ;
+						getValue <= 1;
+						send <= 1;
+					end
+					WRITE: begin
+						motor_id <= id[address[7:0]];
+						motor_address <= (writedata>>16);
+						value <= (writedata&16'hFF);
+						instruction <= DXL_INST_WRITE;
+						getValue <= 0;
+						send <= 1;
+					end
+				endcase
+			end
+		end
+	end 
+end
+
 reg crc_calculate, crc_calculated, crc_calculate_done;
 
 localparam bit [15:0] crc_table [0:255] = '{16'h0000,
@@ -301,6 +310,7 @@ begin
 	end
 end
 
+integer timeout_counter;
 reg transmit, receive, direction;
 reg [7:0] tx_byte; 
 wire [7:0] rx_byte;
@@ -308,21 +318,20 @@ wire tx_active;
 wire tx_done, rx_done;
 reg package_valid;
 reg [7:0] byte_counter;
-reg [7:0] state;
-reg [7:0] next_state;
+reg [7:0] xl320_state;
 localparam IDLE = 0, SENDPACKET = 1, RECEIVE = 2, TRANSMIT = 3, CALCULATE_CRC_AND_TRANSMIT = 4, WAIT_FOR_TRANSMIT_DONE = 5, CHECK_PACKAGE_VALID = 6;
 reg [7:0] receive_state;
 localparam HEADER_FF_1 = 0, HEADER_FF_2 = 1, HEADER_FD = 2, HEADER_RESERVED = 3, HEADER_ID = 4, LENGTH_1 = 5, LENGTH_2 = 6, INSTR = 7, PARAMS = 8, CRC_1 = 9, CRC_2 = 10;
 always @(posedge clock, posedge reset)
 begin
 	if(reset) begin
-		state <= IDLE;
+		xl320_state <= IDLE;
 		transmit<=0; 
 	end else begin 
-		case (state) 
+		case (xl320_state) 
 			IDLE: begin
 				if(send)begin
-					state <= SENDPACKET; 
+					xl320_state <= SENDPACKET; 
 				end
 			end
 			SENDPACKET: begin
@@ -349,7 +358,7 @@ begin
 						packet[11] = ((value >> 8) & 8'hff);
 					end
 					crc_calculate=1;
-					state= CALCULATE_CRC_AND_TRANSMIT;
+					xl320_state= CALCULATE_CRC_AND_TRANSMIT;
 				end
 			end
 			CALCULATE_CRC_AND_TRANSMIT: begin
@@ -364,7 +373,7 @@ begin
 					end
 					byte_counter=0;
 					direction=1;
-					state=TRANSMIT;
+					xl320_state=TRANSMIT;
 				end
 			end
 			TRANSMIT: begin
@@ -385,124 +394,131 @@ begin
 						12: tx_byte=packet[12];
 						13: tx_byte=packet[13];
 					endcase
-					state=WAIT_FOR_TRANSMIT_DONE;
+					xl320_state=WAIT_FOR_TRANSMIT_DONE;
 					transmit=1;
 				end else begin 
 					if(getValue==0) begin
-						state=IDLE;
+						xl320_state=IDLE;
 					end else begin
-						state=RECEIVE;
+						xl320_state=RECEIVE;
 						byte_counter=0;
 						direction=0;
 						package_valid=1;
 						receive_state<=HEADER_FF_1;
+						timeout_counter<=50000; //1ms timeout
 					end
 				end
 			end
 			RECEIVE: begin
-				if(rx_done) begin
-					case(receive_state)
-						HEADER_FF_1: begin 
-							if(rx_byte==8'hFF) begin
-								packet[0]=rx_byte;
-								receive_state=HEADER_FF_2;
-								byte_counter=byte_counter+1;
-							end else begin
-								package_valid=0;
+				if(timeout_counter>0) begin
+					timeout_counter <= timeout_counter -1;
+					if(rx_done) begin
+						case(receive_state)
+							HEADER_FF_1: begin 
+								if(rx_byte==8'hFF) begin
+									packet[0]<=rx_byte;
+									receive_state<=HEADER_FF_2;
+									byte_counter<=byte_counter+1;
+								end else begin
+									package_valid<=0;
+								end
 							end
-						end
-						HEADER_FF_2: begin 
-							if(rx_byte==8'hFF) begin
-								packet[1]=rx_byte;
-								receive_state=HEADER_FD;
-								byte_counter=byte_counter+1;
-							end else begin
-								package_valid=0;
+							HEADER_FF_2: begin 
+								if(rx_byte==8'hFF) begin
+									packet[1]<=rx_byte;
+									receive_state<=HEADER_FD;
+									byte_counter<=byte_counter+1;
+								end else begin
+									package_valid<=0;
+								end
 							end
-						end
-						HEADER_FD: begin 
-							if(rx_byte==8'hFD) begin
-								packet[2]=rx_byte;
-								receive_state=HEADER_RESERVED;
-								byte_counter=byte_counter+1;
-							end else begin
-								package_valid=0;
+							HEADER_FD: begin 
+								if(rx_byte==8'hFD) begin
+									packet[2]<=rx_byte;
+									receive_state<=HEADER_RESERVED;
+									byte_counter<=byte_counter+1;
+								end else begin
+									package_valid<=0;
+								end
 							end
-						end
-						HEADER_RESERVED: begin 
-							packet[3]=0;
-							receive_state=ID;
-							byte_counter=byte_counter+1;
-						end
-						ID: begin 
-							if(rx_byte==motor_id) begin
-								packet[4]=motor_id;
-								receive_state=LENGTH_1;
-								byte_counter=byte_counter+1;
-							end else begin
-								package_valid=0;
+							HEADER_RESERVED: begin 
+								packet[3]<=0;
+								receive_state<=ID;
+								byte_counter<=byte_counter+1;
 							end
-						end
-						LENGTH_1: begin 
-							packet[5]=rx_byte;
-							receive_state=LENGTH_2;
-							byte_counter=byte_counter+1;
-						end
-						LENGTH_2: begin 
-							packet[6]=rx_byte;
-							receive_state=INSTR;
-							byte_counter=byte_counter+1;
-						end
-						INSTR: begin 
-							packet[7]=rx_byte;
-							if(rx_byte==DXL_INST_ACTION||rx_byte==DXL_INST_REBOOT) begin
-								receive_state=CRC_1;
-							end else begin
-								receive_state=PARAMS;
+							ID: begin 
+								if(rx_byte==motor_id) begin
+									packet[4]<=motor_id;
+									receive_state<=LENGTH_1;
+									byte_counter<=byte_counter+1;
+								end else begin
+									package_valid<=0;
+								end
 							end
-							byte_counter=byte_counter+1;
-						end
-						PARAMS: begin 
-							packet[byte_counter] = rx_byte;
-							byte_counter=byte_counter+1;
-							receive_state=CRC_1;
-							// TODO check length and go to crc accordingly
-						end
-						CRC_1: begin 
-							packet[byte_counter]=rx_byte;
-							byte_counter=byte_counter+1; 
-							receive_state=CRC_2;
-						end
-						CRC_2: begin 
-							packet[byte_counter]=rx_byte;
-							byte_counter=byte_counter+1;
-							state=CHECK_PACKAGE_VALID;
-							length = {packet[6],packet[5]};
-							crc_calculate=1;
-						end
-					endcase
-				end
+							LENGTH_1: begin 
+								packet[5]<=rx_byte;
+								receive_state<=LENGTH_2;
+								byte_counter<=byte_counter+1;
+							end
+							LENGTH_2: begin 
+								packet[6]<=rx_byte;
+								receive_state<=INSTR;
+								byte_counter<=byte_counter+1;
+							end
+							INSTR: begin 
+								packet[7]<=rx_byte;
+								if(rx_byte==DXL_INST_ACTION||rx_byte==DXL_INST_REBOOT) begin
+									receive_state<=CRC_1;
+								end else begin
+									receive_state<=PARAMS;
+								end
+								byte_counter<=byte_counter+1;
+							end
+							PARAMS: begin 
+								packet[byte_counter] <= rx_byte;
+								byte_counter<=byte_counter+1;
+								receive_state<=CRC_1;
+								// TODO check length and go to crc accordingly
+							end
+							CRC_1: begin 
+								packet[byte_counter]<=rx_byte;
+								byte_counter<=byte_counter+1; 
+								receive_state<=CRC_2;
+							end
+							CRC_2: begin 
+								packet[byte_counter]<=rx_byte;
+								byte_counter<=byte_counter+1;
+								xl320_state<=CHECK_PACKAGE_VALID;
+								length <= {packet[6],packet[5]};
+								crc_calculate<=1;
+							end
+						endcase
+					end
+					end else begin 
+						package_valid<=0;
+						xl320_state <= IDLE;
+					end
 			end
 			WAIT_FOR_TRANSMIT_DONE: begin
 				if(tx_done) begin
-					transmit=0; 
-					byte_counter = byte_counter + 1;
-					state=TRANSMIT; 
+					transmit<=0; 
+					byte_counter <= byte_counter + 1;
+					xl320_state<=TRANSMIT; 
 				end
 			end
 			CHECK_PACKAGE_VALID: begin
-				crc_calculate=0;
+				crc_calculate<=0;
 				if(crc_calculate_done) begin
 					if(length==1) begin
 						if((packet[11] != crc[7:0]) || (packet[12] != crc[15:8])) begin 
-							package_valid = 0;
+							package_valid <= 0;
 						end
 					end else begin
 						if((packet[12] != crc[7:0]) || (packet[13] != crc[15:8])) begin 
-							package_valid = 0;
+							package_valid <= 0;
 						end
 					end
-					state=IDLE;
+					xl320_state<=IDLE;
 				end
 			end
 		endcase
@@ -512,6 +528,7 @@ end
 wire serial_i, serial_o;
 
 assign serial_io=(direction?serial_o:serial_i);
+assign waitrequest = (waitFlag && read)||(xl320_state!=IDLE);
 
 // 1Mbit uart transmitter
 uart_tx #(.CLKS_PER_BIT(50)) uart_tx(

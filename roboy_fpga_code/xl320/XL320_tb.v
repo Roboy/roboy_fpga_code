@@ -57,11 +57,8 @@ localparam MOVING                   = 49; /**< Moving [R] (default=0) */
 localparam HARDWARE_ERROR           = 50; /**< Hardware error status [R] (default=0) */
 localparam PUNCH                    = 51;  /**< Punch [RW] (default=32 ; min=0 ; max=1023) */
 
-localparam MOTOR_ID = 52;
-localparam VALUE = 53;
-localparam MOTOR_ADDRESS = 54;
-localparam INSTRUCTION = 55;
-localparam SEND = 56;
+localparam READ = 69;
+localparam WRITE = 70;
 
 XL320 UUT(
 	.clock(clock),
@@ -87,43 +84,15 @@ initial begin
 	reset = 1'b0;
 	read = 0;
 	repeat (2) @(posedge clock);
-	// set motor_id
-	address = {8'd52,8'd0};
-	writedata = 1;
-	write = 1;
-	repeat (1) @(posedge clock); 
-	write = 0;
-	repeat (1) @(posedge clock); 
-	// set value
-	address = {8'd53,8'd0};
-	writedata = 1023;
-	write = 1;
-	repeat (1) @(posedge clock); 
-	write = 0;
-	repeat (1) @(posedge clock); 
-	// set goal_position
-	address = {8'd54,8'd0};
-	writedata = 30;
-	write = 1;
-	repeat (1) @(posedge clock); 
-	write = 0;
-	repeat (1) @(posedge clock); 
-	// set instruction
-	address = {8'd55,8'd0};
-	writedata = 8'h03;
-	write = 1;
-	repeat (1) @(posedge clock); 
-	write = 0;
-	repeat (1) @(posedge clock); 
-	// trigger transmit
-	address = {8'd56,8'd0};
-	writedata = 1;
+	// set goal position of 1023 for motor 0
+	address = {8'd70,8'd0};
+	writedata = {16'd30,16'd1023};
 	write = 1;
 	repeat (1) @(posedge clock); 
 	write = 0;
 	repeat (1) @(posedge clock); 
 	 
-	repeat (100000) @(posedge clock);
+	repeat (10000) @(posedge clock);
 	$stop;
 end
 		
