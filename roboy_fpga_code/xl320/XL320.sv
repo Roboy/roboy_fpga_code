@@ -326,8 +326,9 @@ end
 wire serial_i, serial_o;
 
 assign serial_io=(direction?serial_o:serial_i);
-	
-uart_tx #(.CLKS_PER_BIT(435)) uart_tx(
+
+// 1Mbit uart transmitter
+uart_tx #(.CLKS_PER_BIT(50)) uart_tx(
 	.i_Clock(clock),
    .i_Tx_DV(transmit),
    .i_Tx_Byte(tx_byte), 
@@ -336,7 +337,8 @@ uart_tx #(.CLKS_PER_BIT(435)) uart_tx(
    .o_Tx_Done(tx_done)
 );
 
-uart_rx #(.CLKS_PER_BIT(435)) uart_rx(
+// 1Mbit uart receiver
+uart_rx #(.CLKS_PER_BIT(50)) uart_rx(
 	.i_Clock(clock),
    .o_Rx_DV(rx_done),
    .o_Rx_Byte(rx_byte),
