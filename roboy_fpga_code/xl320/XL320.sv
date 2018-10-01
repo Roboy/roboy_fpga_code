@@ -234,7 +234,7 @@ always @(posedge clock, posedge reset) begin: AVALON_WRITE_INTERFACE
 					READ: begin
 						motor_id <= id[address[7:0]];
 						motor_address <= (writedata>>16);
-						value <= (writedata&16'hFF);
+						value <= (writedata&16'hFFFF);
 						instruction <= DXL_INST_READ;
 						getValue <= 1;
 						send <= 1;
@@ -242,7 +242,7 @@ always @(posedge clock, posedge reset) begin: AVALON_WRITE_INTERFACE
 					WRITE: begin
 						motor_id <= id[address[7:0]];
 						motor_address <= (writedata>>16);
-						value <= (writedata&16'hFF);
+						value <= (writedata&16'hFFFF);
 						instruction <= DXL_INST_WRITE;
 						getValue <= 0;
 						send <= 1;
@@ -302,9 +302,16 @@ begin
 	if(crc_calculate||crc_calculate_done==0) begin
 		crc_calculate_done=0;
 		crc = 0;
-		for(j = 0; j < 10; j=j+1) begin
-			i = ((crc >> 8) ^ packet[j]) & 8'hFF;
-			crc = (crc << 8) ^ crc_table[i];
+		if(length==6) begin
+			for(j = 0; j < 11; j=j+1) begin
+				i = ((crc >> 8) ^ packet[j]) & 8'hFF;
+				crc = (crc << 8) ^ crc_table[i];
+			end
+		end else begin
+			for(j = 0; j < 12; j=j+1) begin
+				i = ((crc >> 8) ^ packet[j]) & 8'hFF;
+				crc = (crc << 8) ^ crc_table[i];
+			end
 		end
 		crc_calculate_done = 1;
 	end
@@ -339,9 +346,9 @@ begin
 					if (motor_address==MODEL_NUMBER||motor_address==CW_ANGLE_LIMIT||motor_address==CCW_ANGLE_LIMIT||motor_address==MAX_TORQUE||
 					motor_address==GOAL_POSITION||motor_address==GOAL_SPEED||motor_address==GOAL_TORQUE||motor_address==PRESENT_POSITION||motor_address==PRESENT_SPEED||
 					motor_address==PRESENT_LOAD||motor_address==PUNCH ) begin
-						length = 2; 
+						length = 7; 
 					end else begin
-						length = 1;
+						length = 6;
 					end
 					packet[0] = 8'hFF;
 					packet[1] = 8'hFF;
@@ -354,7 +361,7 @@ begin
 					packet[8] = (motor_address & 8'hff);
 					packet[9] = ((motor_address >> 8) & 8'hff);
 					packet[10] = (value & 8'hff);
-					if(length==2) begin
+					if(length==7) begin
 						packet[11] = ((value >> 8) & 8'hff);
 					end
 					crc_calculate=1;
@@ -364,7 +371,7 @@ begin
 			CALCULATE_CRC_AND_TRANSMIT: begin
 				crc_calculate=0;
 				if(crc_calculate_done) begin
-					if(length==1) begin
+					if(length==6) begin
 						packet[11] = crc[7:0];
 						packet[12] = crc[15:8];
 					end else begin
@@ -377,7 +384,7 @@ begin
 				end
 			end
 			TRANSMIT: begin
-				if(byte_counter<=(11+length)) begin
+				if(byte_counter<=(6+length)) begin
 					case(byte_counter)
 						0: tx_byte=packet[0];
 						1: tx_byte=packet[1];
