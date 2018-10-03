@@ -8,7 +8,8 @@ module XL320 (
 	input signed [31:0] writedata,
 	input read,
 	output signed [31:0] readdata,
-	output waitrequest
+	output waitrequest,
+	output wire [7:0] leds
    );
 
 parameter NUMBER_OF_MOTORS = 8;
@@ -412,7 +413,7 @@ begin
 						direction=0;
 						package_valid=1;
 						receive_state<=HEADER_FF_1;
-						timeout_counter<=50000; //1ms timeout
+						timeout_counter<=5000000; //100ms timeout
 					end
 				end
 			end
@@ -516,7 +517,7 @@ begin
 			CHECK_PACKAGE_VALID: begin
 				crc_calculate<=0;
 				if(crc_calculate_done) begin
-					if(length==1) begin
+					if(length==6) begin
 						if((packet[11] != crc[7:0]) || (packet[12] != crc[15:8])) begin 
 							package_valid <= 0;
 						end
@@ -536,6 +537,7 @@ wire serial_i, serial_o;
 
 assign serial_io=(direction?serial_o:serial_i);
 assign waitrequest = (waitFlag && read)||(xl320_state!=IDLE);
+assign leds=receive_state;
 
 // 1Mbit uart transmitter
 uart_tx #(.CLKS_PER_BIT(50)) uart_tx(
