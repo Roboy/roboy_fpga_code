@@ -177,10 +177,12 @@ module MYOControl (
 	input mirrored_muscle_unit,
 	input power_sense_n,
 	output gpio_n,
-	output myobrick_scl,
-	inout myobrick_sda,
-	output arm_scl,
-	inout arm_sda
+	output [NUMBER_OF_MOTORS-1:0] angle_ss_n_o,
+	input angle_miso,
+	output angle_mosi,
+	output angle_sck,
+	inout arm_sda,
+	output arm_scl
 );
 
 parameter NUMBER_OF_MOTORS = 6;
@@ -563,8 +565,6 @@ reg [NUMBER_OF_MOTORS-1:0] myo_brick_ack_error;
 
 generate
 	if(ENABLE_MYOBRICK_CONTROL!=0) begin
-		reg read_angle;
-		wire read_angle_done;
 		integer angle_motor_index;
 		wire [11:0] angle;
 		wire signed [31:0] angle_signed;
@@ -572,71 +572,52 @@ generate
 		reg ack_error;
 
 		always @(posedge clock, posedge reset) begin: MYOBRICK_ANGLE_CONTROL_LOGIC
-			reg read_angle_done_prev;
 			reg [11:0] motor_angle_prev[NUMBER_OF_MOTORS-1:0];
 			reg signed [31:0] motor_angle_counter[NUMBER_OF_MOTORS-1:0];
 			reg [7:0]i;
 			if (reset == 1) begin
 				angle_motor_index <= 0;
-				read_angle_done_prev <= 0;
 				for(i=0; i<NUMBER_OF_MOTORS; i = i+1) begin : reset_angle_counter
 					motor_angle_counter[i] <= 0;
 				end
 			end else begin
-				read_angle_done_prev <= read_angle_done;
-				read_angle <= 0;
-				if(myo_brick[angle_motor_index]==1 && read_angle_done==1) begin
-					myo_brick_ack_error[angle_motor_index] <= ack_error;
-					read_angle <= 1;
+				// the angle sensor has no internal rotation counter, therefore we gotta count over-/underflow on ower own
+				if(power_sense_n) begin // if power sense is off (high), reset the overflow counters
+					motor_angle_counter[angle_motor_index] <= 0;
+					motor_angle_offset[angle_motor_index] <= angle_signed;
+				end else begin
+					if(motor_angle_prev[angle_motor_index]>3500 && angle_signed < 500) begin
+						motor_angle_counter[angle_motor_index] <= motor_angle_counter[angle_motor_index] + 1;
+					end
+					if(motor_angle_prev[angle_motor_index]<500 && angle_signed > 3500) begin
+						motor_angle_counter[angle_motor_index] <= motor_angle_counter[angle_motor_index] - 1;
+					end
 				end
-				if((read_angle_done_prev==0 && read_angle_done==1) || myo_brick[angle_motor_index]==0) begin
-					// the angle sensor has no internal rotation counter, therefore we gotta count over-/underflow on ower own
-					if(power_sense_n) begin // if power sense is off (high), reset the overflow counters
-						motor_angle_counter[angle_motor_index] <= 0;
-						motor_angle_offset[angle_motor_index] <= angle_signed;
-					end else begin
-						if(motor_angle_prev[angle_motor_index]>3500 && angle < 500) begin
-							motor_angle_counter[angle_motor_index] <= motor_angle_counter[angle_motor_index] + 1;
-						end
-						if(motor_angle_prev[angle_motor_index]<500 && angle > 3500) begin
-							motor_angle_counter[angle_motor_index] <= motor_angle_counter[angle_motor_index] - 1;
-						end
-					end
-					if(ack_error==0) begin // only use valid sensor values
-						// motor_angle_offset is set to the angle after power on of the motor boards
-						motor_angle[angle_motor_index] <= (angle_signed - motor_angle_offset[angle_motor_index] + motor_angle_counter[angle_motor_index]*4096); 
-						// division by gearbox ration gives encoder ticks, angle sensor divided by 4 gives the same range
-						motor_spring_angle[angle_motor_index] <= (positions[angle_motor_index]/myo_brick_gear_box_ratio[angle_motor_index])*myo_brick_encoder_multiplier[angle_motor_index] 
-																				- ((angle_signed - motor_angle_offset[angle_motor_index] + motor_angle_counter[angle_motor_index]*4096)/4);
-						motor_angle_prev[angle_motor_index] <= angle;
-					end
-					if(angle_motor_index<NUMBER_OF_MOTORS-1) begin
-						angle_motor_index <= angle_motor_index + 1;
-					end else begin
-						angle_motor_index <= 0;
-					end
+				// motor_angle_offset is set to the angle after power on of the motor boards
+				motor_angle[angle_motor_index] <= (angle_signed - motor_angle_offset[angle_motor_index] + motor_angle_counter[angle_motor_index]*4096); 
+				// division by gearbox ration gives encoder ticks, angle sensor divided by 4 gives the same range
+				motor_spring_angle[angle_motor_index] <= (positions[angle_motor_index]/myo_brick_gear_box_ratio[angle_motor_index])*myo_brick_encoder_multiplier[angle_motor_index] 
+																		- ((angle_signed - motor_angle_offset[angle_motor_index] + motor_angle_counter[angle_motor_index]*4096)/4);
+				motor_angle_prev[angle_motor_index] <= angle_signed;
+				if(angle_motor_index<NUMBER_OF_MOTORS-1) begin
+					angle_motor_index <= angle_motor_index + 1;
+				end else begin
+					angle_motor_index <= 0;
 				end
 			end 
 		end
 		
-		A1335Control a1335(
+		A1339Control#(NUMBER_OF_MOTORS) a1339(
 			.clock(clock),
-			.reset(reset),
-			.read_angle(read_angle),
-			.read_status(),
-			.sda(myobrick_sda),
-			.scl(myobrick_scl),
-		//	.LED(LED[2:0]),
-			.device_id(myo_brick_device_id[angle_motor_index]),
-			.done(read_angle_done),
-			.angle(angle),
-			.status(status[angle_motor_index]),
-			.ack_error(ack_error)
+			.reset_n(~reset),
+			.sensor_angle(angle),
+			.sensor(angle_motor_index),
+			// SPI
+			.sck_o(angle_sck), // clock
+			.ss_n_o(angle_ss_n_o), // slave select line for each sensor
+			.mosi_o(angle_mosi),	// mosi
+			.miso_i(angle_miso)	// miso
 		);
-	
-	end else begin
-		assign myobrick_scl = 1'bz;
-		assign myobrick_sda = 1'bz;
 	end
 
 endgenerate 
