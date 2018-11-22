@@ -23,6 +23,9 @@ wire [15:0] data = 16'h2000;
 wire [19:0] data_received;
 wire ss_n;
 
+wire signed [31:0] val;
+assign val = ((data_received>>4)&12'hFFF);
+
 reg trigger;
 reg data_valid;
 
@@ -103,15 +106,14 @@ always @(posedge clock, negedge reset_n) begin: SPI_DATA_PROCESS
 					if(crc == data_received[3:0]) begin
 						data_valid = 1;
 						if(sample_counter[current_sensor]<SAMPLES_TO_AVERAGE)begin
-							angle_filtered[current_sensor] = angle_filtered[current_sensor]+(data_received>>4);
-							sample_counter <= sample_counter+1;
-						else
+							angle_filtered[current_sensor] = angle_filtered[current_sensor]+ val;
+							sample_counter[current_sensor] <= sample_counter[current_sensor]+1;
+						end else begin
 							sample_counter[current_sensor] <= 0;
 							angle[current_sensor] = angle_filtered[current_sensor]>>>$clog2(SAMPLES_TO_AVERAGE);
 							angle_filtered[current_sensor] = 0;
 						end
 					end else begin
-						angle[current_sensor] = 0;
 						data_valid = 0;
 					end
 					
