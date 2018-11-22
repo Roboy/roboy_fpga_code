@@ -49,10 +49,11 @@ module PIDController (
 	input signed [15:0] IntegralNegMax,
 	input signed [15:0] IntegralPosMax,
 	input signed [15:0] deadBand,
-	input [1:0] control_mode, // position velocity displacement
+	input [1:0] control_mode, // position velocity displacement myobrick_displacement
 	input signed [31:0] position,
 	input signed [15:0] velocity,
 	input wire [15:0] displacement,
+	input signed [31:0] myobrick_displacement,
 	input signed [31:0] outputDivider,
 	input update_controller,
 	output reg signed [15:0] pwmRef
@@ -96,22 +97,14 @@ always @(posedge clock, posedge reset) begin: PID_CONTROLLER_PID_CONTROLLERLOGIC
 								err = 0;
 							end
 						end
+				2'b11: err = (sp - myobrick_displacement);
 				default: err = 0;
 			endcase;
 			
 			if (((err >= deadBand) || (err <= ((-1) * deadBand)))) begin
 				pterm = (Kp * err);
-				if ((pterm < outputPosMax) || (pterm > outputNegMax)) begin  //if the proportional term is not maxed
-					integral = integral + (Ki * err); //add to the integral
-					if (integral > IntegralPosMax) begin
-						integral = IntegralPosMax;
-					end else if (integral < IntegralNegMax) begin
-						integral = IntegralNegMax;
-					end
-				end
 				dterm = ((err - lastError) * Kd);
-				ffterm = (forwardGain * sp);
-				result = (((ffterm + pterm) + integral) + dterm)/outputDivider;
+				result = (pterm + dterm)/outputDivider;
 				if ((result < outputNegMax)) begin
 					 result = outputNegMax;
 				end else if ((result > outputPosMax)) begin

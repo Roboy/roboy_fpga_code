@@ -1,17 +1,19 @@
 module A1339Control(
 	input clock,
 	input reset_n,
-	output wire [11:0] sensor_angle,
+	output wire [31:0] sensor_angle,
 	input wire [7:0] sensor,
 	// SPI
 	output sck_o, // clock
 	output [NUMBER_OF_SENSORS-1:0] ss_n_o, // slave select line for each sensor
 	output mosi_o,	// mosi
 	input miso_i,	// miso
+	output reg [NUMBER_OF_SENSORS-1:0]cycle,
 	output [2:0] LED
 );
 
 parameter NUMBER_OF_SENSORS = 1;
+parameter SAMPLES_TO_AVERAGE = 512;
 
 assign sensor_angle = angle[sensor];
 
@@ -29,7 +31,9 @@ assign LED[0] = trigger;
 
 reg [7:0] current_sensor;
 
-reg [11:0] angle [NUMBER_OF_SENSORS-1:0];
+reg [31:0] angle [NUMBER_OF_SENSORS-1:0];
+reg [31:0] angle_filtered [NUMBER_OF_SENSORS-1:0];
+reg [16:0] sample_counter[NUMBER_OF_SENSORS-1:0];
 
 reg [2:0] state;
 always @(posedge clock, negedge reset_n) begin: SPI_DATA_PROCESS
@@ -48,6 +52,7 @@ always @(posedge clock, negedge reset_n) begin: SPI_DATA_PROCESS
 		trigger <= 0;
 	end else begin
 		trigger <= 0;
+		cycle <= 0;
 		case(state)
 			IDLE: begin
 				state <= CALCULATE_CRC;
@@ -97,8 +102,16 @@ always @(posedge clock, negedge reset_n) begin: SPI_DATA_PROCESS
 					crc = (CRC3 ? 4'd8 : 4'd0) + (CRC2 ? 4'd4 : 4'd0) + (CRC1 ? 4'd2 : 4'd0) + (CRC0 ? 4'd1 : 4'd0);
 					if(crc == data_received[3:0]) begin
 						data_valid = 1;
-						angle[current_sensor] = (data_received>>4);
+						if(sample_counter[current_sensor]<SAMPLES_TO_AVERAGE)begin
+							angle_filtered[current_sensor] = angle_filtered[current_sensor]+(data_received>>4);
+							sample_counter <= sample_counter+1;
+						else
+							sample_counter[current_sensor] <= 0;
+							angle[current_sensor] = angle_filtered[current_sensor]>>>$clog2(SAMPLES_TO_AVERAGE);
+							angle_filtered[current_sensor] = 0;
+						end
 					end else begin
+						angle[current_sensor] = 0;
 						data_valid = 0;
 					end
 					
@@ -129,7 +142,7 @@ generate
 	end
 endgenerate 
 
-spi_master #(20, 1'b1, 1'b1, 2, 5) spi(
+spi_master #(20, 1'b1, 1'b1, 2, 3) spi(
 	.sclk_i(clock),
 	.pclk_i(clock),
 	.rst_i(~reset_n),
