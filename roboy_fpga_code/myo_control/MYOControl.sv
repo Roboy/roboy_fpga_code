@@ -319,7 +319,11 @@ always @(posedge clock, posedge reset) begin: AVALON_READ_INTERFACE
 				8'h39: returnvalue <= wrist_joint_pretension[31:0];
 				8'h3A: returnvalue <= wrist_joint_deadband[31:0];
 				8'h3B: returnvalue <= wrist_smooth_distance[31:0];
-				8'h3C: returnvalue <= motor_angle_filtered[address[7:0]][31:0];
+				8'h3C: returnvalue <= motor_angle_raw[address[7:0]][31:0];
+				8'h3D: returnvalue <= motor_angle_offset[address[7:0]][31:0];
+				8'h3E: returnvalue <= motor_angle_relative[address[7:0]][31:0];
+				8'h3F: returnvalue <= motor_angle_revolution_counter[address[7:0]][31:0];
+				8'h40: returnvalue <= motor_angle_prev[address[7:0]][31:0];
 				default: returnvalue <= 32'hDEADBEEF;
 			endcase
 			if(waitFlag==1) begin // next clock cycle the returnvalue should be ready
@@ -568,8 +572,11 @@ reg signed [31:0] myo_brick_gear_box_ratio[NUMBER_OF_MOTORS-1:0];
 reg signed [31:0] myo_brick_encoder_multiplier[NUMBER_OF_MOTORS-1:0];
 reg signed [31:0] motor_spring_angle[NUMBER_OF_MOTORS-1:0];
 reg signed [31:0] motor_angle[NUMBER_OF_MOTORS-1:0];
-reg signed [31:0] motor_angle_filtered[NUMBER_OF_MOTORS-1:0];
+reg signed [31:0] motor_angle_prev[NUMBER_OF_MOTORS-1:0];
+reg signed [31:0] motor_angle_raw[NUMBER_OF_MOTORS-1:0];
 reg signed [31:0] motor_angle_offset[NUMBER_OF_MOTORS-1:0];
+reg signed [31:0] motor_angle_relative[NUMBER_OF_MOTORS-1:0];
+reg signed [31:0] motor_angle_revolution_counter[NUMBER_OF_MOTORS-1:0];
 reg [31:0] status[NUMBER_OF_MOTORS-1:0];
 reg [NUMBER_OF_MOTORS-1:0] myo_brick_ack_error;
 localparam MYOBRICK_MOVING_AVERAGE_SAMPLE_LENGTH = 128;
@@ -579,38 +586,26 @@ generate
 	if(ENABLE_MYOBRICK_CONTROL!=0) begin
 		integer angle_motor_index;
 		wire signed [31:0] angle_signed;
+		wire signed [31:0] angle_raw;
+		wire signed [31:0] angle_prev;
+		wire signed [31:0] angle_revolution;
+		wire [11:0] angle_offset;
+		wire [11:0] angle_relative;
 		reg ack_error;
 
 		always @(posedge clock, posedge reset) begin: MYOBRICK_ANGLE_CONTROL_LOGIC
-			reg signed [31:0] motor_angle_prev[NUMBER_OF_MOTORS-1:0];
-			reg signed [31:0] motor_angle_counter[NUMBER_OF_MOTORS-1:0];
-			reg [7:0]i;
 			if (reset == 1) begin
 				angle_motor_index <= 0;
-				for(i=0; i<NUMBER_OF_MOTORS; i = i+1) begin : reset_angle_counter
-					motor_angle_counter[i] <= 0;
-				end
 			end else begin
-				// the angle sensor has no internal rotation counter, therefore we gotta count over-/underflow on ower own
-				if(power_sense_n) begin // if power sense is off (high), reset the overflow counters
-					motor_angle_counter[angle_motor_index] <= 0;
-					motor_angle_offset[angle_motor_index] <= angle_signed;
-				end 
-				
-				// motor_angle_offset is set to the angle after power on of the motor boards
-				motor_angle[angle_motor_index] <= (angle_signed - motor_angle_offset[angle_motor_index]) + motor_angle_counter[angle_motor_index]*4096;
+				motor_angle[angle_motor_index] <= angle_signed;
 				// division by gearbox ration gives encoder ticks, angle sensor divided by 4 gives the same range
 				motor_spring_angle[angle_motor_index] <= (positions[angle_motor_index]/myo_brick_gear_box_ratio[angle_motor_index])
-																		- ((angle_signed - motor_angle_offset[angle_motor_index]) + motor_angle_counter[angle_motor_index]*4096)
-																		*myo_brick_encoder_multiplier[angle_motor_index];
-				motor_angle_filtered[angle_motor_index] <= angle_signed;
-				if(motor_angle_prev[angle_motor_index]>3500 && angle_signed < 500) begin
-					motor_angle_counter[angle_motor_index] <= motor_angle_counter[angle_motor_index] + 1;
-				end
-				if(motor_angle_prev[angle_motor_index]<500 && angle_signed > 3500) begin
-					motor_angle_counter[angle_motor_index] <= motor_angle_counter[angle_motor_index] - 1;
-				end
-				motor_angle_prev[angle_motor_index] <= angle_signed;
+																		- (angle_signed*myo_brick_encoder_multiplier[angle_motor_index]);
+				motor_angle_raw[angle_motor_index] <= angle_raw;
+				motor_angle_prev[angle_motor_index] <= angle_prev;
+				motor_angle_offset[angle_motor_index] <= angle_offset;
+				motor_angle_relative[angle_motor_index] <= angle_relative;
+				motor_angle_revolution_counter[angle_motor_index] <= angle_revolution;
 				if(angle_motor_index<NUMBER_OF_MOTORS-1) begin
 					angle_motor_index <= angle_motor_index + 1;
 				end else begin
@@ -633,14 +628,20 @@ generate
 		
 		A1339Control#(NUMBER_OF_MOTORS,SAMPLES_TO_AVERAGE) a1339(
 			.clock(clock),
-			.reset_n(~reset),
+			.reset_n(~reset), // shut down spi when motors are off
+			.sensor_raw(angle_raw),
+			.sensor_angle_prev(angle_prev),
 			.sensor_angle(angle_signed),
+			.sensor_angle_offset(angle_offset),
+			.sensor_angle_relative(angle_relative),
 			.sensor(angle_motor_index),
+			.rev_counter(angle_revolution),
 			// SPI
 			.sck_o(angle_sck), // clock
 			.ss_n_o(angle_ss_n_o), // slave select line for each sensor
 			.mosi_o(angle_mosi),	// mosi
 			.miso_i(angle_miso),	// miso
+			.zero_offset(power_sense_n),
 			.cycle(cycle)
 		);
 	end
