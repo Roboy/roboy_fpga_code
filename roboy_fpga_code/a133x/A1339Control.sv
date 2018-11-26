@@ -37,6 +37,8 @@ wire ss_n;
 
 wire signed [31:0] val;
 assign val = ((data_received>>4)&12'hFFF);
+wire signed [11:0] rev_val;
+assign rev_val = ((data_received>>4)&12'hFFF); 
 
 reg trigger;
 reg data_valid;
@@ -53,10 +55,12 @@ reg signed [31:0] angle_prev [NUMBER_OF_SENSORS-1:0];
 reg signed [31:0] angle_filtered [NUMBER_OF_SENSORS-1:0];
 reg signed [31:0] angle_offset [NUMBER_OF_SENSORS-1:0];
 reg signed [31:0] revolution_counter [NUMBER_OF_SENSORS-1:0];
+reg signed [31:0] revolution_counter_offset [NUMBER_OF_SENSORS-1:0];
 reg [16:0] sample_counter[NUMBER_OF_SENSORS-1:0];
 reg [16:0] revolution_sample_counter[NUMBER_OF_SENSORS-1:0];
 
-reg [2:0] state;
+reg [3:0] state;
+reg [3:0] next_state;
 always @(posedge clock, negedge reset_n) begin: SPI_DATA_PROCESS
 	parameter IDLE  = 0, TRIGGER_READ_TURNS = 1, WAIT_FOR_REQUEST_TURNS = 2, WAIT_FOR_RECEIVE_TURNS = 3, 
 			TRIGGER_READ_ANGLE = 4, WAIT_FOR_RECEIVE_ANGLE = 5, WAIT_FOR_REQUEST_ANGLE = 6, CALCULATE_ANGLES = 7, DELAY = 8;
@@ -77,7 +81,8 @@ always @(posedge clock, negedge reset_n) begin: SPI_DATA_PROCESS
 		cycle <= 0;
 		if(zero_offset) begin
 			for(j=0;j<NUMBER_OF_SENSORS;j=j+1) begin
-				angle_offset[j] <= angle[j];
+				angle_offset[j] <= angle_relative[j];
+				revolution_counter_offset[j]<=revolution_counter[j];
 			end
 		end
 		case(state)
@@ -99,8 +104,9 @@ always @(posedge clock, negedge reset_n) begin: SPI_DATA_PROCESS
 			end
 			WAIT_FOR_REQUEST_TURNS: begin
 				if(do_valid) begin
-					trigger <= 1;
-					state<=WAIT_FOR_RECEIVE_TURNS;
+					delay_counter <= 50;
+					state<=DELAY;
+					next_state<=WAIT_FOR_RECEIVE_TURNS;
 				end
 			end
 			WAIT_FOR_RECEIVE_TURNS: begin
@@ -121,8 +127,9 @@ always @(posedge clock, negedge reset_n) begin: SPI_DATA_PROCESS
 					crc = (CRC3 ? 4'd8 : 4'd0) + (CRC2 ? 4'd4 : 4'd0) + (CRC1 ? 4'd2 : 4'd0) + (CRC0 ? 4'd1 : 4'd0);
 					if(crc == data_received[3:0]) begin
 						data_valid <= 1;
-						revolution_counter[current_sensor] <= val;
+						revolution_counter[current_sensor] <= rev_val;
 					end else begin
+						revolution_counter[current_sensor] <= 0;
 						data_valid <= 0;
 					end
 					state<=TRIGGER_READ_ANGLE;
@@ -130,7 +137,7 @@ always @(posedge clock, negedge reset_n) begin: SPI_DATA_PROCESS
 			end
 			TRIGGER_READ_ANGLE: begin 
 				data_send <= angle_register;
-				if(sample_counter[current_sensor]==SAMPLES_TO_AVERAGE-1) begin
+				if(sample_counter[current_sensor]==0) begin
 					state <= WAIT_FOR_REQUEST_ANGLE; // because of the interleaved queries, we need to wait for the last sample
 				end else begin
 					state <= WAIT_FOR_RECEIVE_ANGLE;
@@ -139,8 +146,9 @@ always @(posedge clock, negedge reset_n) begin: SPI_DATA_PROCESS
 			end
 			WAIT_FOR_REQUEST_ANGLE: begin
 				if(do_valid) begin
-					trigger <= 1;
-					state<=WAIT_FOR_RECEIVE_ANGLE;
+					delay_counter <= 50;
+					state<=DELAY;
+					next_state<=WAIT_FOR_RECEIVE_ANGLE;
 				end
 			end
 			WAIT_FOR_RECEIVE_ANGLE: begin
@@ -156,7 +164,7 @@ always @(posedge clock, negedge reset_n) begin: SPI_DATA_PROCESS
 						  CRC2 = CRC1;
 						  CRC1 = CRC0 ^ DoInvert;
 						  CRC0 = DoInvert; 
-						  mask = mask >> 1;
+						  mask = mask >> 1; 
 					end
 					crc = (CRC3 ? 4'd8 : 4'd0) + (CRC2 ? 4'd4 : 4'd0) + (CRC1 ? 4'd2 : 4'd0) + (CRC0 ? 4'd1 : 4'd0);
 					if(crc == data_received[3:0]) begin
@@ -178,14 +186,17 @@ always @(posedge clock, negedge reset_n) begin: SPI_DATA_PROCESS
 				end
 			end
 			CALCULATE_ANGLES: begin
-				angle_relative[current_sensor] = angle[current_sensor] - angle_offset[current_sensor];
-				angle_absolute[current_sensor] = angle_relative[current_sensor] + revolution_counter[current_sensor]*$signed(4096);
+				angle_relative[current_sensor] = angle[current_sensor]%512;
+				angle_absolute[current_sensor] = angle_relative[current_sensor] + 
+												(revolution_counter[current_sensor]-revolution_counter_offset[current_sensor])*$signed(512) -
+												angle_offset[current_sensor];
 				state<=IDLE;
 			end
 			DELAY: begin
 				delay_counter <= delay_counter -1;
 				if(delay_counter==0) begin
-					state <= IDLE;
+					trigger <= 1;
+					state <= next_state;
 				end
 			end
 			default: state = IDLE;
