@@ -6,6 +6,7 @@ module A1339Control(
 	output wire [31:0] sensor_angle_prev,
 	output wire [31:0] sensor_angle_offset,
 	output wire [31:0] sensor_angle_relative,
+	output wire [31:0] sensor_angle_velocity,
 	output wire [31:0] rev_counter,
 	input wire [7:0] sensor,
 	// SPI
@@ -18,6 +19,8 @@ module A1339Control(
 	output [2:0] LED
 );
 
+parameter CLOCK_SPEED = 50_000_000;
+localparam CLOCK_SPEED_MILLIHZ = CLOCK_SPEED/1000;
 parameter NUMBER_OF_SENSORS = 1;
 parameter SAMPLES_TO_AVERAGE = 512;
 
@@ -27,6 +30,7 @@ assign sensor_angle_prev = angle_prev[sensor];
 assign sensor_angle = angle_absolute[sensor];
 assign sensor_angle_offset = angle_offset[sensor];
 assign sensor_angle_relative = angle_relative[sensor];
+assign sensor_angle_velocity = angle_velocity[sensor];
 
 wire di_req, wr_ack, do_valid, wren;
 reg [19:0] data_send;
@@ -50,14 +54,18 @@ reg [7:0] current_sensor;
 
 reg signed [31:0] angle [NUMBER_OF_SENSORS-1:0];
 reg signed [31:0] angle_absolute [NUMBER_OF_SENSORS-1:0];
+reg signed [31:0] angle_absolute_prev [NUMBER_OF_SENSORS-1:0];
 reg signed [31:0] angle_relative [NUMBER_OF_SENSORS-1:0];
 reg signed [31:0] angle_prev [NUMBER_OF_SENSORS-1:0];
 reg signed [31:0] angle_filtered [NUMBER_OF_SENSORS-1:0];
 reg signed [31:0] angle_offset [NUMBER_OF_SENSORS-1:0];
+reg signed [31:0] angle_velocity [NUMBER_OF_SENSORS-1:0];
 reg signed [31:0] revolution_counter [NUMBER_OF_SENSORS-1:0];
 reg signed [31:0] revolution_counter_offset [NUMBER_OF_SENSORS-1:0];
 reg [16:0] sample_counter[NUMBER_OF_SENSORS-1:0];
 reg [16:0] revolution_sample_counter[NUMBER_OF_SENSORS-1:0];
+integer freq_counter;
+reg signed [31:0] update_time;
 
 reg [3:0] state;
 reg [3:0] next_state;
@@ -79,6 +87,7 @@ always @(posedge clock, negedge reset_n) begin: SPI_DATA_PROCESS
 	end else begin
 		trigger <= 0;
 		cycle <= 0;
+		freq_counter <= freq_counter + 1;
 		if(zero_offset) begin
 			for(j=0;j<NUMBER_OF_SENSORS;j=j+1) begin
 				angle_offset[j] <= angle_relative[j];
@@ -187,9 +196,17 @@ always @(posedge clock, negedge reset_n) begin: SPI_DATA_PROCESS
 			end
 			CALCULATE_ANGLES: begin
 				angle_relative[current_sensor] = angle[current_sensor]%512;
+				angle_absolute_prev[current_sensor] = angle_absolute[current_sensor];
 				angle_absolute[current_sensor] = angle_relative[current_sensor] + 
 												(revolution_counter[current_sensor]-revolution_counter_offset[current_sensor])*$signed(512) -
 												angle_offset[current_sensor];
+				if(update_time!=0) begin
+					angle_velocity[current_sensor] = (angle_absolute[current_sensor]-angle_absolute_prev[current_sensor])/update_time;
+				end
+				if(current_sensor==0) begin
+					update_time <= freq_counter/CLOCK_SPEED_MILLIHZ;
+					freq_counter <= 0;
+				end
 				state<=IDLE;
 			end
 			DELAY: begin
