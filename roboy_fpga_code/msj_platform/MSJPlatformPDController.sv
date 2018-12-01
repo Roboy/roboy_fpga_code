@@ -50,7 +50,7 @@ module MSJPlatformPIDController (
 	input signed [31:0] velocity,
 	input signed [31:0] outputDivider,
 	input update_controller,
-	output reg signed [31:0] pwmRef
+	output reg signed [31:0] duty
 	);
 
 always @(posedge clock, posedge reset) begin: PD_CONTROLLER_PD_CONTROLLERLOGIC
@@ -88,7 +88,7 @@ always @(posedge clock, posedge reset) begin: PD_CONTROLLER_PD_CONTROLLERLOGIC
 			end else begin
 				result = 0;
 			end
-			pwmRef = result;
+			duty = 50 - result;
 			lastError = err;
 		end
 	end 

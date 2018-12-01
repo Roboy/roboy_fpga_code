@@ -1,14 +1,12 @@
 module A1339Control(
 	input clock,
 	input reset_n,
-	output wire [31:0] sensor_raw,
-	output wire [31:0] sensor_angle,
-	output wire [31:0] sensor_angle_prev,
-	output wire [31:0] sensor_angle_offset,
-	output wire [31:0] sensor_angle_relative,
-	output wire [31:0] sensor_angle_velocity,
-	output wire [31:0] rev_counter,
-	input wire [7:0] sensor,
+	output wire signed [31:0] sensor_angle[NUMBER_OF_SENSORS-1:0],
+	output wire signed [31:0] sensor_angle_absolute[NUMBER_OF_SENSORS-1:0],
+	output wire signed [31:0] sensor_angle_offset[NUMBER_OF_SENSORS-1:0],
+	output wire signed [31:0] sensor_angle_relative[NUMBER_OF_SENSORS-1:0],
+	output wire signed [31:0] sensor_angle_velocity[NUMBER_OF_SENSORS-1:0],
+	output wire signed [31:0] sensor_revolution_counter[NUMBER_OF_SENSORS-1:0],
 	// SPI
 	output sck_o, // clock
 	output [NUMBER_OF_SENSORS-1:0] ss_n_o, // slave select line for each sensor
@@ -23,14 +21,6 @@ parameter CLOCK_SPEED = 50_000_000;
 localparam CLOCK_SPEED_MILLIHZ = CLOCK_SPEED/1000;
 parameter NUMBER_OF_SENSORS = 1;
 parameter SAMPLES_TO_AVERAGE = 512;
-
-assign rev_counter = revolution_counter[sensor];
-assign sensor_raw = angle[sensor];
-assign sensor_angle_prev = angle_prev[sensor];
-assign sensor_angle = angle_absolute[sensor];
-assign sensor_angle_offset = angle_offset[sensor];
-assign sensor_angle_relative = angle_relative[sensor];
-assign sensor_angle_velocity = angle_velocity[sensor];
 
 wire di_req, wr_ack, do_valid, wren;
 reg [19:0] data_send;
@@ -51,6 +41,12 @@ assign LED[2] = data_valid;
 assign LED[0] = trigger;
 
 reg [7:0] current_sensor;
+
+assign sensor_angle = angle;
+assign sensor_angle_absolute = angle_absolute;
+assign sensor_angle_relative = angle_relative;
+assign sensor_angle_velocity = angle_velocity;
+assign sensor_revolution_counter = revolution_counter;
 
 reg signed [31:0] angle [NUMBER_OF_SENSORS-1:0];
 reg signed [31:0] angle_absolute [NUMBER_OF_SENSORS-1:0];
@@ -200,6 +196,7 @@ always @(posedge clock, negedge reset_n) begin: SPI_DATA_PROCESS
 				angle_absolute[current_sensor] = angle_relative[current_sensor] + 
 												(revolution_counter[current_sensor]-revolution_counter_offset[current_sensor])*$signed(512) -
 												angle_offset[current_sensor];
+				cycle[current_sensor] <= 1'b1;
 				if(update_time!=0) begin
 					angle_velocity[current_sensor] = (angle_absolute[current_sensor]-angle_absolute_prev[current_sensor])/update_time;
 				end
