@@ -42,8 +42,6 @@ module MSJPlatformControl (
 	input read,
 	output signed [31:0] readdata,
 	output waitrequest,
-	// these are the pwm ports for each servo
-	output [NUMBER_OF_MOTORS-1:0] pwm_o,
 	output [NUMBER_OF_MOTORS-1:0] angle_ss_n_o,
 	input angle_miso,
 	output angle_mosi,
@@ -84,6 +82,19 @@ assign waitrequest = (waitFlag && read);
 reg [31:0] returnvalue;
 reg waitFlag;
 
+A1339Interface #(.NUMBER_OF_SENSORS(NUMBER_OF_MOTORS)) a1339_interface();
+assign angle_sck = a1339_interface.sck_o;
+assign angle_ss_n_o = a1339_interface.ss_n_o;
+assign angle_mosi = a1339_interface.mosi_o;
+assign a1339_interface.miso_i = angle_miso;
+assign a1339_interface.zero_offset = emergency_off;
+			
+A1339Control#(CLOCK_SPEED_HZ,NUMBER_OF_MOTORS,SAMPLES_TO_AVERAGE) a1339(
+	.clock(clock),
+	.reset_n(~reset), 
+	.interf(a1339_interface.child)
+);
+
 // the following iterface handles read requests via lightweight axi bridge
 // the upper 8 bit of the read address define which value we want to read
 // the lower 8 bit of the read address define for which motor
@@ -100,16 +111,16 @@ always @(posedge clock, posedge reset) begin: AVALON_READ_INTERFACE
 				8'h03: returnvalue <= sp[address[7:0]][31:0];
 				8'h04: returnvalue <= control_mode[address[7:0]][1:0];
 				8'h05: returnvalue <= outputPosMax[address[7:0]][31:0];
-				8'h05: returnvalue <= outputNegMax[address[7:0]][31:0];
-				8'h05: returnvalue <= deadBand[address[7:0]][31:0];
-				8'h05: returnvalue <= outputDivider[address[7:0]][31:0];
-				8'h06: returnvalue <= motor_angle_raw[address[7:0]][31:0];
-				8'h06: returnvalue <= motor_angle_absolute[address[7:0]][31:0];
-				8'h07: returnvalue <= motor_angle_offset[address[7:0]][31:0];
-				8'h08: returnvalue <= motor_angle_relative[address[7:0]][31:0];
-				8'h0B: returnvalue <= motor_angle_velocity[address[7:0]][31:0];
-				8'h09: returnvalue <= motor_angle_revolution_counter[address[7:0]][31:0];
-				8'h0C: returnvalue <= dutys[address[7:0]][31:0];
+				8'h06: returnvalue <= outputNegMax[address[7:0]][31:0];
+				8'h07: returnvalue <= deadBand[address[7:0]][31:0];
+				8'h08: returnvalue <= outputDivider[address[7:0]][31:0];
+				8'h09: returnvalue <= a1339_interface.sensor_angle[address[7:0]][31:0];
+				8'h0A: returnvalue <= a1339_interface.sensor_angle_absolute[address[7:0]][31:0];
+				8'h0B: returnvalue <= a1339_interface.sensor_angle_offset[address[7:0]][31:0];
+				8'h0C: returnvalue <= a1339_interface.sensor_angle_relative[address[7:0]][31:0];
+				8'h0D: returnvalue <= a1339_interface.sensor_angle_velocity[address[7:0]][31:0];
+				8'h0E: returnvalue <= a1339_interface.sensor_revolution_counter[address[7:0]][31:0];
+				8'h0F: returnvalue <= dutys[address[7:0]][31:0];
 				default: returnvalue <= 32'hDEADBEEF;
 			endcase
 			if(waitFlag==1) begin // next clock cycle the returnvalue should be ready
@@ -147,61 +158,33 @@ always @(posedge clock, posedge reset) begin: WRITE_CONTROL_LOGIC
 					8'h03: sp[address[7:0]][31:0] <= writedata[31:0];
 					8'h04: control_mode[address[7:0]][1:0] <= writedata[1:0];
 					8'h05: reset_control<= (writedata!=0);
-					8'h05: outputDivider<= writedata;
-					8'h05: outputPosMax<= writedata;
-					8'h05: outputNegMax<= writedata;
-					8'h05: deadBand<= writedata;
+					8'h06: outputDivider[address[7:0]][31:0]<= writedata;
+					8'h07: outputPosMax[address[7:0]][31:0]<= writedata;
+					8'h08: outputNegMax[address[7:0]][31:0]<= writedata;
+					8'h09: deadBand[address[7:0]][31:0]<= writedata;
 				endcase
 			end
 		end
 	end 
 end
-
-wire [NUMBER_OF_MOTORS-1:0] cycle;
-wire signed [31:0] motor_angle_raw[NUMBER_OF_MOTORS-1:0];
-wire signed [31:0] motor_angle_absolute[NUMBER_OF_MOTORS-1:0];
-wire signed [31:0] motor_angle_offset[NUMBER_OF_MOTORS-1:0];
-wire signed [31:0] motor_angle_relative[NUMBER_OF_MOTORS-1:0];
-wire signed [31:0] motor_angle_velocity[NUMBER_OF_MOTORS-1:0];
-wire signed [31:0] motor_angle_revolution_counter[NUMBER_OF_MOTORS-1:0];
-
+	
 genvar j;
 generate
-	
-	A1339Control#(NUMBER_OF_MOTORS,SAMPLES_TO_AVERAGE) a1339(
-		.clock(clock),
-		.reset_n(~reset), 
-		.sensor_angle(motor_angle_raw),
-		.sensor_angle_absolute(motor_angle_absolute),
-		.sensor_angle_offset(motor_angle_offset),
-		.sensor_angle_relative(motor_angle_relative),
-		.sensor_angle_velocity(motor_angle_velocity),
-		.sensor_revolution_counter(motor_angle_revolution_counter),
-		// SPI
-		.sck_o(angle_sck), // clock
-		.ss_n_o(angle_ss_n_o), // slave select line for each sensor
-		.mosi_o(angle_mosi),	// mosi
-		.miso_i(angle_miso),	// miso
-		.zero_offset(emergency_off),
-		.cycle(cycle)
-	);
-
 	for(j=0; j<NUMBER_OF_MOTORS; j = j+1) begin : instantiate_pid_controllers
-	  MSJPLatformPIDController pid_controller(
+	  MSJPlatformPDController pd_controller(
 			.clock(clock),
 			.reset(reset_control),
 			.Kp(Kp[j]),
 			.Kd(Kd[j]),
-			.Ki(Ki[j]),
 			.sp(sp[j]),
 			.outputPosMax(outputPosMax[j]),
 			.outputNegMax(outputNegMax[j]),
 			.deadBand(deadBand[j]),
 			.control_mode(control_mode[j]), // position velocity 
-			.position(motor_angle_absolute[j]),
-			.velocity(motor_angle_velocity[j]),
+			.position(a1339_interface.sensor_angle_absolute[j]),
+			.velocity(a1339_interface.sensor_angle_velocity[j]),
 			.outputDivider(outputDivider[j]),
-			.update_controller(cycle[j]),
+			.update_controller(a1339_interface.cycle[j]),
 			.duty(dutys[j])
 		);
 	end
@@ -210,7 +193,7 @@ generate
 	  pwm #(CLOCK_SPEED_HZ, 16000, 100, 12, 1)  motor(
 			.clk(clock), 					//system clock
 			.reset_n(~reset),				//asynchronous reset
-			.ena(cycle[j]),					//latches in new duty cycle
+			.ena(a1339_interface.cycle[j]),					//latches in new duty cycle
 			.duty(dutys[j]),					//duty cycle
 			.pwm_out(PWM[j])				//pwm outputs
 		);

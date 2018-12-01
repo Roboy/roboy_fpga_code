@@ -1,20 +1,10 @@
+
+
+
 module A1339Control(
 	input clock,
 	input reset_n,
-	output wire signed [31:0] sensor_angle[NUMBER_OF_SENSORS-1:0],
-	output wire signed [31:0] sensor_angle_absolute[NUMBER_OF_SENSORS-1:0],
-	output wire signed [31:0] sensor_angle_offset[NUMBER_OF_SENSORS-1:0],
-	output wire signed [31:0] sensor_angle_relative[NUMBER_OF_SENSORS-1:0],
-	output wire signed [31:0] sensor_angle_velocity[NUMBER_OF_SENSORS-1:0],
-	output wire signed [31:0] sensor_revolution_counter[NUMBER_OF_SENSORS-1:0],
-	// SPI
-	output sck_o, // clock
-	output [NUMBER_OF_SENSORS-1:0] ss_n_o, // slave select line for each sensor
-	output mosi_o,	// mosi
-	input miso_i,	// miso
-	output reg [NUMBER_OF_SENSORS-1:0]cycle,
-	input wire zero_offset,
-	output [2:0] LED
+	A1339Interface interf
 );
 
 parameter CLOCK_SPEED = 50_000_000;
@@ -37,16 +27,14 @@ assign rev_val = ((data_received>>4)&12'hFFF);
 reg trigger;
 reg data_valid;
 
-assign LED[2] = data_valid;
-assign LED[0] = trigger;
-
 reg [7:0] current_sensor;
 
-assign sensor_angle = angle;
-assign sensor_angle_absolute = angle_absolute;
-assign sensor_angle_relative = angle_relative;
-assign sensor_angle_velocity = angle_velocity;
-assign sensor_revolution_counter = revolution_counter;
+assign interf.sensor_angle = angle;
+assign interf.sensor_angle_absolute = angle_absolute;
+assign interf.sensor_angle_offset = angle_offset;
+assign interf.sensor_angle_relative = angle_relative;
+assign interf.sensor_angle_velocity = angle_velocity;
+assign interf.sensor_revolution_counter = revolution_counter;
 
 reg signed [31:0] angle [NUMBER_OF_SENSORS-1:0];
 reg signed [31:0] angle_absolute [NUMBER_OF_SENSORS-1:0];
@@ -82,9 +70,9 @@ always @(posedge clock, negedge reset_n) begin: SPI_DATA_PROCESS
 		state <= IDLE;
 	end else begin
 		trigger <= 0;
-		cycle <= 0;
+		interf.cycle <= 0;
 		freq_counter <= freq_counter + 1;
-		if(zero_offset) begin
+		if(interf.zero_offset) begin
 			for(j=0;j<NUMBER_OF_SENSORS;j=j+1) begin
 				angle_offset[j] <= angle_relative[j];
 				revolution_counter_offset[j]<=revolution_counter[j];
@@ -196,7 +184,7 @@ always @(posedge clock, negedge reset_n) begin: SPI_DATA_PROCESS
 				angle_absolute[current_sensor] = angle_relative[current_sensor] + 
 												(revolution_counter[current_sensor]-revolution_counter_offset[current_sensor])*$signed(512) -
 												angle_offset[current_sensor];
-				cycle[current_sensor] <= 1'b1;
+				interf.cycle[current_sensor] <= 1'b1;
 				if(update_time!=0) begin
 					angle_velocity[current_sensor] = (angle_absolute[current_sensor]-angle_absolute_prev[current_sensor])/update_time;
 				end
@@ -221,7 +209,7 @@ end
 genvar k;
 generate 
 	for(k=0; k<NUMBER_OF_SENSORS; k = k+1) begin : assign_slave_select
-		assign ss_n_o[k] = (current_sensor==k?ss_n:1);
+		assign interf.ss_n_o[k] = (current_sensor==k?ss_n:1);
 	end
 endgenerate 
 
@@ -229,12 +217,12 @@ spi_master #(20, 1'b1, 1'b1, 2, 3) spi(
 	.sclk_i(clock),
 	.pclk_i(clock),
 	.rst_i(~reset_n),
-	.spi_miso_i(miso_i),
+	.spi_miso_i(interf.miso_i),
 	.di_i(data_send),
 	.wren_i(trigger),
 	.spi_ssel_o(ss_n),
-	.spi_sck_o(sck_o), 
-	.spi_mosi_o(mosi_o),
+	.spi_sck_o(interf.sck_o), 
+	.spi_mosi_o(interf.mosi_o),
 	.di_req_o(di_req),
 	.wr_ack_o(wr_ack),
 	.do_valid_o(do_valid),

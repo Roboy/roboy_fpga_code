@@ -36,7 +36,7 @@
 
 `timescale 1ns/10ps
 
-module MSJPlatformPIDController (
+module MSJPlatformPDController (
 	input clock,
 	input reset,
 	input signed [31:0] Kp,
@@ -63,7 +63,6 @@ always @(posedge clock, posedge reset) begin: PD_CONTROLLER_PD_CONTROLLERLOGIC
 	reg signed [31:0] result;
 	
 	if (reset == 1) begin
-		integral <= 0;
 		lastError <= 0;
 		err <=0;
 		result <= 0;
