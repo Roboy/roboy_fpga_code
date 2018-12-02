@@ -37,10 +37,10 @@ assign interf.sensor_angle_velocity = angle_velocity;
 assign interf.sensor_revolution_counter = revolution_counter;
 
 reg signed [31:0] angle [NUMBER_OF_SENSORS-1:0];
+reg signed [31:0] angle_prev [NUMBER_OF_SENSORS-1:0];
 reg signed [31:0] angle_absolute [NUMBER_OF_SENSORS-1:0];
 reg signed [31:0] angle_absolute_prev [NUMBER_OF_SENSORS-1:0];
 reg signed [31:0] angle_relative [NUMBER_OF_SENSORS-1:0];
-reg signed [31:0] angle_prev [NUMBER_OF_SENSORS-1:0];
 reg signed [31:0] angle_filtered [NUMBER_OF_SENSORS-1:0];
 reg signed [31:0] angle_offset [NUMBER_OF_SENSORS-1:0];
 reg signed [31:0] angle_velocity [NUMBER_OF_SENSORS-1:0];
@@ -55,7 +55,8 @@ reg [3:0] state;
 reg [3:0] next_state;
 always @(posedge clock, negedge reset_n) begin: SPI_DATA_PROCESS
 	parameter IDLE  = 0, TRIGGER_READ_TURNS = 1, WAIT_FOR_REQUEST_TURNS = 2, WAIT_FOR_RECEIVE_TURNS = 3, 
-			TRIGGER_READ_ANGLE = 4, WAIT_FOR_RECEIVE_ANGLE = 5, WAIT_FOR_REQUEST_ANGLE = 6, CALCULATE_ANGLES = 7, DELAY = 8;
+			TRIGGER_READ_ANGLE = 4, WAIT_FOR_RECEIVE_ANGLE = 5, WAIT_FOR_REQUEST_ANGLE = 6, CALCULATE_ANGLES = 7, DELAY = 8,
+			DELAYED_TRIGGER = 9;
 	reg CRC0;
 	reg CRC1;
 	reg CRC2;
@@ -74,8 +75,8 @@ always @(posedge clock, negedge reset_n) begin: SPI_DATA_PROCESS
 		freq_counter <= freq_counter + 1;
 		if(interf.zero_offset) begin
 			for(j=0;j<NUMBER_OF_SENSORS;j=j+1) begin
-				angle_offset[j] <= angle_relative[j];
-				revolution_counter_offset[j]<=revolution_counter[j];
+				angle_offset[j] <= angle[j];
+				revolution_counter[j]=0;
 			end
 		end
 		case(state)
@@ -84,11 +85,11 @@ always @(posedge clock, negedge reset_n) begin: SPI_DATA_PROCESS
 				if(current_sensor>=NUMBER_OF_SENSORS) begin
 					current_sensor <= 0;
 				end
-				if(sample_counter[current_sensor]==0) begin
-					state <= TRIGGER_READ_TURNS;
-				end else begin 
-					state <= TRIGGER_READ_ANGLE;
-				end
+//				if(sample_counter[current_sensor]==0) begin
+//					state <= TRIGGER_READ_TURNS;
+//				end else begin 
+				state <= TRIGGER_READ_ANGLE;
+//				end
 			end
 			TRIGGER_READ_TURNS: begin 
 				data_send <= turns_register;
@@ -98,7 +99,7 @@ always @(posedge clock, negedge reset_n) begin: SPI_DATA_PROCESS
 			WAIT_FOR_REQUEST_TURNS: begin
 				if(do_valid) begin
 					delay_counter <= 50;
-					state<=DELAY;
+					state<=DELAYED_TRIGGER;
 					next_state<=WAIT_FOR_RECEIVE_TURNS;
 				end
 			end
@@ -130,7 +131,7 @@ always @(posedge clock, negedge reset_n) begin: SPI_DATA_PROCESS
 			end
 			TRIGGER_READ_ANGLE: begin 
 				data_send <= angle_register;
-				if(sample_counter[current_sensor]==0) begin
+				if(sample_counter[current_sensor]==SAMPLES_TO_AVERAGE-1) begin
 					state <= WAIT_FOR_REQUEST_ANGLE; // because of the interleaved queries, we need to wait for the last sample
 				end else begin
 					state <= WAIT_FOR_RECEIVE_ANGLE;
@@ -140,7 +141,7 @@ always @(posedge clock, negedge reset_n) begin: SPI_DATA_PROCESS
 			WAIT_FOR_REQUEST_ANGLE: begin
 				if(do_valid) begin
 					delay_counter <= 50;
-					state<=DELAY;
+					state<=DELAYED_TRIGGER;
 					next_state<=WAIT_FOR_RECEIVE_ANGLE;
 				end
 			end
@@ -184,25 +185,40 @@ always @(posedge clock, negedge reset_n) begin: SPI_DATA_PROCESS
 				end
 			end
 			CALCULATE_ANGLES: begin
-				angle_relative[current_sensor] = angle[current_sensor]%512;
+				if(angle_prev[current_sensor] > 3500 && angle[current_sensor] < 500) begin
+					revolution_counter[current_sensor] = revolution_counter[current_sensor] + 1;
+				end
+				if(angle_prev[current_sensor] < 500 && angle[current_sensor] > 3500) begin
+					revolution_counter[current_sensor] = revolution_counter[current_sensor] - 1;
+				end
+				angle_prev[current_sensor] = angle[current_sensor];
 				angle_absolute_prev[current_sensor] = angle_absolute[current_sensor];
-				angle_absolute[current_sensor] = angle_relative[current_sensor] + 
-												(revolution_counter[current_sensor]-revolution_counter_offset[current_sensor])*$signed(512) -
-												angle_offset[current_sensor];
+				angle_absolute[current_sensor] = angle[current_sensor] - angle_offset[current_sensor] +
+												revolution_counter[current_sensor]*4096;
 				interf.cycle[current_sensor] <= 1'b1;
 				if(update_time!=0) begin
 					angle_velocity[current_sensor] = (angle_absolute[current_sensor]-angle_absolute_prev[current_sensor])/update_time;
+				end else begin 
+					angle_velocity[current_sensor] = 69;
 				end
 				if(current_sensor==0) begin
 					update_time <= freq_counter/CLOCK_SPEED_MILLIHZ;
 					freq_counter <= 0;
 				end
-				state<=IDLE;
+				delay_counter <= 3000; // approx 300Hz delay
+				next_state <= IDLE;
+				state<=DELAY;
+			end
+			DELAYED_TRIGGER: begin
+				delay_counter <= delay_counter -1;
+				if(delay_counter==0) begin
+					trigger <= 1;
+					state <= next_state;
+				end
 			end
 			DELAY: begin
 				delay_counter <= delay_counter -1;
 				if(delay_counter==0) begin
-					trigger <= 1;
 					state <= next_state;
 				end
 			end

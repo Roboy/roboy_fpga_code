@@ -86,7 +86,7 @@ assign angle_sck = a1339_interface.sck_o;
 assign angle_ss_n_o = a1339_interface.ss_n_o;
 assign angle_mosi = a1339_interface.mosi_o;
 assign a1339_interface.miso_i = angle_miso;
-assign a1339_interface.zero_offset = emergency_off;
+assign a1339_interface.zero_offset = emergency_off||reset_control;
 			
 A1339Control#(CLOCK_SPEED_HZ,NUMBER_OF_MOTORS,SAMPLES_TO_AVERAGE) a1339(
 	.clock(clock),
@@ -161,7 +161,7 @@ always @(posedge clock, posedge reset) begin: WRITE_CONTROL_LOGIC
 					8'h06: outputPosMax[address[7:0]][31:0]<= writedata;
 					8'h07: outputNegMax[address[7:0]][31:0]<= writedata;
 					8'h08: deadBand[address[7:0]][31:0]<= writedata;
-					8'h08: zero_speed[address[7:0]][31:0]<= writedata;
+					8'h09: zero_speed[address[7:0]][31:0]<= writedata;
 				endcase
 			end
 		end
