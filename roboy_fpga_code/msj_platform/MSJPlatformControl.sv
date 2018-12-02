@@ -152,8 +152,8 @@ always @(posedge clock, posedge reset) begin: WRITE_CONTROL_LOGIC
 		if(write && ~waitrequest) begin
 			if((address>>8)<=8'h31 && address[7:0]<NUMBER_OF_MOTORS) begin
 				case(address>>8)
-					8'h00: Kp[address[7:0]][15:0] <= writedata[31:0];
-					8'h01: Kd[address[7:0]][15:0] <= writedata[31:0];
+					8'h00: Kp[address[7:0]][31:0] <= writedata[31:0];
+					8'h01: Kd[address[7:0]][31:0] <= writedata[31:0];
 					8'h02: sp[address[7:0]][31:0] <= writedata[31:0];
 					8'h03: control_mode[address[7:0]][1:0] <= writedata[1:0];
 					8'h04: reset_control<= (writedata!=0);

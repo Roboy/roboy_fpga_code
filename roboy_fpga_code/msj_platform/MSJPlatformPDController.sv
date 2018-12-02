@@ -81,7 +81,7 @@ always @(posedge clock, posedge reset) begin: PD_CONTROLLER_PD_CONTROLLERLOGIC
 				if (((err >= deadBand) || (err <= ((-1) * deadBand)))) begin
 					pterm = (Kp * err);
 					dterm = ((err - lastError) * Kd);
-					result = zero_speed - (pterm + dterm)/outputDivider;
+					result = zero_speed + (pterm + dterm)/outputDivider;
 					if ((result < outputNegMax)) begin
 						 result = outputNegMax;
 					end else if ((result > outputPosMax)) begin
