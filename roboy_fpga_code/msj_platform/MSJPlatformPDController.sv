@@ -45,7 +45,8 @@ module MSJPlatformPDController (
 	input signed [31:0] outputPosMax,
 	input signed [31:0] outputNegMax,
 	input signed [31:0] deadBand,
-	input [1:0] control_mode, // position velocity 
+	input signed [31:0] zero_speed,
+	input [1:0] control_mode, // position velocity direct_duty
 	input signed [31:0] position,
 	input signed [31:0] velocity,
 	input signed [31:0] outputDivider,
@@ -73,22 +74,25 @@ always @(posedge clock, posedge reset) begin: PD_CONTROLLER_PD_CONTROLLERLOGIC
 			case(control_mode) 
 				2'b00: err = (sp - position); 
 				2'b01: err = (sp - velocity);
+				2'b10: duty = sp; // direct feed through
 				default: err = 0;
 			endcase;
-			if (((err >= deadBand) || (err <= ((-1) * deadBand)))) begin
-				pterm = (Kp * err);
-				dterm = ((err - lastError) * Kd);
-				result = (pterm + dterm)/outputDivider;
-				if ((result < outputNegMax)) begin
-					 result = outputNegMax;
-				end else if ((result > outputPosMax)) begin
-					 result = outputPosMax;
+			if(control_mode!=2'b10) begin
+				if (((err >= deadBand) || (err <= ((-1) * deadBand)))) begin
+					pterm = (Kp * err);
+					dterm = ((err - lastError) * Kd);
+					result = zero_speed + (pterm + dterm)/outputDivider;
+					if ((result < outputNegMax)) begin
+						 result = outputNegMax;
+					end else if ((result > outputPosMax)) begin
+						 result = outputPosMax;
+					end
+				end else begin
+					result = 0;
 				end
-			end else begin
-				result = 0;
+				duty = result;
+				lastError = err;
 			end
-			duty = 50 - result;
-			lastError = err;
 		end
 	end 
 end

@@ -162,15 +162,20 @@ always @(posedge clock, negedge reset_n) begin: SPI_DATA_PROCESS
 					crc = (CRC3 ? 4'd8 : 4'd0) + (CRC2 ? 4'd4 : 4'd0) + (CRC1 ? 4'd2 : 4'd0) + (CRC0 ? 4'd1 : 4'd0);
 					if(crc == data_received[3:0]) begin
 						data_valid <= 1;
-						if(sample_counter[current_sensor]<SAMPLES_TO_AVERAGE)begin
-							angle_filtered[current_sensor] <= angle_filtered[current_sensor]+ val;
-							state<=IDLE;
-							sample_counter[current_sensor] <= sample_counter[current_sensor]+1;
-						end else begin
-							angle[current_sensor] <= (angle_filtered[current_sensor]>>>$clog2(SAMPLES_TO_AVERAGE));
-							angle_filtered[current_sensor] <= 0;
+						if(SAMPLES_TO_AVERAGE!=0) begin
+							if(sample_counter[current_sensor]<SAMPLES_TO_AVERAGE)begin
+								angle_filtered[current_sensor] <= angle_filtered[current_sensor]+ val;
+								state<=IDLE;
+								sample_counter[current_sensor] <= sample_counter[current_sensor]+1;
+							end else begin
+								angle[current_sensor] <= (angle_filtered[current_sensor]>>>$clog2(SAMPLES_TO_AVERAGE));
+								angle_filtered[current_sensor] <= 0;
+								state <= CALCULATE_ANGLES;
+								sample_counter[current_sensor] <= 0;
+							end
+						end else begin // no average
+							angle[current_sensor] <= val;
 							state <= CALCULATE_ANGLES;
-							sample_counter[current_sensor] <= 0;
 						end
 					end else begin
 						data_valid <= 0;
