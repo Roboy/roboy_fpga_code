@@ -137,11 +137,15 @@ always @(posedge clock, posedge reset) begin: WRITE_CONTROL_LOGIC
 	if (reset == 1) begin
 		reset_control <= 0;
 		for(i=0;i<NUMBER_OF_MOTORS;i=i+1)begin
-			outputDivider[i] <= 100;
-			outputPosMax[i] <= 10000;
-			outputNegMax[i] <= -10000;
+			Kp[i] <= 20;
+			Kd[i] <= 10;
+			outputDivider[i] <= 6;
+			outputPosMax[i] <= 330;
+			outputNegMax[i] <= 300;
+			zero_speed[i] <= 315;
 			deadBand [i] <= 0;
 			control_mode[i] <= 2;
+			sp[i] <= 0;
 		end
 	end else begin
 		// toggle registers need to be set to zero at every clock cycle

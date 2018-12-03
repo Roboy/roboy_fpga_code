@@ -81,8 +81,9 @@ always @(posedge clock, negedge reset_n) begin: SPI_DATA_PROCESS
 		end
 		case(state)
 			IDLE: begin
-				current_sensor <= current_sensor+1;
-				if(current_sensor>=NUMBER_OF_SENSORS) begin
+				if(current_sensor<NUMBER_OF_SENSORS-1) begin
+					current_sensor <= current_sensor+1;
+				end else begin
 					current_sensor <= 0;
 				end
 //				if(sample_counter[current_sensor]==0) begin
