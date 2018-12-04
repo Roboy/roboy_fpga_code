@@ -130,12 +130,14 @@ always @(posedge clock, posedge reset) begin: AVALON_READ_INTERFACE
 end
 	
 reg reset_control;
+reg mute;
 reg update_controller;
 	
 always @(posedge clock, posedge reset) begin: WRITE_CONTROL_LOGIC
 	reg [7:0]i;
 	if (reset == 1) begin
 		reset_control <= 0;
+		mute <= 0;
 		for(i=0;i<NUMBER_OF_MOTORS;i=i+1)begin
 			Kp[i] <= 20;
 			Kd[i] <= 10;
@@ -154,7 +156,7 @@ always @(posedge clock, posedge reset) begin: WRITE_CONTROL_LOGIC
 	
 		// if we are writing via avalon bus and waitrequest is deasserted, write the respective register
 		if(write && ~waitrequest) begin
-			if((address>>8)<=8'h31 && address[7:0]<NUMBER_OF_MOTORS) begin
+			if((address>>8)<=8'h0A && address[7:0]<NUMBER_OF_MOTORS) begin
 				case(address>>8)
 					8'h00: Kp[address[7:0]][31:0] <= writedata[31:0];
 					8'h01: Kd[address[7:0]][31:0] <= writedata[31:0];
@@ -166,6 +168,7 @@ always @(posedge clock, posedge reset) begin: WRITE_CONTROL_LOGIC
 					8'h07: outputNegMax[address[7:0]][31:0]<= writedata;
 					8'h08: deadBand[address[7:0]][31:0]<= writedata;
 					8'h09: zero_speed[address[7:0]][31:0]<= writedata;
+					8'h0A: mute <= (writedata!=0);
 				endcase
 			end
 		end
@@ -200,7 +203,7 @@ generate
 			.reset_n(~reset),				//asynchronous reset
 			.ena(a1339_interface.cycle[j]),					//latches in new duty cycle
 			.duty(dutys[j]),					//duty cycle
-			.pwm_out(PWM[j])				//pwm outputs
+			.pwm_out(PWM[j]&(!mute))				//pwm outputs
 		);
 	end
 	
