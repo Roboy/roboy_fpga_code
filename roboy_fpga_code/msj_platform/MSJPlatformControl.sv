@@ -200,10 +200,10 @@ generate
 	for(j=0; j<NUMBER_OF_MOTORS; j = j+1) begin : instantiate_pwm_controllers
 	  pwm #(CLOCK_SPEED_HZ, 50, CLOCK_SPEED_HZ, 12, 1)  motor(
 			.clk(clock), 					//system clock
-			.reset_n(~reset),				//asynchronous reset
+			.reset_n(~mute),				//asynchronous reset
 			.ena(a1339_interface.cycle[j]),					//latches in new duty cycle
 			.duty(dutys[j]),					//duty cycle
-			.pwm_out(PWM[j]&(!mute))				//pwm outputs
+			.pwm_out(PWM[j])				//pwm outputs
 		);
 	end
 	
