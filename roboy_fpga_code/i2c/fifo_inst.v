@@ -9,4 +9,3 @@ fifo	fifo_inst (
 	.q ( q_sig ),
 	.usedw ( usedw_sig )
 	);
-
