@@ -101,18 +101,18 @@ always @(posedge clock, posedge reset) begin: PID_CONTROLLER_PID_CONTROLLERLOGIC
 			
 			if (((err >= deadBand) || (err <= ((-1) * deadBand)))) begin
 				pterm = (Kp * err);
-//				if ((pterm < outputPosMax) || (pterm > outputNegMax)) begin  //if the proportional term is not maxed
-//					integral = integral + (Ki * err); //add to the integral
-//					if (integral > IntegralPosMax) begin
-//						integral = IntegralPosMax;
-//					end else if (integral < IntegralNegMax) begin
-//						integral = IntegralNegMax;
-//					end
-//				end
+				if ((pterm < outputPosMax) || (pterm > outputNegMax)) begin  //if the proportional term is not maxed
+					integral = integral + (Ki * err); //add to the integral
+					if (integral > IntegralPosMax) begin
+						integral = IntegralPosMax;
+					end else if (integral < IntegralNegMax) begin
+						integral = IntegralNegMax;
+					end
+				end
 				dterm = ((err - lastError) * Kd);
 //				ffterm = (forwardGain * sp);
 //				result = (((ffterm + pterm) + integral) + dterm)>>>outputDivider;
-				result = (pterm + dterm)>>>outputDivider;
+				result = (pterm + dterm + integral)>>>outputDivider;
 				if ((result < outputNegMax)) begin
 					 result = outputNegMax;
 				end else if ((result > outputPosMax)) begin
