@@ -10,6 +10,8 @@ module ts4231 (
   );
   
   parameter CLK_SPEED = 50_000_000;
+  
+	//should be adjusted to 20 sensors
   parameter NUMBER_OF_SENSORS = 8;
   
   reg D_out;
@@ -44,11 +46,32 @@ endgenerate
     reg [1:0] WATCH_count;
     reg [1:0] S3_count;
     reg [15:0] config_value;
-    parameter IDLE  = 4'b0000, WAIT_FOR_LIGHT  = 4'b0001, CHECK_BUS = 4'b0010, RESET_COUNTERS = 4'b0011,
-      DELAY = 4'b0100, READ_CONFIG = 4'b0101, CONFIG_DEVICE = 4'b0110, GO_TO_WATCH = 4'b0111,
-      WRITE_CONFIG = 4'b1000, WRITE_CONFIG_VALUE = 4'b1001, READ_CONFIG_VALUE = 4'b1010;
-    parameter SLEEP_STATE = 3'b000, WATCH_STATE = 3'b001, S3_STATE = 3'b010, S0_STATE = 3'b011, UNKNOWN = 3'b100;
-    parameter DATA = 2'b00, CLK_HIGH = 2'b01, CLK_LOW = 2'b10;
+
+	 //FSM work setting
+    parameter IDLE  					= 4'b0000;	//STATE 0
+	 parameter WAIT_FOR_LIGHT		= 4'b0001;	//STATE 1
+	 parameter CHECK_BUS				= 4'b0010;	//STATE 2
+	 parameter RESET_COUNTERS		= 4'b0011;	//STATE 3
+	 parameter DELAY					= 4'b0100;	//STATE 4
+	 parameter READ_CONFIG			= 4'b0101;	//STATE 5
+	 parameter CONFIG_DEVICE		= 4'b0110;	//STATE 6
+	 parameter GO_TO_WATCH			= 4'b0111;	//STATE 7
+	 parameter WRITE_CONFIG			= 4'b1000;	//STATE 8
+	 parameter WRITE_CONFIG_VALUE	= 4'b1001;	//STATE 9
+	 parameter READ_CONFIG_VALUE	= 4'b1010;	//STATE 10
+	 
+	 //FSM sleep setting
+    parameter SLEEP_STATE	= 3'b000;	//STATE 0
+	 parameter WATCH_STATE	= 3'b001;	//STATE 1
+	 parameter S3_STATE		= 3'b010;	//STATE 2
+	 parameter S0_STATE		= 3'b011;	//STATE 3
+	 parameter UNKNOWN		= 3'b100;	//STATE 4
+	 
+	 //FSM Data transmisson
+    parameter DATA		= 2'b00;		//STATE 0
+	 parameter CLK_HIGH	= 2'b01;		//STATE 1
+	 parameter CLK_LOW	= 2'b10;		//STATE 2
+	 
     if (rst) begin
       D_control <= 0;
       E_control <= 0;
