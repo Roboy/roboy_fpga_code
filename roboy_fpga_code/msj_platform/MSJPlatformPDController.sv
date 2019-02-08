@@ -40,10 +40,13 @@ module MSJPlatformPDController (
 	input clock,
 	input reset,
 	input signed [31:0] Kp,
+	input signed [31:0] Ki,
 	input signed [31:0] Kd,
 	input signed [31:0] sp,
 	input signed [31:0] outputPosMax,
 	input signed [31:0] outputNegMax,
+	input signed [31:0] integralNegMax,
+	input signed [31:0] integralPosMax,
 	input signed [31:0] deadBand,
 	input signed [31:0] zero_speed,
 	input [1:0] control_mode, // position velocity direct_duty
@@ -57,6 +60,7 @@ module MSJPlatformPDController (
 always @(posedge clock, posedge reset) begin: PD_CONTROLLER_PD_CONTROLLERLOGIC
 	reg signed [31:0] lastError;
 	reg signed [31:0] err;
+	reg signed [31:0] integral;
 	reg signed [31:0] pterm;
 	reg signed [31:0] dterm;
 	reg signed [31:0] ffterm;
@@ -80,8 +84,16 @@ always @(posedge clock, posedge reset) begin: PD_CONTROLLER_PD_CONTROLLERLOGIC
 			if(control_mode!=2'b10) begin
 				if (((err >= deadBand) || (err <= ((-1) * deadBand)))) begin
 					pterm = (Kp * err);
+					if ((pterm < outputPosMax) || (pterm > outputNegMax)) begin  //if the proportional term is not maxed
+						integral = integral + (Ki * err); //add to the integral
+						if (integral > integralPosMax) begin
+							integral = integralPosMax;
+						end else if (integral < integralNegMax) begin
+							integral = integralNegMax;
+						end
+					end
 					dterm = ((err - lastError) * Kd);
-					result = zero_speed + ((pterm + dterm)>>>outputDivider);
+					result = zero_speed + ((pterm + dterm + integral)>>>outputDivider);
 					if ((result < outputNegMax)) begin
 						 result = outputNegMax;
 					end else if ((result > outputPosMax)) begin

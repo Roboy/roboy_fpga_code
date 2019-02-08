@@ -47,7 +47,12 @@ module MSJPlatformControl (
 	output angle_mosi,
 	output angle_sck,
 	input emergency_off,
-	output [NUMBER_OF_MOTORS-1:0]PWM
+	output [NUMBER_OF_MOTORS-1:0]PWM,
+	input [NUMBER_OF_MOTORS-1:0] pull_buttons,
+	input [NUMBER_OF_MOTORS-1:0] release_buttons,
+	input release_all_button,
+	input zero_pose_button,
+	output [1:0] LED
 );
 
 parameter NUMBER_OF_MOTORS = 6;
@@ -57,6 +62,8 @@ parameter SAMPLES_TO_AVERAGE = 256;
 // gains and shit
 // p gains
 reg signed [31:0] Kp[NUMBER_OF_MOTORS-1:0];
+// i gains
+reg signed [31:0] Ki[NUMBER_OF_MOTORS-1:0];
 // d gains
 reg signed [31:0] Kd[NUMBER_OF_MOTORS-1:0];
 // setpoints
@@ -68,6 +75,8 @@ reg signed [31:0] velocity[NUMBER_OF_MOTORS-1:0];
 // dutys
 reg signed [31:0] dutys[NUMBER_OF_MOTORS-1:0];
 // dutys
+reg signed [31:0] integralPosMax[NUMBER_OF_MOTORS-1:0];
+reg signed [31:0] integralNegMax[NUMBER_OF_MOTORS-1:0];
 reg signed [31:0] outputPosMax[NUMBER_OF_MOTORS-1:0];
 reg signed [31:0] outputNegMax[NUMBER_OF_MOTORS-1:0];
 reg signed [31:0] deadBand[NUMBER_OF_MOTORS-1:0];
@@ -105,21 +114,22 @@ always @(posedge clock, posedge reset) begin: AVALON_READ_INTERFACE
 		if(read) begin
 			case(address>>8)
 				8'h00: returnvalue <= Kp[address[7:0]][31:0];
-				8'h01: returnvalue <= Kd[address[7:0]][31:0];
-				8'h02: returnvalue <= sp[address[7:0]][31:0];
-				8'h03: returnvalue <= control_mode[address[7:0]][1:0];
-				8'h04: returnvalue <= outputPosMax[address[7:0]][31:0];
-				8'h05: returnvalue <= outputNegMax[address[7:0]][31:0];
-				8'h06: returnvalue <= deadBand[address[7:0]][31:0];
-				8'h07: returnvalue <= outputDivider[address[7:0]][31:0];
-				8'h08: returnvalue <= a1339_interface.sensor_angle[address[7:0]][31:0];
-				8'h09: returnvalue <= a1339_interface.sensor_angle_absolute[address[7:0]][31:0];
-				8'h0A: returnvalue <= a1339_interface.sensor_angle_offset[address[7:0]][31:0];
-				8'h0B: returnvalue <= a1339_interface.sensor_angle_relative[address[7:0]][31:0];
-				8'h0C: returnvalue <= a1339_interface.sensor_angle_velocity[address[7:0]][31:0];
-				8'h0D: returnvalue <= a1339_interface.sensor_revolution_counter[address[7:0]][31:0];
-				8'h0E: returnvalue <= dutys[address[7:0]][31:0];
-				8'h0F: returnvalue <= zero_speed[address[7:0]][31:0];
+				8'h01: returnvalue <= Ki[address[7:0]][31:0];
+				8'h02: returnvalue <= Kd[address[7:0]][31:0];
+				8'h03: returnvalue <= sp[address[7:0]][31:0];
+				8'h04: returnvalue <= control_mode[address[7:0]][1:0];
+				8'h05: returnvalue <= outputPosMax[address[7:0]][31:0];
+				8'h06: returnvalue <= outputNegMax[address[7:0]][31:0];
+				8'h07: returnvalue <= deadBand[address[7:0]][31:0];
+				8'h08: returnvalue <= outputDivider[address[7:0]][31:0];
+				8'h09: returnvalue <= a1339_interface.sensor_angle[address[7:0]][31:0];
+				8'h0A: returnvalue <= a1339_interface.sensor_angle_absolute[address[7:0]][31:0];
+				8'h0B: returnvalue <= a1339_interface.sensor_angle_offset[address[7:0]][31:0];
+				8'h0C: returnvalue <= a1339_interface.sensor_angle_relative[address[7:0]][31:0];
+				8'h0D: returnvalue <= a1339_interface.sensor_angle_velocity[address[7:0]][31:0];
+				8'h0E: returnvalue <= a1339_interface.sensor_revolution_counter[address[7:0]][31:0];
+				8'h0F: returnvalue <= dutys[address[7:0]][31:0];
+				8'h10: returnvalue <= zero_speed[address[7:0]][31:0];
 				default: returnvalue <= 32'hDEADBEEF;
 			endcase
 			if(waitFlag==1) begin // next clock cycle the returnvalue should be ready
@@ -144,6 +154,8 @@ always @(posedge clock, posedge reset) begin: WRITE_CONTROL_LOGIC
 			outputDivider[i] <= 6;
 			outputPosMax[i] <= 330;
 			outputNegMax[i] <= 300;
+			integralPosMax[i] <= 0;
+			integralNegMax[i] <= 0;
 			zero_speed[i] <= 315;
 			deadBand [i] <= 0;
 			control_mode[i] <= 2;
@@ -156,20 +168,41 @@ always @(posedge clock, posedge reset) begin: WRITE_CONTROL_LOGIC
 	
 		// if we are writing via avalon bus and waitrequest is deasserted, write the respective register
 		if(write && ~waitrequest) begin
-			if((address>>8)<=8'h0A && address[7:0]<NUMBER_OF_MOTORS) begin
+			if((address>>8)<=8'h0D && address[7:0]<NUMBER_OF_MOTORS) begin
 				case(address>>8)
 					8'h00: Kp[address[7:0]][31:0] <= writedata[31:0];
-					8'h01: Kd[address[7:0]][31:0] <= writedata[31:0];
-					8'h02: sp[address[7:0]][31:0] <= writedata[31:0];
-					8'h03: control_mode[address[7:0]][1:0] <= writedata[1:0];
-					8'h04: reset_control<= (writedata!=0);
-					8'h05: outputDivider[address[7:0]][31:0]<= writedata;
-					8'h06: outputPosMax[address[7:0]][31:0]<= writedata;
-					8'h07: outputNegMax[address[7:0]][31:0]<= writedata;
-					8'h08: deadBand[address[7:0]][31:0]<= writedata;
-					8'h09: zero_speed[address[7:0]][31:0]<= writedata;
-					8'h0A: mute <= (writedata!=0);
+					8'h01: Ki[address[7:0]][31:0] <= writedata[31:0];
+					8'h02: Kd[address[7:0]][31:0] <= writedata[31:0];
+					8'h03: sp[address[7:0]][31:0] <= writedata[31:0];
+					8'h04: control_mode[address[7:0]][1:0] <= writedata[1:0];
+					8'h05: reset_control<= (writedata!=0);
+					8'h06: outputDivider[address[7:0]][31:0]<= writedata;
+					8'h07: outputPosMax[address[7:0]][31:0]<= writedata;
+					8'h08: outputNegMax[address[7:0]][31:0]<= writedata;
+					8'h09: integralPosMax[address[7:0]][31:0]<= writedata;
+					8'h0A: integralNegMax[address[7:0]][31:0]<= writedata;
+					8'h0B: deadBand[address[7:0]][31:0]<= writedata;
+					8'h0C: zero_speed[address[7:0]][31:0]<= writedata;
+					8'h0D: mute <= (writedata!=0);
 				endcase
+			end
+		end
+		for(i=0;i<NUMBER_OF_MOTORS;i=i+1)begin
+			if(pull_buttons[i]==0) begin
+				sp[i] <= sp[i]+10;
+			end
+			if(release_buttons[i]==0) begin
+				sp[i] <= sp[i]-10;
+			end
+		end
+		if(zero_pose_button==0)begin
+			for(i=0;i<NUMBER_OF_MOTORS;i=i+1)begin
+				sp[i] <= 0;
+			end
+		end
+		if(release_all_button==0)begin
+			for(i=0;i<NUMBER_OF_MOTORS;i=i+1)begin
+				sp[i] <= sp[i]-10;
 			end
 		end
 	end 
@@ -184,6 +217,8 @@ generate
 			.Kp(Kp[j]),
 			.Kd(Kd[j]),
 			.sp(sp[j]),
+			.integralPosMax(integralPosMax[j]),
+			.integralNegMax(integralNegMax[j]),
 			.outputPosMax(outputPosMax[j]),
 			.outputNegMax(outputNegMax[j]),
 			.deadBand(deadBand[j]),
