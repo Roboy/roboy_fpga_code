@@ -141,7 +141,7 @@ end
 	
 reg reset_control;
 reg mute;
-reg update_controller;
+reg [NUMBER_OF_MOTORS-1:0] update_controller;
 	
 always @(posedge clock, posedge reset) begin: WRITE_CONTROL_LOGIC
 	reg [7:0]i;
@@ -163,7 +163,9 @@ always @(posedge clock, posedge reset) begin: WRITE_CONTROL_LOGIC
 		end
 	end else begin
 		// toggle registers need to be set to zero at every clock cycle
-		update_controller <= 0;
+		for(i=0;i<NUMBER_OF_MOTORS;i=i+1)begin
+			update_controller[i] <= 0;
+		end
 		reset_control <= 0;
 	
 		// if we are writing via avalon bus and waitrequest is deasserted, write the respective register
@@ -187,6 +189,12 @@ always @(posedge clock, posedge reset) begin: WRITE_CONTROL_LOGIC
 				endcase
 			end
 		end
+		for(i=0;i<NUMBER_OF_MOTORS;i=i+1)begin
+			if(control_mode[i][1:0]==2 && update_controller[i]==0) begin
+				update_controller[i] <= 1;
+			end
+		end
+		
 		for(i=0;i<NUMBER_OF_MOTORS;i=i+1)begin
 			if(pull_buttons[i]==0) begin
 				sp[i] <= sp[i]+10;
@@ -227,7 +235,7 @@ generate
 			.position(a1339_interface.sensor_angle_absolute[j]),
 			.velocity(a1339_interface.sensor_angle_velocity[j]),
 			.outputDivider(outputDivider[j]),
-			.update_controller(a1339_interface.cycle[j]),
+			.update_controller(a1339_interface.cycle[j]||update_controller[j]),
 			.duty(dutys[j])
 		);
 	end
