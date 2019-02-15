@@ -1,33 +1,36 @@
 module ts4231 (
-    input clk,  // clock
-    input rst,  // reset
-    inout [NUMBER_OF_SENSORS-1:0] D_io,
-    inout [NUMBER_OF_SENSORS-1:0] E_io,
-	 output [NUMBER_OF_SENSORS-1:0] watch_state,
-	 output reg [7:0] current_sensor,
-    output wire [2:0] sensor_STATE,
-    output wire [3:0] current_STATE
-  );
-  
-  parameter CLK_SPEED = 50_000_000;
-  
+	input clk,		//clock
+	input rst,		//reset
+	inout [NUMBER_OF_SENSORS-1:0] D_io,
+	inout [NUMBER_OF_SENSORS-1:0] E_io,
+	output [NUMBER_OF_SENSORS-1:0] watch_state,
+	
 	//should be adjusted to 20 sensors
-  parameter NUMBER_OF_SENSORS = 8;
+	output reg [7:0] current_sensor,
+	output wire [2:0] sensor_STATE,
+	//should be adjusted to [4:0] (for 20 sensors/mistake till yet?)
+	output wire [3:0] current_STATE
+);
+
+	parameter CLK_SPEED = 50_000_000;
+	
+	//should be adjusted to 20 sensors
+	parameter NUMBER_OF_SENSORS = 8;
+	
+	reg D_out;
+	reg E_out;
+	
+	reg D_control;
+	reg E_control;
   
-  reg D_out;
-  reg E_out;
-  
-  reg D_control;
-  reg E_control;
-  
-genvar i;
-generate 
-	for(i=0; i<NUMBER_OF_SENSORS; i = i+1) begin : assign_lines
-		assign D_io[i] = (D_control&&current_sensor==i)?D_out:1'bz;
-		assign E_io[i] = (E_control&&current_sensor==i)?E_out:1'bz;
-		assign watch_state[i] = (sensor_state[i]==3'b001); // if sensor is in WATCH_STATE
-	end
-endgenerate 
+	genvar i;
+	generate 
+		for(i=0; i<NUMBER_OF_SENSORS; i = i+1) begin : assign_lines
+			assign D_io[i] = (D_control && current_sensor == i) ? D_out:1'bz;
+			assign E_io[i] = (E_control && current_sensor == i) ? E_out:1'bz;
+			assign watch_state[i] = (sensor_state[i]==3'b001); // if sensor is in WATCH_STATE
+		end
+	endgenerate 
   
   assign current_STATE = state[0];
   assign sensor_STATE = sensor_state[current_sensor];
