@@ -149,16 +149,16 @@ always @(posedge clock, posedge reset) begin: WRITE_CONTROL_LOGIC
 		reset_control <= 0;
 		mute <= 0;
 		for(i=0;i<NUMBER_OF_MOTORS;i=i+1)begin
-			Kp[i] <= 20;
-			Kd[i] <= 10;
-			outputDivider[i] <= 6;
-			outputPosMax[i] <= 330;
+			Kp[i] <= 5;
+			Kd[i] <= 0;
+			outputDivider[i] <= 0;
+			outputPosMax[i] <= 360;
 			outputNegMax[i] <= 300;
 			integralPosMax[i] <= 0;
 			integralNegMax[i] <= 0;
-			zero_speed[i] <= 315;
+			zero_speed[i] <= 330;
 			deadBand [i] <= 0;
-			control_mode[i] <= 2;
+			control_mode[i] <= 0;
 			sp[i] <= 0;
 		end
 	end else begin
@@ -195,24 +195,24 @@ always @(posedge clock, posedge reset) begin: WRITE_CONTROL_LOGIC
 			end
 		end
 		
-		for(i=0;i<NUMBER_OF_MOTORS;i=i+1)begin
-			if(pull_buttons[i]==0) begin
-				sp[i] <= sp[i]+10;
-			end
-			if(release_buttons[i]==0) begin
-				sp[i] <= sp[i]-10;
-			end
-		end
-		if(zero_pose_button==0)begin
-			for(i=0;i<NUMBER_OF_MOTORS;i=i+1)begin
-				sp[i] <= 0;
-			end
-		end
-		if(release_all_button==0)begin
-			for(i=0;i<NUMBER_OF_MOTORS;i=i+1)begin
-				sp[i] <= sp[i]-10;
-			end
-		end
+//		for(i=0;i<NUMBER_OF_MOTORS;i=i+1)begin
+//			if(pull_buttons[i]==0) begin
+//				sp[i] <= sp[i]+10;
+//			end
+//			if(release_buttons[i]==0) begin
+//				sp[i] <= sp[i]-10;
+//			end
+//		end
+//		if(zero_pose_button==0)begin
+//			for(i=0;i<NUMBER_OF_MOTORS;i=i+1)begin
+//				sp[i] <= 0;
+//			end
+//		end
+//		if(release_all_button==0)begin
+//			for(i=0;i<NUMBER_OF_MOTORS;i=i+1)begin
+//				sp[i] <= sp[i]-10;
+//			end
+//		end
 	end 
 end
 	
@@ -231,7 +231,7 @@ generate
 			.outputNegMax(outputNegMax[j]),
 			.deadBand(deadBand[j]),
 			.zero_speed(zero_speed[j]),
-			.control_mode(control_mode[j]), // position velocity 
+			.control_mode(control_mode[j]), // position velocity direct_pwm
 			.position(a1339_interface.sensor_angle_absolute[j]),
 			.velocity(a1339_interface.sensor_angle_velocity[j]),
 			.outputDivider(outputDivider[j]),
