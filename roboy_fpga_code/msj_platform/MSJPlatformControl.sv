@@ -145,13 +145,15 @@ reg [NUMBER_OF_MOTORS-1:0] update_controller;
 	
 always @(posedge clock, posedge reset) begin: WRITE_CONTROL_LOGIC
 	reg [7:0]i;
+	reg [7:0]pull_buttons_prev;
+	reg [7:0]release_buttons_prev;
 	if (reset == 1) begin
 		reset_control <= 0;
 		mute <= 0;
 		for(i=0;i<NUMBER_OF_MOTORS;i=i+1)begin
-			Kp[i] <= 5;
+			Kp[i] <= 1;
 			Kd[i] <= 0;
-			outputDivider[i] <= 0;
+			outputDivider[i] <= 5;
 			outputPosMax[i] <= 360;
 			outputNegMax[i] <= 300;
 			integralPosMax[i] <= 0;
@@ -195,24 +197,26 @@ always @(posedge clock, posedge reset) begin: WRITE_CONTROL_LOGIC
 			end
 		end
 		
-//		for(i=0;i<NUMBER_OF_MOTORS;i=i+1)begin
-//			if(pull_buttons[i]==0) begin
-//				sp[i] <= sp[i]+10;
-//			end
-//			if(release_buttons[i]==0) begin
-//				sp[i] <= sp[i]-10;
-//			end
-//		end
-//		if(zero_pose_button==0)begin
-//			for(i=0;i<NUMBER_OF_MOTORS;i=i+1)begin
-//				sp[i] <= 0;
-//			end
-//		end
-//		if(release_all_button==0)begin
-//			for(i=0;i<NUMBER_OF_MOTORS;i=i+1)begin
-//				sp[i] <= sp[i]-10;
-//			end
-//		end
+		for(i=0;i<NUMBER_OF_MOTORS;i=i+1)begin
+			pull_buttons_prev[i]<=pull_buttons[i];
+			release_buttons_prev[i]<=release_buttons[i];
+			if(pull_buttons_prev[i]==1 && pull_buttons[i]==0) begin
+				sp[i] <= sp[i]+10;
+			end
+			if(release_buttons_prev[i]==1 && release_buttons[i]==0) begin
+				sp[i] <= sp[i]-10;
+			end
+		end
+		if(zero_pose_button==0)begin
+			for(i=0;i<NUMBER_OF_MOTORS;i=i+1)begin
+				sp[i] <= 0;
+			end
+		end
+		if(release_all_button==0)begin
+			for(i=0;i<NUMBER_OF_MOTORS;i=i+1)begin
+				sp[i] <= sp[i]-10;
+			end
+		end
 	end 
 end
 	
