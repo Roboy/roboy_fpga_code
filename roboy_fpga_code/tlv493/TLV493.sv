@@ -6,7 +6,7 @@ module TLV493(
 	input read,
 	output signed [31:0] readdata,
 	input write,
-	output signed [31:0] writedata,
+	input signed [31:0] writedata,
 	output waitrequest,
 	// I2C
 	output [NUMBER_OF_SENSORS-1:0] scl, // clock
@@ -24,10 +24,17 @@ reg [31:0]update_frequency;
 reg [11:0]mag_x[NUMBER_OF_SENSORS-1:0];
 reg [11:0]mag_y[NUMBER_OF_SENSORS-1:0];
 reg [11:0]mag_z[NUMBER_OF_SENSORS-1:0];
+reg [11:0]temp[NUMBER_OF_SENSORS-1:0];
+reg [1:0]frm[NUMBER_OF_SENSORS-1:0];
+reg [1:0]ch[NUMBER_OF_SENSORS-1:0];
+reg t[NUMBER_OF_SENSORS-1:0];
+reg ff[NUMBER_OF_SENSORS-1:0];
+reg pd[NUMBER_OF_SENSORS-1:0];
 
 always @(posedge clock, posedge reset) begin: AVALON_INTERFACE
 	if (reset == 1) begin
 		waitFlag <= 0;
+		update_frequency <= 100;
 	end else begin
 		waitFlag <= 1;
 		if(read) begin	
@@ -36,7 +43,9 @@ always @(posedge clock, posedge reset) begin: AVALON_INTERFACE
 					8'h00: readdata <= mag_x[address[7:0]];
 					8'h01: readdata <= mag_y[address[7:0]];
 					8'h02: readdata <= mag_z[address[7:0]];
-					8'h03: readdata <= ack_error[address[7:0]];
+					8'h03: readdata <= temp[address[7:0]];
+					8'h04: readdata <= {t[address[7:0]],ff[address[7:0]],pd[address[7:0]],frm[address[7:0]],ch[address[7:0]]};
+					8'h05: readdata <= ack_error[address[7:0]];
 				endcase
 			end
 			if(waitFlag==1) begin // after one clock cycle the sensor_data_avalon should be stable
@@ -61,14 +70,14 @@ end
 reg [31:0] config_data[NUMBER_OF_SENSORS-1:0];
 wire [NUMBER_OF_SENSORS-1:0] parity;
 generate
-	for(j=0;k<NUMBER_OF_SENSORS;k=k+1) begin
+	for(k=0;k<NUMBER_OF_SENSORS;k=k+1) begin: parity_assignement
 		 assign parity[k]=(~^config_data[k]);
 	end
 endgenerate
 
 
 reg [2:0] state;
-always @(posedge clock, posedge reset) begin: TLV_FSM
+always @(posedge clock, posedge reset_sensors) begin: TLV_FSM
 	parameter IDLE  = 0, RESET = 1, READCONFIG = 2, CONFIGURE = 3, READMAGDATA = 4, WAIT_FOR_DATA = 5, DELAY = 6;
 	reg [31:0] delay_counter;
 	reg [8:0] i;
@@ -97,14 +106,13 @@ always @(posedge clock, posedge reset) begin: TLV_FSM
 			end
 			READCONFIG: begin
 				for(i=0;i<NUMBER_OF_SENSORS;i=i+1) begin
-					if((byte_counter[i]>=number_of_bytes || ack_error[k] == 1) && ena[i] == 1) begin
+					if((byte_counter[i]>=number_of_bytes[i] || ack_error[i] == 1) && ena[i] == 1) begin
 						ena[i] <= 0;
-						byte_counter[i] <= 0;
 						config_data[i] = 0;
-						config_data[i] |= (0b011|((data_read_fifo[i]>>24)&0b11000))<<8;
-						config_data[i] |= ((data_read_fifo[i]>>16)<<16);
-						config_data[i] |= (0b01000000|(0b11111&(data_read_fifo[i]>>8)))<<24;
-						config_data[i] |= parity[i];
+						config_data[i] |= (3'b011|((data_read_fifo[i]>>24)&5'b11000))<<8;
+						config_data[i] |= (((data_read_fifo[i]>>16)&8'hff)<<16);
+						config_data[i] |= (8'b01000000|(5'b11111&((data_read_fifo[i]>>8)&8'hff)))<<24;
+						config_data[i] |= (parity[i]<<7);
 					end
 				end
 				if(~&ena==0) begin
@@ -112,7 +120,7 @@ always @(posedge clock, posedge reset) begin: TLV_FSM
 						fifo_clear[i] <= 1;
 						number_of_bytes[i] <= 4;
 						addr[i] <= 7'h5e;
-						data_wd[i] <= config_data; 
+						data_wd[i] <= config_data[i]; 
 						rw[i] <= 0;
 						read_only[i] <= 0;
 						ena[i] <= 1;
@@ -122,9 +130,8 @@ always @(posedge clock, posedge reset) begin: TLV_FSM
 			end
 			CONFIGURE:begin
 				for(i=0;i<NUMBER_OF_SENSORS;i=i+1) begin
-					if((byte_counter[i]>=number_of_bytes || ack_error[k] == 1) && ena[i] == 1) begin
+					if((byte_counter[i]>=number_of_bytes[i] || ack_error[i] == 1) && ena[i] == 1) begin
 						ena[i] <= 0;
-						byte_counter[i] <= 0;
 						state<=READMAGDATA;
 					end
 				end
@@ -141,9 +148,23 @@ always @(posedge clock, posedge reset) begin: TLV_FSM
 			end
 			WAIT_FOR_DATA: begin
 				for(i=0;i<NUMBER_OF_SENSORS;i=i+1) begin
-					if((byte_counter[i]>=number_of_bytes || ack_error[k] == 1) && ena[i] == 1) begin
+					if((byte_counter[i]>=number_of_bytes[i] || ack_error[i] == 1) && ena[i] == 1) begin
 						ena[i] <= 0;
-						byte_counter[i] <= 0;
+						temp[i][7:0] = (data_read_fifo[i]>>16);
+						mag_z[i][3:0] = (data_read_fifo[i]>>8)&8'b00001111;
+						pd[i] = (data_read_fifo[i]>>12)&1'b1;
+						ff[i] = (data_read_fifo[i]>>13)&1'b1;
+						t[i] = (data_read_fifo[i]>>14)&1'b1;
+						mag_y[i][3:0] = data_read_fifo[i]&8'b00001111;
+						mag_x[i][3:0] = (data_read_fifo[i]>>4)&8'b00001111;
+						fifo_read_ack[i] = 1;
+						fifo_read_ack[i] = 0;
+						temp[i][11:8] = (data_read_fifo[i]>>28)&8'b00001111;
+						frm[i][1:0] = (data_read_fifo[i]>>26)&8'b00000011;
+						ch[i][1:0] = (data_read_fifo[i]>>24)&8'b00000011;
+						mag_z[i][11:4] = (data_read_fifo[i]>>16)&8'hff;
+						mag_y[i][11:4] = (data_read_fifo[i]>>8)&8'hff;
+						mag_x[i][11:4] = (data_read_fifo[i])&8'hff;
 						state<=DELAY;
 						delay_counter <= CLOCK_SPEED_HZ/update_frequency;
 					end
@@ -152,6 +173,9 @@ always @(posedge clock, posedge reset) begin: TLV_FSM
 			DELAY: begin
 				delay_counter <= delay_counter -1;
 				if(delay_counter==0) begin
+					for(i=0;i<NUMBER_OF_SENSORS;i=i+1) begin
+						fifo_clear[i] <= 1;
+					end
 					state <= IDLE;
 				end
 			end
@@ -166,8 +190,6 @@ reg [6:0] addr[NUMBER_OF_SENSORS-1:0];
 reg [NUMBER_OF_SENSORS-1:0] rw;
 reg [NUMBER_OF_SENSORS-1:0] busy;
 reg [NUMBER_OF_SENSORS-1:0] ack_error;
-reg [NUMBER_OF_SENSORS-1:0] ena;
-reg [7:0] number_of_bytes[NUMBER_OF_SENSORS-1:0] ;
 wire [7:0] byte_counter[NUMBER_OF_SENSORS-1:0] ;
 reg [31:0] data_rd[NUMBER_OF_SENSORS-1:0] ;
 reg [31:0] data_read_fifo[NUMBER_OF_SENSORS-1:0] ;
@@ -175,7 +197,6 @@ reg [31:0] data_wd[NUMBER_OF_SENSORS-1:0] ;
 
 reg read_only[NUMBER_OF_SENSORS-1:0];
 
-reg ena[NUMBER_OF_SENSORS-1:0];
 wire fifo_write[NUMBER_OF_SENSORS-1:0];
 reg read_fifo[NUMBER_OF_SENSORS-1:0];
 reg write_fifo[NUMBER_OF_SENSORS-1:0];
