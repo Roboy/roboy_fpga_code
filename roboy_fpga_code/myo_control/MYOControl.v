@@ -270,7 +270,7 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 			velocitys[motor][15:0] <= velocity[0:15];
 			currents[motor][15:0] <= current[0:15];
 			if(~myo_brick[motor]) begin
-				if(mirrored_muscle_unit) begin 
+				if(mirrored_muscle_unit && motor<9) begin 
 					displacements[motor][15:0] <= (-1)*displacement[0:15]; 
 				end else begin
 					displacements[motor][15:0] <= displacement[0:15];
