@@ -236,7 +236,7 @@ generate
 	end
 endgenerate 
 
-spi_master #(20, 1'b1, 1'b1, 2, 4) spi(
+spi_master #(20, 1'b1, 1'b1, 2, 6) spi(
 	.sclk_i(clock),
 	.pclk_i(clock),
 	.rst_i(~reset_n),

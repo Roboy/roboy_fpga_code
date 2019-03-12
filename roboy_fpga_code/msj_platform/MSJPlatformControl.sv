@@ -155,13 +155,13 @@ always @(posedge clock, posedge reset) begin: WRITE_CONTROL_LOGIC
 		mute <= 0;
 		for(i=0;i<NUMBER_OF_MOTORS;i=i+1)begin
 			Kp[i] <= 1;
-			Kp[i] <= 1000;
+			Ki[i] <= 0;
 			Kd[i] <= 0;
 			outputDivider[i] <= 5;
 			outputPosMax[i] <= 360;
 			outputNegMax[i] <= 300;
-			integralPosMax[i] <= 10000;
-			integralNegMax[i] <= -10000;
+			integralPosMax[i] <= 0;
+			integralNegMax[i] <= 0;
 			zero_speed[i] <= 330;
 			deadBand [i] <= 0;
 			control_mode[i] <= 0;
@@ -208,11 +208,11 @@ always @(posedge clock, posedge reset) begin: WRITE_CONTROL_LOGIC
 		end
 		
 		for(i=0;i<NUMBER_OF_MOTORS;i=i+1)begin
-			if(pull_motor[i]==0) begin
-				sp[i] <= sp[i]+10;
+			if(pull_buttons[i]==0) begin
+				sp[i] <= sp[i]+1;
 			end
-			if(release_motor[i]==0) begin
-				sp[i] <= sp[i]-10;
+			if(release_buttons[i]==0) begin
+				sp[i] <= sp[i]-1;
 			end
 		end
 		if(zero_pose_button==0)begin
@@ -233,23 +233,6 @@ always @(posedge clock, posedge reset) begin: WRITE_CONTROL_LOGIC
 		counter <= counter + 1;
 	end 
 end
-
-wire [7:0] pull_motor;
-wire [7:0] release_motor;
-
-debounce #(8,"LOW",50000,16) debounce_pull(
-	 .clk(clock),
-	 .reset_n(~reset),
-	 .data_in(pull_buttons),
-	 .data_out(pull_motor) 
-);
-
-debounce #(8,"LOW",50000,16) debounce_release(
-	 .clk(clock),
-	 .reset_n(~reset),
-	 .data_in(release_buttons),
-	 .data_out(release_motor) 
-);
 	
 genvar j;
 generate
