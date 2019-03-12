@@ -1,6 +1,3 @@
-
-
-
 module A1339Control(
 	input clock,
 	input reset_n,

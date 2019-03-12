@@ -51,13 +51,14 @@ module MSJPlatformControl (
 	input [NUMBER_OF_MOTORS-1:0] pull_buttons,
 	input [NUMBER_OF_MOTORS-1:0] release_buttons,
 	input release_all_button,
+	input pull_all_button,
 	input zero_pose_button,
 	output [1:0] LED
 );
 
-parameter NUMBER_OF_MOTORS = 6;
+parameter NUMBER_OF_MOTORS = 8;
 parameter CLOCK_SPEED_HZ = 50_000_000;
-parameter SAMPLES_TO_AVERAGE = 256;
+parameter SAMPLES_TO_AVERAGE = 1;
 
 // gains and shit
 // p gains
@@ -147,6 +148,7 @@ always @(posedge clock, posedge reset) begin: WRITE_CONTROL_LOGIC
 	reg [7:0]i;
 	reg [7:0]pull_buttons_prev;
 	reg [7:0]release_buttons_prev;
+	reg [15:0] counter;
 	if (reset == 1) begin
 		reset_control <= 0;
 		mute <= 0;
@@ -168,8 +170,12 @@ always @(posedge clock, posedge reset) begin: WRITE_CONTROL_LOGIC
 		for(i=0;i<NUMBER_OF_MOTORS;i=i+1)begin
 			update_controller[i] <= 0;
 		end
-		reset_control <= 0;
-	
+		if(reset_control==1) begin
+			reset_control <= 0;
+			for(i=0;i<NUMBER_OF_MOTORS;i=i+1)begin
+				sp[i] <= 0;
+			end
+		end
 		// if we are writing via avalon bus and waitrequest is deasserted, write the respective register
 		if(write && ~waitrequest) begin
 			if((address>>8)<=8'h0D && address[7:0]<NUMBER_OF_MOTORS) begin
@@ -212,18 +218,24 @@ always @(posedge clock, posedge reset) begin: WRITE_CONTROL_LOGIC
 				sp[i] <= 0;
 			end
 		end
-		if(release_all_button==0)begin
+		if(release_all_button==0 && counter==0)begin
 			for(i=0;i<NUMBER_OF_MOTORS;i=i+1)begin
 				sp[i] <= sp[i]-10;
 			end
 		end
+		if(pull_all_button==0 && counter==0)begin
+			for(i=0;i<NUMBER_OF_MOTORS;i=i+1)begin
+				sp[i] <= sp[i]+10;
+			end
+		end
+		counter <= counter + 1;
 	end 
 end
 	
 genvar j;
 generate
 	for(j=0; j<NUMBER_OF_MOTORS; j = j+1) begin : instantiate_pid_controllers
-	  MSJPlatformPDController pd_controller(
+	  MSJPlatformPIDController pid_controller(
 			.clock(clock),
 			.reset(reset_control),
 			.Kp(Kp[j]),

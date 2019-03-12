@@ -1,10 +1,10 @@
 // PD controller for the msj platform
-// This module implements a PD controller. It has 2 control modes (position, velocity).
+// This module implements a PID controller. It has 3 control modes (position, velocity, direct feed through).
 // It uses integers only.
 //
 //	BSD 3-Clause License
 //
-//	Copyright (c) 2017, Roboy
+//	Copyright (c) 2018, Roboy
 //	All rights reserved.
 //
 //	Redistribution and use in source and binary forms, with or without
@@ -36,7 +36,7 @@
 
 `timescale 1ns/10ps
 
-module MSJPlatformPDController (
+module MSJPlatformPIDController (
 	input clock,
 	input reset,
 	input signed [31:0] Kp,
@@ -76,8 +76,8 @@ always @(posedge clock, posedge reset) begin: PD_CONTROLLER_PD_CONTROLLERLOGIC
 		update_controller_prev <= update_controller;
 		if(update_controller_prev==0 && update_controller==1) begin
 			case(control_mode) 
-				2'b00: err = (sp - position); 
-				2'b01: err = (sp - velocity);
+				2'b00: err = (sp - position)>>>outputDivider; 
+				2'b01: err = (sp - velocity)>>>outputDivider;
 				2'b10: duty = sp; // direct feed through
 				default: err = 0;
 			endcase;
@@ -93,7 +93,7 @@ always @(posedge clock, posedge reset) begin: PD_CONTROLLER_PD_CONTROLLERLOGIC
 						end
 					end
 					dterm = ((err - lastError) * Kd);
-					result = zero_speed + ((pterm + dterm + integral)>>>outputDivider);
+					result = zero_speed + pterm + dterm + integral;
 					if ((result < outputNegMax)) begin
 						 result = outputNegMax;
 					end else if ((result > outputPosMax)) begin
