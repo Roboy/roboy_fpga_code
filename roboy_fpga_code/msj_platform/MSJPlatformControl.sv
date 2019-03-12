@@ -90,19 +90,22 @@ assign readdata = returnvalue;
 assign waitrequest = (waitFlag && read);
 reg [31:0] returnvalue;
 reg waitFlag;
+reg [31:0] update_freq_sensors;
 
 A1339Interface #(.NUMBER_OF_SENSORS(NUMBER_OF_MOTORS)) a1339_interface();
 assign angle_sck = a1339_interface.sck_o;
 assign angle_ss_n_o = a1339_interface.ss_n_o;
 assign angle_mosi = a1339_interface.mosi_o;
 assign a1339_interface.miso_i = angle_miso;
-assign a1339_interface.zero_offset = emergency_off||reset_control;
+assign a1339_interface.zero_offset = emergency_off||reset_control||(zero_pose_button==0);
 			
 A1339Control#(CLOCK_SPEED_HZ,NUMBER_OF_MOTORS,SAMPLES_TO_AVERAGE) a1339(
 	.clock(clock),
 	.reset_n(~reset), 
 	.interf(a1339_interface.child)
 );
+
+assign a1339_interface.update_freq = update_freq_sensors;
 
 // the following iterface handles read requests via lightweight axi bridge
 // the upper 8 bit of the read address define which value we want to read
@@ -146,24 +149,24 @@ reg [NUMBER_OF_MOTORS-1:0] update_controller;
 	
 always @(posedge clock, posedge reset) begin: WRITE_CONTROL_LOGIC
 	reg [7:0]i;
-	reg [7:0]pull_buttons_prev;
-	reg [7:0]release_buttons_prev;
 	reg [15:0] counter;
 	if (reset == 1) begin
 		reset_control <= 0;
 		mute <= 0;
 		for(i=0;i<NUMBER_OF_MOTORS;i=i+1)begin
 			Kp[i] <= 1;
+			Kp[i] <= 1000;
 			Kd[i] <= 0;
 			outputDivider[i] <= 5;
 			outputPosMax[i] <= 360;
 			outputNegMax[i] <= 300;
-			integralPosMax[i] <= 0;
-			integralNegMax[i] <= 0;
+			integralPosMax[i] <= 10000;
+			integralNegMax[i] <= -10000;
 			zero_speed[i] <= 330;
 			deadBand [i] <= 0;
 			control_mode[i] <= 0;
 			sp[i] <= 0;
+			update_freq_sensors <= 0; 
 		end
 	end else begin
 		// toggle registers need to be set to zero at every clock cycle
@@ -178,7 +181,7 @@ always @(posedge clock, posedge reset) begin: WRITE_CONTROL_LOGIC
 		end
 		// if we are writing via avalon bus and waitrequest is deasserted, write the respective register
 		if(write && ~waitrequest) begin
-			if((address>>8)<=8'h0D && address[7:0]<NUMBER_OF_MOTORS) begin
+			if((address>>8)<=8'h0E && address[7:0]<NUMBER_OF_MOTORS) begin
 				case(address>>8)
 					8'h00: Kp[address[7:0]][31:0] <= writedata[31:0];
 					8'h01: Ki[address[7:0]][31:0] <= writedata[31:0];
@@ -194,6 +197,7 @@ always @(posedge clock, posedge reset) begin: WRITE_CONTROL_LOGIC
 					8'h0B: deadBand[address[7:0]][31:0]<= writedata;
 					8'h0C: zero_speed[address[7:0]][31:0]<= writedata;
 					8'h0D: mute <= (writedata!=0);
+					8'h0E: update_freq_sensors <= writedata;
 				endcase
 			end
 		end
@@ -204,12 +208,10 @@ always @(posedge clock, posedge reset) begin: WRITE_CONTROL_LOGIC
 		end
 		
 		for(i=0;i<NUMBER_OF_MOTORS;i=i+1)begin
-			pull_buttons_prev[i]<=pull_buttons[i];
-			release_buttons_prev[i]<=release_buttons[i];
-			if(pull_buttons_prev[i]==1 && pull_buttons[i]==0) begin
+			if(pull_motor[i]==0) begin
 				sp[i] <= sp[i]+10;
 			end
-			if(release_buttons_prev[i]==1 && release_buttons[i]==0) begin
+			if(release_motor[i]==0) begin
 				sp[i] <= sp[i]-10;
 			end
 		end
@@ -220,17 +222,34 @@ always @(posedge clock, posedge reset) begin: WRITE_CONTROL_LOGIC
 		end
 		if(release_all_button==0 && counter==0)begin
 			for(i=0;i<NUMBER_OF_MOTORS;i=i+1)begin
-				sp[i] <= sp[i]-10;
+				sp[i] <= sp[i]-1;
 			end
 		end
 		if(pull_all_button==0 && counter==0)begin
 			for(i=0;i<NUMBER_OF_MOTORS;i=i+1)begin
-				sp[i] <= sp[i]+10;
+				sp[i] <= sp[i]+1;
 			end
 		end
 		counter <= counter + 1;
 	end 
 end
+
+wire [7:0] pull_motor;
+wire [7:0] release_motor;
+
+debounce #(8,"LOW",50000,16) debounce_pull(
+	 .clk(clock),
+	 .reset_n(~reset),
+	 .data_in(pull_buttons),
+	 .data_out(pull_motor) 
+);
+
+debounce #(8,"LOW",50000,16) debounce_release(
+	 .clk(clock),
+	 .reset_n(~reset),
+	 .data_in(release_buttons),
+	 .data_out(release_motor) 
+);
 	
 genvar j;
 generate

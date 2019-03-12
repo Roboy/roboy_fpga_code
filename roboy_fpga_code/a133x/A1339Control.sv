@@ -203,7 +203,11 @@ always @(posedge clock, negedge reset_n) begin: SPI_DATA_PROCESS
 					update_time <= freq_counter/CLOCK_SPEED_MILLIHZ;
 					freq_counter <= 0;
 				end
-				delay_counter <= 3000; // approx 300Hz delay
+				if(interf.update_freq!=0) begin
+					delay_counter <= CLOCK_SPEED/interf.update_freq;
+				end else begin
+					delay_counter <= 50000; // 1ms delay
+				end
 				next_state <= IDLE;
 				state<=DELAY;
 			end
@@ -232,7 +236,7 @@ generate
 	end
 endgenerate 
 
-spi_master #(20, 1'b1, 1'b1, 2, 3) spi(
+spi_master #(20, 1'b1, 1'b1, 2, 4) spi(
 	.sclk_i(clock),
 	.pclk_i(clock),
 	.rst_i(~reset_n),

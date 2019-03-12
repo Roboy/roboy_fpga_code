@@ -72,12 +72,13 @@ always @(posedge clock, posedge reset) begin: PD_CONTROLLER_PD_CONTROLLERLOGIC
 		err <=0;
 		result <= 0;
 		update_controller_prev <= 0;
+		integral <= 0;
 	end else begin
 		update_controller_prev <= update_controller;
 		if(update_controller_prev==0 && update_controller==1) begin
 			case(control_mode) 
-				2'b00: err = (sp - position)>>>outputDivider; 
-				2'b01: err = (sp - velocity)>>>outputDivider;
+				2'b00: err = (sp - position); 
+				2'b01: err = (sp - velocity);
 				2'b10: duty = sp; // direct feed through
 				default: err = 0;
 			endcase;
@@ -93,7 +94,7 @@ always @(posedge clock, posedge reset) begin: PD_CONTROLLER_PD_CONTROLLERLOGIC
 						end
 					end
 					dterm = ((err - lastError) * Kd);
-					result = zero_speed + pterm + dterm + integral;
+					result = zero_speed + (pterm + dterm + integral)>>>outputDivider;
 					if ((result < outputNegMax)) begin
 						 result = outputNegMax;
 					end else if ((result > outputPosMax)) begin
