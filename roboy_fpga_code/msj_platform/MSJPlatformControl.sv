@@ -97,7 +97,7 @@ assign angle_sck = a1339_interface.sck_o;
 assign angle_ss_n_o = a1339_interface.ss_n_o;
 assign angle_mosi = a1339_interface.mosi_o;
 assign a1339_interface.miso_i = angle_miso;
-assign a1339_interface.zero_offset = emergency_off||reset_control||(zero_pose_button==0);
+assign a1339_interface.zero_offset = reset_control;
 			
 A1339Control#(CLOCK_SPEED_HZ,NUMBER_OF_MOTORS,SAMPLES_TO_AVERAGE) a1339(
 	.clock(clock),
@@ -149,7 +149,7 @@ reg [NUMBER_OF_MOTORS-1:0] update_controller;
 	
 always @(posedge clock, posedge reset) begin: WRITE_CONTROL_LOGIC
 	reg [7:0]i;
-	reg [15:0] counter;
+	reg [15:0] counter[NUMBER_OF_MOTORS-1:0];
 	if (reset == 1) begin
 		reset_control <= 0;
 		mute <= 0;
@@ -157,16 +157,16 @@ always @(posedge clock, posedge reset) begin: WRITE_CONTROL_LOGIC
 			Kp[i] <= 1;
 			Ki[i] <= 0;
 			Kd[i] <= 0;
-			outputDivider[i] <= 5;
-			outputPosMax[i] <= 360;
-			outputNegMax[i] <= 300;
+			outputDivider[i] <= 40;
+			outputPosMax[i] <= 350;
+			outputNegMax[i] <= 310;
 			integralPosMax[i] <= 0;
 			integralNegMax[i] <= 0;
 			zero_speed[i] <= 330;
 			deadBand [i] <= 0;
 			control_mode[i] <= 0;
 			sp[i] <= 0;
-			update_freq_sensors <= 0; 
+			update_freq_sensors <= 1000; 
 		end
 	end else begin
 		// toggle registers need to be set to zero at every clock cycle
@@ -175,10 +175,8 @@ always @(posedge clock, posedge reset) begin: WRITE_CONTROL_LOGIC
 		end
 		if(reset_control==1) begin
 			reset_control <= 0;
-			for(i=0;i<NUMBER_OF_MOTORS;i=i+1)begin
-				sp[i] <= 0;
-			end
 		end
+			
 		// if we are writing via avalon bus and waitrequest is deasserted, write the respective register
 		if(write && ~waitrequest) begin
 			if((address>>8)<=8'h0E && address[7:0]<NUMBER_OF_MOTORS) begin
@@ -208,29 +206,27 @@ always @(posedge clock, posedge reset) begin: WRITE_CONTROL_LOGIC
 		end
 		
 		for(i=0;i<NUMBER_OF_MOTORS;i=i+1)begin
-			if(pull_buttons[i]==0) begin
-				sp[i] <= sp[i]+1;
+			if(counter[i]==0) begin
+				if(pull_buttons[i]==0) begin
+					sp[i] <= sp[i]+1;
+				end
+				if(release_buttons[i]==0) begin
+					sp[i] <= sp[i]-1;
+				end
+				if(release_all_button==0)begin
+					sp[i] <= sp[i]-1;
+				end
+				if(pull_all_button==0)begin
+					sp[i] <= sp[i]+1;
+				end
+				counter[i] <= 50000; // 1ms delay between commands
+			end else begin
+				counter[i] <= counter[i] - 1;
 			end
-			if(release_buttons[i]==0) begin
-				sp[i] <= sp[i]-1;
-			end
-		end
-		if(zero_pose_button==0)begin
-			for(i=0;i<NUMBER_OF_MOTORS;i=i+1)begin
+			if(zero_pose_button==0)begin
 				sp[i] <= 0;
 			end
 		end
-		if(release_all_button==0 && counter==0)begin
-			for(i=0;i<NUMBER_OF_MOTORS;i=i+1)begin
-				sp[i] <= sp[i]-1;
-			end
-		end
-		if(pull_all_button==0 && counter==0)begin
-			for(i=0;i<NUMBER_OF_MOTORS;i=i+1)begin
-				sp[i] <= sp[i]+1;
-			end
-		end
-		counter <= counter + 1;
 	end 
 end
 	

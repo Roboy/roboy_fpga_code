@@ -77,15 +77,15 @@ always @(posedge clock, posedge reset) begin: PD_CONTROLLER_PD_CONTROLLERLOGIC
 		update_controller_prev <= update_controller;
 		if(update_controller_prev==0 && update_controller==1) begin
 			case(control_mode) 
-				2'b00: err = (sp - position); 
-				2'b01: err = (sp - velocity);
+				2'b00: err = (sp - position)/outputDivider; 
+				2'b01: err = (sp - velocity)/outputDivider;
 				2'b10: duty = sp; // direct feed through
 				default: err = 0;
 			endcase;
 			if(control_mode!=2'b10) begin
 				if (((err >= deadBand) || (err <= ((-1) * deadBand)))) begin
 					pterm = (Kp * err);
-					if ((pterm < outputPosMax) || (pterm > outputNegMax)) begin  //if the proportional term is not maxed
+					if ((pterm < (zero_speed + outputPosMax)) || (pterm > (zero_speed + outputNegMax))) begin  //if the proportional term is not maxed
 						integral = integral + (Ki * err); //add to the integral
 						if (integral > integralPosMax) begin
 							integral = integralPosMax;
@@ -94,7 +94,7 @@ always @(posedge clock, posedge reset) begin: PD_CONTROLLER_PD_CONTROLLERLOGIC
 						end
 					end
 					dterm = ((err - lastError) * Kd);
-					result = zero_speed + (pterm + dterm + integral)>>>outputDivider;
+					result = zero_speed + (pterm + dterm + integral);
 					if ((result < outputNegMax)) begin
 						 result = outputNegMax;
 					end else if ((result > outputPosMax)) begin
