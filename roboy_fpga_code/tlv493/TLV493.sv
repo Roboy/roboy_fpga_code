@@ -207,6 +207,8 @@ wire fifo_empty[NUMBER_OF_SENSORS-1:0];
 wire fifo_full[NUMBER_OF_SENSORS-1:0];
 reg [7:0] usedw[NUMBER_OF_SENSORS-1:0];
 
+reg [NUMBER_OF_SENSORS-1:0]i2c_select;
+
 genvar k;
 generate 
 	for(k=0; k<NUMBER_OF_SENSORS; k = k+1) begin : i2c_cores
