@@ -104,7 +104,9 @@ always @(posedge clock, posedge reset) begin: PID_CONTROLLER_PID_CONTROLLERLOGIC
 			if (((err >= deadBand) || (err <= ((-1) * deadBand)))) begin
 				pterm = (Kp * err);
 				dterm = ((err - lastError) * Kd);
-				result = (pterm + dterm)/outputDivider;
+//				ffterm = (forwardGain * sp);
+//				result = (((ffterm + pterm) + integral) + dterm)>>>outputDivider;
+				result = (pterm + dterm + integral)>>>outputDivider;
 				if ((result < outputNegMax)) begin
 					 result = outputNegMax;
 				end else if ((result > outputPosMax)) begin

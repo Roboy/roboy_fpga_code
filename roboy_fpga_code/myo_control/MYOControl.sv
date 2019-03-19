@@ -30,41 +30,6 @@
 // [8'h16 8'h(motor)]         [int32] myo_brick_gear_box_ratio - myo brick gear box ratio
 // [8'h17 8'h(motor)]         [int32] myo_brick_encoder_multiplier - myo brick encoder mulitiplier
 // [8'h18 8'h(motor)]		   [int32] outputDivider- PID output divider
-// [8'h19 8'h(motor)]		   [bool] i2c_ack_error - I2C ackowledge error (myoBrick angle sensor)
-// [8'h1A 8'hz]		         [int32] elbow_joint_angle_error - setpoint error joint angle
-// [8'h1B 8'hz]		         [int32] elbow_Kp_joint_angle - gain of joint angle PD controller
-// [8'h1C 8'hz]		         [int32] elbow_Kd_joint_angle - gain of joint angle PD controller
-// [8'h1D 8'hz]		         [int32] elbow_agonist - motor acting as agonist for elbow 1DOF joint
-// [8'h1E 8'hz]		         [int32] elbow_antagonist - motor acting as antagonist for elbow 1DOF joint
-// [8'h1F 8'hz]       		   [int32] elbow_joint_angle_setpoint - setpoint for elbow 1DOF joint
-// [8'h20 8'hz]       		   [int32] elbow_joint_angle_device_id - joint_angle_device_id for elbow 1DOF joint
-// [8'h21 8'hz]       		   [int32] elbow_joint_angle - current joint_angle of elbow 1DOF joint
-// [8'h22 8'hz]       		   [int32] elbow_joint_angle_offset - joint_angle_offset for elbow 1DOF joint
-// [8'h23 8'hz]       		   [int32] elbow_joint_control_result - joint_control_result for elbow 1DOF joint
-// [8'h24 8'hz]       		   [int32] elbow_joint_pretension - joint_pretension for elbow 1DOF joint
-// [8'h25 8'hz]       		   [int32] elbow_joint_deadband - joint_deadband for elbow 1DOF joint
-// [8'h26 8'hz]       		   [bool]  hand_control - enables hand conrol
-// [8'h27 8'h(board)]		   [int32] arm_board_device_id - i2c device for the respective board
-// [8'h28 8'h(board)]         [uint8] motor0 - setpoint for motor0 of arm board
-// [8'h29 8'h(board)]         [uint8] motor1 - setpoint for motor1 of arm board
-// [8'h2A 8'h(board)]         [uint8] motor2 - setpoint for motor2 of arm board
-// [8'h2B 8'h(board)]         [uint8] motor3 - setpoint for motor3 of arm board
-// [8'h2C 8'h(board)]         [uint8] motor4 - setpoint for motor4 of arm board
-// [8'h2D 8'hz]               [uint8] arm_board_ack_error - i2c ackowlege error for all four arm board 8'b00001111
-// [8'h2E 8'hz]               [int32] elbow_smooth_distance - changes the nonlinear behaviour of the elbow agonist/antagonist muscles
-// [8'h2F 8'hz]		         [int32] wrist_joint_angle_error - setpoint error joint angle
-// [8'h30 8'hz]		         [int32] wrist_Kp_joint_angle - gain of joint angle PD controller
-// [8'h31 8'hz]		         [int32] wrist_Kd_joint_angle - gain of joint angle PD controller
-// [8'h32 8'hz]		         [int32] wrist_agonist - motor acting as agonist for wrist 1DOF joint
-// [8'h33 8'hz]		         [int32] wrist_antagonist - motor acting as antagonist for wrist 1DOF joint
-// [8'h34 8'hz]       		   [int32] wrist_joint_angle_setpoint - setpoint for wrist 1DOF joint
-// [8'h35 8'hz]       		   [int32] wrist_joint_angle_device_id - joint_angle_device_id for wrist 1DOF joint
-// [8'h36 8'hz]       		   [int32] wrist_joint_angle - current joint_angle of wrist 1DOF joint
-// [8'h37 8'hz]       		   [int32] wrist_joint_angle_offset - joint_angle_offset for wrist 1DOF joint
-// [8'h38 8'hz]       		   [int32] wrist_joint_control_result - joint_control_result for wrist 1DOF joint
-// [8'h39 8'hz]       		   [int32] wrist_joint_pretension - joint_pretension for wrist 1DOF joint
-// [8'h3A 8'hz]       		   [int32] wrist_joint_deadband - joint_deadband for wrist 1DOF joint
-// [8'h3B 8'hz]               [int32] wrist_smooth_distance - changes the nonlinear behaviour of th wrist agonist/antagonist muscles
 //
 // Through the axi bridge, the following values can be WRITTEN
 //	address            -----   [type] value
@@ -89,35 +54,6 @@
 // [8'h12 8'h(motor)]         [int32] myo_brick_gear_box_ratio - myo brick gear box ratio
 // [8'h13 8'h(motor)]         [int32] myo_brick_encoder_multiplier - myo brick encoder mulitiplier
 // [8'h14 8'h(motor)]         [int32] outputDivider- PID output divider
-// [8'h15 8'hz]       		   [bool]  elbow_joint_control - enables joint conrol for 1DOF joint
-// [8'h16 8'hz]       		   [int32] elbow_joint_angle_device_id - joint_angle_device_id for 1DOF joint
-// [8'h17 8'h(motor)]		   [int32] elbow_agonist - motor acting as agonist for 1DOF joint
-// [8'h18 8'h(motor)]		   [int32] elbow_antagonist - motor acting as antagonist for 1DOF join
-// [8'h19 8'hz]		         [int32] elbow_Kp_joint_angle - gain of joint angle PD controller
-// [8'h1A 8'hz]		         [int32] elbow_Kd_joint_angle - gain of joint angle PD controller
-// [8'h1B 8'hz]       		   [int32] elbow_joint_angle_offset - joint_angle_offset for 1DOF joint
-// [8'h1C 8'hz]       		   [int32] elbow_joint_pretension - joint_pretension for 1DOF joint
-// [8'h1D 8'hz]       		   [int32] elbow_joint_deadband - joint_deadband for 1DOF joint
-// [8'h1E 8'hz]		   		[int32] elbow_joint_angle_setpoint - setpoint for 1DOF joint
-// [8'h1F 8'hz]       		   [bool]  hand_control - enables hand conrol
-// [8'h20 8'h(board)]		   [int32] arm_board_device_id - i2c device for the respective board
-// [8'h21 8'h(board)]         [uint8] motor0 - setpoint for motor0 of arm board
-// [8'h22 8'h(board)]         [uint8] motor1 - setpoint for motor1 of arm board
-// [8'h23 8'h(board)]         [uint8] motor2 - setpoint for motor2 of arm board
-// [8'h24 8'h(board)]         [uint8] motor3 - setpoint for motor3 of arm board
-// [8'h25 8'h(board)]         [uint8] motor4 - setpoint for motor4 of arm board
-// [8'h26 8'hz]               [int32] elbow_smooth_distance - changes the nonlinear behaviour of th elbow agonist/antagonist muscles
-// [8'h27 8'hz]       		   [bool]  wrist_joint_control - enables joint conrol for 1DOF joint
-// [8'h28 8'hz]       		   [int32] wrist_joint_angle_device_id - joint_angle_device_id for 1DOF joint
-// [8'h29 8'h(motor)]		   [int32] wrist_agonist - motor acting as agonist for 1DOF joint
-// [8'h2A 8'h(motor)]		   [int32] wrist_antagonist - motor acting as antagonist for 1DOF join
-// [8'h2B 8'hz]		         [int32] wrist_Kp_joint_angle - gain of joint angle PD controller
-// [8'h2C 8'hz]		         [int32] wrist_Kd_joint_angle - gain of joint angle PD controller
-// [8'h2F 8'hz]       		   [int32] wrist_joint_angle_offset - joint_angle_offset for 1DOF joint
-// [8'h2R 8'hz]       		   [int32] wrist_joint_pretension - joint_pretension for 1DOF joint
-// [8'h2F 8'hz]       		   [int32] wrist_joint_deadband - joint_deadband for 1DOF joint
-// [8'h30 8'hz]		   		[int32] wrist_joint_angle_setpoint - setpoint for 1DOF joint
-// [8'h31 8'hz]               [int32] wrist_smooth_distance - changes the nonlinear behaviour of th wrist agonist/antagonist muscles
 
 // Features: 
 // * use the NUMBER_OF_MOTORS parameter to define how many motors are connected on one SPI bus (maximum 254)
@@ -127,7 +63,7 @@
 
 //	BSD 3-Clause License
 //
-//	Copyright (c) 2018, Roboy
+//	Copyright (c) 2019, Roboy
 //	All rights reserved.
 //
 //	Redistribution and use in source and binary forms, with or without
@@ -155,7 +91,7 @@
 //	OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 //	OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-// author: Simon Trendel, simon.trendel@tum.de, 2018
+// author: Simon Trendel, simon.trendel@tum.de, 2018/19
 
 `timescale 1ns/10ps
 
@@ -180,16 +116,12 @@ module MYOControl (
 	output [NUMBER_OF_MOTORS-1:0] angle_ss_n_o,
 	input angle_miso,
 	output angle_mosi,
-	output angle_sck,
-	inout arm_sda,
-	output arm_scl
+	output angle_sck
 );
 
 parameter NUMBER_OF_MOTORS = 6;
 parameter CLOCK_SPEED_HZ = 50_000_000;
 parameter ENABLE_MYOBRICK_CONTROL = 0;
-parameter SAMPLES_TO_AVERAGE = 256;
-parameter ENABLE_ARM_CONTROL = 0;
 
 // gains and shit
 // p gains
@@ -284,46 +216,6 @@ always @(posedge clock, posedge reset) begin: AVALON_READ_INTERFACE
 				8'h16: returnvalue <= myo_brick_gear_box_ratio[address[7:0]][7:0];
 				8'h17: returnvalue <= myo_brick_encoder_multiplier[address[7:0]][31:0];
 				8'h18: returnvalue <= outputDivider[address[7:0]][31:0];
-				8'h19: returnvalue <= myo_brick_ack_error[address[7:0]];
-				8'h1A: returnvalue <= elbow_joint_angle_error[31:0];
-				8'h1B: returnvalue <= elbow_Kp_joint_angle[31:0];
-				8'h1C: returnvalue <= elbow_Kd_joint_angle[31:0];
-				8'h1D: returnvalue <= elbow_agonist;
-				8'h1E: returnvalue <= elbow_antagonist;
-				8'h1F: returnvalue <= elbow_joint_angle_setpoint;
-				8'h20: returnvalue <= elbow_joint_angle_device_id[6:0];
-				8'h21: returnvalue <= elbow_joint_angle_curr[31:0];
-				8'h22: returnvalue <= elbow_joint_angle_offset[31:0];
-				8'h23: returnvalue <= elbow_joint_control_result[31:0];
-				8'h24: returnvalue <= elbow_joint_pretension[31:0];
-				8'h25: returnvalue <= elbow_joint_deadband[31:0];
-				8'h26: returnvalue <= hand_control;
-				8'h27: returnvalue <= arm_board_device_id[address[7:0]][6:0];
-				8'h28: returnvalue <= motor0[address[7:0]];
-				8'h29: returnvalue <= motor1[address[7:0]];
-				8'h2A: returnvalue <= motor2[address[7:0]];
-				8'h2B: returnvalue <= motor3[address[7:0]];
-				8'h2C: returnvalue <= motor4[address[7:0]];
-				8'h2D: returnvalue <= arm_board_ack_error;
-				8'h2E: returnvalue <= elbow_smooth_distance[31:0];
-				8'h2F: returnvalue <= wrist_joint_angle_error[31:0];
-				8'h30: returnvalue <= wrist_Kp_joint_angle[31:0];
-				8'h31: returnvalue <= wrist_Kd_joint_angle[31:0];
-				8'h32: returnvalue <= wrist_agonist;
-				8'h33: returnvalue <= wrist_antagonist;
-				8'h34: returnvalue <= wrist_joint_angle_setpoint;
-				8'h35: returnvalue <= wrist_joint_angle_device_id[6:0];
-				8'h36: returnvalue <= wrist_joint_angle_curr[31:0];
-				8'h37: returnvalue <= wrist_joint_angle_offset[31:0];
-				8'h38: returnvalue <= wrist_joint_control_result[31:0];
-				8'h39: returnvalue <= wrist_joint_pretension[31:0];
-				8'h3A: returnvalue <= wrist_joint_deadband[31:0];
-				8'h3B: returnvalue <= wrist_smooth_distance[31:0];
-				8'h3C: returnvalue <= motor_angle_raw[address[7:0]][31:0];
-				8'h3D: returnvalue <= motor_angle_offset[address[7:0]][31:0];
-				8'h3E: returnvalue <= motor_angle_relative[address[7:0]][31:0];
-				8'h3F: returnvalue <= motor_angle_revolution_counter[address[7:0]][31:0];
-				8'h40: returnvalue <= motor_angle_prev[address[7:0]][31:0];
 				default: returnvalue <= 32'hDEADBEEF;
 			endcase
 			if(waitFlag==1) begin // next clock cycle the returnvalue should be ready
@@ -365,11 +257,6 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 			myo_brick_encoder_multiplier[i] <= 1;
 			outputDivider[i] <= 1;
 		end
-		elbow_joint_control<=0;
-		elbow_joint_angle_offset<=0;
-		elbow_agonist <= NUMBER_OF_MOTORS;
-		elbow_antagonist <= NUMBER_OF_MOTORS;
-		elbow_smooth_distance <= 20;
 	end else begin
 		// toggle registers need to be set to zero at every clock cycle
 		update_controller <= 0;
@@ -390,7 +277,7 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 			velocitys[motor][15:0] <= velocity[0:15];
 			currents[motor][15:0] <= current[0:15];
 			if(~myo_brick[motor]) begin
-				if(mirrored_muscle_unit) begin 
+				if(mirrored_muscle_unit && motor<9) begin 
 					displacements[motor][15:0] <= (-1)*displacement[0:15]; 
 				end else begin
 					displacements[motor][15:0] <= displacement[0:15];
@@ -412,24 +299,6 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 				if(motor<(NUMBER_OF_MOTORS-1)) begin
 					motor <= motor + 1;
 					start_spi_transmission <= 1;
-					// apply joint control setpoints
-					if(motor==elbow_agonist && elbow_joint_control) begin
-						control_mode[motor] <= 2; // overwrite DISPLACEMENT control
-						sp[motor] <= elbow_joint_angle_control_setpoint[0];
-					end
-					if(motor==elbow_antagonist && elbow_joint_control) begin
-						control_mode[motor] <= 2; // overwrite DISPLACEMENT control
-						sp[motor] <= elbow_joint_angle_control_setpoint[1];
-					end
-					// apply wrist joint control setpoints
-					if(motor==wrist_agonist && wrist_joint_control) begin
-						control_mode[motor] <= 2; // overwrite DISPLACEMENT control
-						sp[motor] <= wrist_joint_angle_control_setpoint[0];
-					end
-					if(motor==wrist_antagonist && wrist_joint_control) begin
-						control_mode[motor] <= 2; // overwrite DISPLACEMENT control
-						sp[motor] <= wrist_joint_angle_control_setpoint[1];
-					end
 				end
 			end			
 			if(delay_counter>0) begin
@@ -441,24 +310,6 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 					actual_update_frequency <= CLOCK_SPEED_HZ/counter;
 					counter <= 0;
 					start_spi_transmission <= 1; 
-					// apply elbow joint control setpoints
-					if(motor==elbow_agonist && elbow_joint_control) begin
-						control_mode[motor] <= 2; // overwrite DISPLACEMENT control
-						sp[motor] <= elbow_joint_angle_control_setpoint[0];
-					end
-					if(motor==elbow_antagonist && elbow_joint_control) begin
-						control_mode[motor] <= 2; // overwrite DISPLACEMENT control
-						sp[motor] <= elbow_joint_angle_control_setpoint[1];
-					end
-					// apply wrist joint control setpoints
-					if(motor==wrist_agonist && wrist_joint_control) begin
-						control_mode[motor] <= 2; // overwrite DISPLACEMENT control
-						sp[motor] <= wrist_joint_angle_control_setpoint[0];
-					end
-					if(motor==wrist_antagonist && wrist_joint_control) begin
-						control_mode[motor] <= 2; // overwrite DISPLACEMENT control
-						sp[motor] <= wrist_joint_angle_control_setpoint[1];
-					end
 				end
 			end
 		end else begin
@@ -472,30 +323,12 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 					actual_update_frequency <= CLOCK_SPEED_HZ/counter;
 					counter <= 0;
 				end
-				// apply elbow joint control setpoints
-				if(motor==elbow_agonist && elbow_joint_control) begin
-					control_mode[motor] <= 2; // overwrite DISPLACEMENT control
-					sp[motor] <= elbow_joint_angle_control_setpoint[0];
-				end
-				if(motor==elbow_antagonist && elbow_joint_control) begin
-					control_mode[motor] <= 2; // overwrite DISPLACEMENT control
-					sp[motor] <= elbow_joint_angle_control_setpoint[1];
-				end
-				// apply wrist joint control setpoints
-				if(motor==wrist_agonist && wrist_joint_control) begin
-					control_mode[motor] <= 2; // overwrite DISPLACEMENT control
-					sp[motor] <= wrist_joint_angle_control_setpoint[0];
-				end
-				if(motor==wrist_antagonist && wrist_joint_control) begin
-					control_mode[motor] <= 2; // overwrite DISPLACEMENT control
-					sp[motor] <= wrist_joint_angle_control_setpoint[1];
-				end
 			end
 		end
 	
 		// if we are writing via avalon bus and waitrequest is deasserted, write the respective register
 		if(write && ~waitrequest) begin
-			if((address>>8)<=8'h31 && address[7:0]<NUMBER_OF_MOTORS) begin
+			if((address>>8)<=8'h14 && address[7:0]<NUMBER_OF_MOTORS) begin
 				case(address>>8)
 					8'h00: Kp[address[7:0]][15:0] <= writedata[15:0];
 					8'h01: Ki[address[7:0]][15:0] <= writedata[15:0];
@@ -518,35 +351,6 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 					8'h12: myo_brick_gear_box_ratio[address[7:0]][31:0] <= writedata[31:0];
 					8'h13: myo_brick_encoder_multiplier[address[7:0]][31:0] <= writedata[31:0];
 					8'h14: outputDivider[address[7:0]][31:0] <= writedata[31:0];
-					8'h15: elbow_joint_control <= (writedata[31:0]>0);
-					8'h16: elbow_joint_angle_device_id[6:0] <= writedata[31:0];
-					8'h17: elbow_agonist[31:0] <= writedata[31:0];
-					8'h18: elbow_antagonist[31:0] <= writedata[31:0];
-					8'h19: elbow_Kp_joint_angle[31:0] <= writedata[31:0];
-					8'h1A: elbow_Kd_joint_angle[31:0] <= writedata[31:0];
-					8'h1B: elbow_joint_angle_offset <= writedata[31:0];
-					8'h1C: elbow_joint_pretension <= writedata[31:0];
-					8'h1D: elbow_joint_deadband <= writedata[31:0];
-					8'h1E: elbow_joint_angle_setpoint[31:0] <= writedata[31:0];
-					8'h1F: hand_control <= (writedata[31:0]>0);
-					8'h20: arm_board_device_id[address[7:0]] <= writedata[6:0];
-					8'h21: motor0[address[7:0]] <= writedata[7:0];
-					8'h22: motor1[address[7:0]] <= writedata[7:0];
-					8'h23: motor2[address[7:0]] <= writedata[7:0];
-					8'h24: motor3[address[7:0]] <= writedata[7:0];
-					8'h25: motor4[address[7:0]] <= writedata[7:0];
-					8'h26: elbow_smooth_distance <= writedata[31:0];
-					8'h27: wrist_joint_control <= (writedata[31:0]>0);
-					8'h28: wrist_joint_angle_device_id[6:0] <= writedata[31:0];
-					8'h29: wrist_agonist[31:0] <= writedata[31:0];
-					8'h2A: wrist_antagonist[31:0] <= writedata[31:0];
-					8'h2B: wrist_Kp_joint_angle[31:0] <= writedata[31:0];
-					8'h2C: wrist_Kd_joint_angle[31:0] <= writedata[31:0];
-					8'h2D: wrist_joint_angle_offset <= writedata[31:0];
-					8'h2E: wrist_joint_pretension <= writedata[31:0];
-					8'h2F: wrist_joint_deadband <= writedata[31:0];
-					8'h30: wrist_joint_angle_setpoint[31:0] <= writedata[31:0];
-					8'h31: wrist_smooth_distance <= writedata[31:0];
 				endcase
 			end
 		end
@@ -647,217 +451,6 @@ generate
 	end
 
 endgenerate 
-
-wire signed [31:0] joint_angle_signed;
-
-reg elbow_joint_control;
-reg signed [31:0] elbow_Kp_joint_angle;
-reg signed [31:0] elbow_Kd_joint_angle;
-reg [31:0] elbow_agonist;
-reg [31:0] elbow_antagonist;
-reg signed [31:0] elbow_joint_angle_offset;
-reg signed [31:0] elbow_joint_angle_setpoint;
-reg signed [31:0] elbow_joint_angle_control_setpoint[1:0];
-reg [6:0] elbow_joint_angle_device_id;
-reg elbow_joint_angle_ack_error;
-reg signed [31:0] elbow_joint_pretension;
-reg signed [31:0] elbow_joint_deadband;
-reg signed [31:0] elbow_joint_control_result;
-reg signed [31:0] elbow_joint_angle_curr;
-reg signed [31:0] elbow_joint_angle_prev;
-reg signed [31:0] elbow_joint_angle_error;
-reg signed [31:0] elbow_joint_angle_error_prev;
-reg signed [31:0] elbow_smooth_distance;
-
-reg wrist_joint_control;
-reg signed [31:0] wrist_Kp_joint_angle;
-reg signed [31:0] wrist_Kd_joint_angle;
-reg [31:0] wrist_agonist;
-reg [31:0] wrist_antagonist;
-reg signed [31:0] wrist_joint_angle_offset;
-reg signed [31:0] wrist_joint_angle_setpoint;
-reg signed [31:0] wrist_joint_angle_control_setpoint[1:0];
-reg [6:0] wrist_joint_angle_device_id;
-reg wrist_joint_angle_ack_error;
-reg signed [31:0] wrist_joint_pretension;
-reg signed [31:0] wrist_joint_deadband;
-reg signed [31:0] wrist_joint_control_result;
-reg signed [31:0] wrist_joint_angle_curr;
-reg signed [31:0] wrist_joint_angle_prev;
-reg signed [31:0] wrist_joint_angle_error;
-reg signed [31:0] wrist_joint_angle_error_prev;
-reg signed [31:0] wrist_smooth_distance;
-
-reg hand_control;
-reg arm_board_ack_error;
-reg [6:0] arm_board_device_id[3:0];
-wire [87:0] arm_board_commandFrame[3:0];
-reg [7:0] motor0[3:0];
-reg [7:0] motor1[3:0];
-reg [7:0] motor2[3:0];
-reg [7:0] motor3[3:0];
-reg [7:0] motor4[3:0];
-
-genvar k;
-generate
-	if(ENABLE_ARM_CONTROL!=0) begin
-		for(k=0; k<4; k = k+1) begin : assign_control_frames
-			assign arm_board_commandFrame[k][7:0] = motor0[k];
-			assign arm_board_commandFrame[k][15:8] = motor1[k];
-			assign arm_board_commandFrame[k][23:16] = motor2[k];
-			assign arm_board_commandFrame[k][31:24] = motor3[k];
-			assign arm_board_commandFrame[k][39:32] = motor4[k];
-		end
-		reg [31:0] number_of_samples;
-		reg elbow_read_joint_angle;
-		reg wrist_read_joint_angle;
-		reg write_hand;
-		wire arm_control_done;
-		wire [11:0] joint_angle;
-		assign joint_angle_signed = joint_angle;
-		reg ack_error;
-		reg [7:0] arm_control_state;
-		parameter IDLE  = 0, READ_ELBOW = 1, READ_WRIST = 2, WRITE_HAND = 3;
-		always @(posedge clock, posedge reset) begin: ARM_CONTROL_LOGIC
-			reg arm_control_done_prev;
-			reg [7:0]i;
-			if (reset == 1) begin
-				arm_control_done_prev <= 0;
-				elbow_joint_angle_error <= 0;
-				elbow_joint_angle_prev <= 0;
-				write_hand <= 0;
-				arm_control_state <= IDLE;
-			end else begin
-				arm_control_done_prev <= arm_control_done;
-				elbow_read_joint_angle <= 0;
-				wrist_read_joint_angle <= 0;
-				write_hand <= 0;
-				case(arm_control_state) 
-					IDLE: begin
-						if(elbow_joint_control) begin
-							arm_control_state <= READ_ELBOW;
-							elbow_read_joint_angle <= 1;
-						end else if (wrist_joint_control) begin
-							arm_control_state <= READ_WRIST;
-							wrist_read_joint_angle <= 1;
-						end else if(hand_control) begin
-							arm_control_state <= WRITE_HAND;
-							write_hand <= 1;
-						end
-					end
-					READ_ELBOW: begin
-						elbow_joint_angle_ack_error <= ack_error;
-						if(arm_control_done_prev==0 && arm_control_done==1) begin
-							if(elbow_joint_angle_ack_error==0) begin // only use valid sensor values
-								// moving average filter joint angle
-								elbow_joint_angle_curr = (9*elbow_joint_angle_prev + 1*(joint_angle_signed + elbow_joint_angle_offset))/10;
-								elbow_joint_angle_error = (elbow_joint_angle_setpoint - elbow_joint_angle_curr);
-								if((elbow_joint_angle_error>elbow_joint_deadband) || (elbow_joint_angle_error<elbow_joint_deadband)) begin
-									elbow_joint_control_result = elbow_Kp_joint_angle * elbow_joint_angle_error + elbow_Kd_joint_angle * (elbow_joint_angle_error - elbow_joint_angle_error_prev);
-									if(elbow_joint_control_result<= -1*elbow_smooth_distance) begin 
-										elbow_joint_angle_control_setpoint[1] = elbow_joint_pretension - elbow_joint_control_result;
-										elbow_joint_angle_control_setpoint[0] = elbow_joint_pretension;
-									end else if (elbow_joint_control_result<= elbow_smooth_distance) begin 
-										elbow_joint_angle_control_setpoint[1] = elbow_joint_pretension + 
-												(elbow_joint_control_result-elbow_smooth_distance)*(elbow_joint_control_result-elbow_smooth_distance)/(4*elbow_smooth_distance);
-										elbow_joint_angle_control_setpoint[0] = elbow_joint_pretension + 
-												(elbow_joint_control_result+elbow_smooth_distance)*(elbow_joint_control_result+elbow_smooth_distance)/(4*elbow_smooth_distance);
-									end else begin
-										elbow_joint_angle_control_setpoint[1] = elbow_joint_pretension;
-										elbow_joint_angle_control_setpoint[0] = elbow_joint_pretension + elbow_joint_control_result;
-									end
-								end
-								elbow_joint_angle_error_prev = elbow_joint_angle_error;
-								elbow_joint_angle_prev = elbow_joint_angle_curr;
-							end
-							if(wrist_joint_control) begin
-								arm_control_state <= READ_WRIST;
-								wrist_read_joint_angle <= 1;
-							end else if(hand_control) begin
-								arm_control_state <= WRITE_HAND;
-								write_hand <= 1;
-							end else begin 
-								arm_control_state <= IDLE;
-							end
-						end
-					end
-					READ_WRIST: begin
-						wrist_joint_angle_ack_error <= ack_error;
-						if(arm_control_done_prev==0 && arm_control_done==1) begin
-							if(wrist_joint_angle_ack_error==0) begin // only use valid sensor values
-								// moving average filter joint angle
-								wrist_joint_angle_curr = (9*wrist_joint_angle_prev + 1*(joint_angle_signed + wrist_joint_angle_offset))/10;
-								wrist_joint_angle_error = (wrist_joint_angle_setpoint - wrist_joint_angle_curr);
-								if((wrist_joint_angle_error>wrist_joint_deadband) || (wrist_joint_angle_error<wrist_joint_deadband)) begin
-									wrist_joint_control_result = wrist_Kp_joint_angle * wrist_joint_angle_error + wrist_Kd_joint_angle * (wrist_joint_angle_error - wrist_joint_angle_error_prev);
-									if(wrist_joint_control_result<= -1*wrist_smooth_distance) begin 
-										wrist_joint_angle_control_setpoint[1] = wrist_joint_pretension - wrist_joint_control_result;
-										wrist_joint_angle_control_setpoint[0] = wrist_joint_pretension;
-									end else if (wrist_joint_control_result<= wrist_smooth_distance) begin 
-										wrist_joint_angle_control_setpoint[1] = wrist_joint_pretension + 
-												(wrist_joint_control_result-wrist_smooth_distance)*(wrist_joint_control_result-wrist_smooth_distance)/(4*wrist_smooth_distance);
-										wrist_joint_angle_control_setpoint[0] = wrist_joint_pretension + 
-												(wrist_joint_control_result+wrist_smooth_distance)*(wrist_joint_control_result+wrist_smooth_distance)/(4*wrist_smooth_distance);
-									end else begin
-										wrist_joint_angle_control_setpoint[1] = wrist_joint_pretension;
-										wrist_joint_angle_control_setpoint[0] = wrist_joint_pretension + wrist_joint_control_result;
-									end
-								end
-								wrist_joint_angle_error_prev = wrist_joint_angle_error;
-								wrist_joint_angle_prev = wrist_joint_angle_curr;
-							end
-							if(hand_control) begin
-								arm_control_state <= WRITE_HAND;
-								write_hand <= 1;
-							end else begin 
-								arm_control_state <= IDLE;
-							end
-						end
-					end
-					WRITE_HAND: begin
-						arm_board_ack_error <= ack_error;
-						if(arm_control_done_prev==0 && arm_control_done==1) begin
-							arm_control_state <= IDLE;
-						end
-					end
-					default: arm_control_state <= IDLE;
-				endcase
-			end 
-		end
-		
-		ArmControl armcontrol(
-			.clock(clock),
-			.reset(reset),
-			.elbow_read_joint_angle(elbow_read_joint_angle),
-			.wrist_read_joint_angle(wrist_read_joint_angle),
-			.write_hand(write_hand),
-			.read_status(),
-			.sda(arm_sda),
-			.scl(arm_scl),
-		//	.LED(LED[2:0]), 
-			.elbow_device_id(elbow_joint_angle_device_id),
-			.wrist_device_id(wrist_joint_angle_device_id),
-			.arm_board_device_id_0(arm_board_device_id[0]),
-			.arm_board_device_id_1(arm_board_device_id[1]),
-			.arm_board_device_id_2(arm_board_device_id[2]),
-			.arm_board_device_id_3(arm_board_device_id[3]),
-			.arm_board_commandFrame_0(arm_board_commandFrame[0]),
-			.arm_board_commandFrame_1(arm_board_commandFrame[1]),
-			.arm_board_commandFrame_2(arm_board_commandFrame[2]),
-			.arm_board_commandFrame_3(arm_board_commandFrame[3]),
-			.done(arm_control_done),
-			.angle(joint_angle),
-			.status(),
-			.ack_error(ack_error)
-		);
-	
-	end else begin
-		assign arm_scl = 1'bz;
-		assign arm_sda = 1'bz;
-	end
-
-endgenerate 
-
 
 wire di_req, wr_ack, do_valid, wren, spi_done, ss_n;
 wire [0:15] Word;
