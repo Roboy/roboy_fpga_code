@@ -54,7 +54,9 @@ ENTITY i2c_master IS
     scl       : INOUT  STD_LOGIC;                   --serial clock output of i2c bus
 	 byte_counter : OUT INTEGER RANGE 0 TO 255;		 --how many bytes have been sent or received
 	 read_only : IN STD_LOGIC;								 --if set we read only without writing what register
-	 number_of_bytes : IN INTEGER RANGE 0 TO 255);     --how many bytes should be sent or received in tota
+	 number_of_bytes : IN INTEGER RANGE 0 TO 255;     --how many bytes should be sent or received in tota
+	 tlv_scl : IN STD_LOGIC;
+	 tlv_sda : IN STD_LOGIC);
 END i2c_master;
 
 ARCHITECTURE logic OF i2c_master IS
@@ -297,8 +299,8 @@ BEGIN
                  sda_int WHEN OTHERS;          --set to internal sda signal    
       
   --set scl and sda outputs
-  scl <= '0' WHEN (scl_ena = '1' AND scl_clk = '0') ELSE 'Z';
-  sda <= '0' WHEN sda_ena_n = '0' ELSE 'Z';
+  scl <= '0' WHEN ((scl_ena = '1' AND scl_clk = '0') OR tlv_scl = '0') ELSE 'Z';
+  sda <= '0' WHEN (sda_ena_n = '0' OR tlv_sda = '0') ELSE 'Z';
   
   byte_counter <= counter;
   

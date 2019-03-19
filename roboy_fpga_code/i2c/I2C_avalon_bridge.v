@@ -65,7 +65,7 @@ module I2C_avalon_bridge (
 	input clock,
 	input reset,
 	// this is for the avalon interface
-	input [2:0] address,
+	input [3:0] address,
 	input write,
 	input signed [31:0] writedata,
 	input read,
@@ -111,6 +111,9 @@ assign readdata =
 	((address == 4))? busy :
 	((address == 5))? ack_error :
 	((address == 6))? usedw :
+	((address == 7))? tlv_reset_sequence :
+	((address == 8))? tlv_reset_sda :
+	((address == 9))? tlv_reset_scl :
 	32'hDEAD_BEEF;
 	
 always @(posedge clock, posedge reset) begin: I2C_CONTROL_LOGIC
@@ -144,6 +147,8 @@ always @(posedge clock, posedge reset) begin: I2C_CONTROL_LOGIC
 						tlv_reset_sequence <= (writedata!=0); 
 						i <= 0;
 					end
+				8: tlv_reset_sda <=  (writedata!=0); 
+				9: tlv_reset_scl <=  (writedata!=0); 
 			endcase 
 		end
 		if(read && ~waitrequest && address==1 && ~fifo_empty) begin
@@ -376,6 +381,7 @@ always @(posedge clock, posedge reset) begin: I2C_CONTROL_LOGIC
 				end
 				23: begin 
 					if(delay_counter==0) begin
+						tlv_reset_scl <= 1;
 						tlv_reset_sda <= 1;
 						tlv_reset_sequence <= 0;
 						i<=0;
@@ -413,15 +419,9 @@ assign LED[3] = gpio_set[0];
 assign LED[4] = gpio_set[1];
 assign LED[5] = gpio_set[2];
 
-wire i2c_scl;
-wire i2c_sda;
 reg tlv_reset_sda;
 reg tlv_reset_scl;
 reg tlv_reset_sequence;
-assign sda = (tlv_reset_sequence==1?tlv_reset_sda:1'bz);
-assign scl = (tlv_reset_sequence==1?tlv_reset_scl:1'bz);
-assign sda = (tlv_reset_sequence==0?i2c_sda:1'bz);
-assign scl = (tlv_reset_sequence==0?i2c_scl:1'bz);
 
 fifo fifo(
 	.clock(clock),
@@ -451,12 +451,14 @@ i2c_master #(CLOCK_SPEED_HZ, BUS_SPEED_HZ) i2c(
 	.busy(busy),
 	.data_rd(data_rd),
 	.ack_error(ack_error),
-	.sda(i2c_sda),
-	.scl(i2c_scl),
+	.sda(sda),
+	.scl(scl),
 	.byte_counter(byte_counter),
 	.read_only(read_only),
 	.number_of_bytes(number_of_bytes),
-	.fifo_write_ack(fifo_write_ack)
+	.fifo_write_ack(fifo_write_ack),
+	.tlv_sda(tlv_reset_sda),
+	.tlv_scl(tlv_reset_scl)
 );
 
 endmodule
