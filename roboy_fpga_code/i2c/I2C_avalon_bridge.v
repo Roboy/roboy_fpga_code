@@ -362,8 +362,8 @@ always @(posedge clock, posedge reset) begin: I2C_CONTROL_LOGIC
 				end
 				21: begin
 					if(delay_counter==0) begin
-						tlv_reset_scl <= 0;
-						tlv_reset_sda <= 0; 
+						tlv_reset_scl <= 1; //will set the tlv i2c address to 0x5e
+						tlv_reset_sda <= 1; 
 						i <= i+1;
 						delay_counter <= 1000;
 					end else begin
