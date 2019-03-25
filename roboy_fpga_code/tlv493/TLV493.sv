@@ -9,27 +9,28 @@ module TLV493(
 	input signed [31:0] writedata,
 	output waitrequest,
 	// I2C
-	output [NUMBER_OF_SENSORS-1:0] scl, // clock
-	inout [NUMBER_OF_SENSORS-1:0] sda
+	output  scl, // clock
+	inout  sda,
+	input trigger_reset,
+	input trigger_read
 );
 
 parameter CLOCK_SPEED_HZ = 50_000_000;
 parameter BUS_SPEED_HZ = 400_000;
-parameter NUMBER_OF_SENSORS = 1;
 
 assign waitrequest = (waitFlag && read); // if waiting for data
 reg waitFlag;
-reg reset_sensors;
+reg reset_sensor;
 reg [31:0]update_frequency;
-reg [11:0]mag_x[NUMBER_OF_SENSORS-1:0];
-reg [11:0]mag_y[NUMBER_OF_SENSORS-1:0];
-reg [11:0]mag_z[NUMBER_OF_SENSORS-1:0];
-reg [11:0]temp[NUMBER_OF_SENSORS-1:0];
-reg [1:0]frm[NUMBER_OF_SENSORS-1:0];
-reg [1:0]ch[NUMBER_OF_SENSORS-1:0];
-reg t[NUMBER_OF_SENSORS-1:0];
-reg ff[NUMBER_OF_SENSORS-1:0];
-reg pd[NUMBER_OF_SENSORS-1:0];
+reg [11:0]mag_x;
+reg [11:0]mag_y;
+reg [11:0]mag_z;
+reg [11:0]temp;
+reg [1:0]frm;
+reg [1:0]ch;
+reg t;
+reg ff;
+reg pd;
 
 reg read_magnetic_data;
 
@@ -40,15 +41,16 @@ always @(posedge clock, posedge reset) begin: AVALON_INTERFACE
 	end else begin
 		waitFlag <= 1;
 		if(read) begin	
-			if((address>>8)<=8'h14 && address[7:0]<NUMBER_OF_SENSORS) begin
+			if((address>>8)<=8'h14) begin
 				case(address>>8)
-					8'h00: readdata <= mag_x[address[7:0]];
-					8'h01: readdata <= mag_y[address[7:0]];
-					8'h02: readdata <= mag_z[address[7:0]];
-					8'h03: readdata <= temp[address[7:0]];
-					8'h04: readdata <= {t[address[7:0]],ff[address[7:0]],pd[address[7:0]],frm[address[7:0]],ch[address[7:0]]};
-					8'h05: readdata <= ack_error[address[7:0]];
-					8'h06: readdata <= state;
+					8'h00: readdata <= mag_x;
+					8'h01: readdata <= mag_y;
+					8'h02: readdata <= mag_z;
+					8'h03: readdata <= temp;
+					8'h04: readdata <= {t,ff,pd,frm,ch};
+					8'h05: readdata <= ack_error;
+					8'h06: readdata <= tlv_state;
+					8'h07: readdata <= config_data;
 				endcase
 			end
 			if(waitFlag==1) begin // after one clock cycle the sensor_data_avalon should be stable
@@ -57,549 +59,448 @@ always @(posedge clock, posedge reset) begin: AVALON_INTERFACE
 		end
 		// if we are writing via avalon bus and waitrequest is deasserted, write the respective register
 		if(write && ~waitrequest) begin
-			if((address>>8)<=8'h14 && address[7:0]<NUMBER_OF_SENSORS) begin
+			if((address>>8)<=8'h14) begin
 				case(address>>8)
-					8'h00: reset_sensors <= (writedata!=0);
+					8'h00: reset_sensor <= ((writedata&8'hff)!=0);
 					8'h01: update_frequency <= writedata;
-					8'h02: read_magnetic_data <=  (writedata!=0);
+					8'h02: read_magnetic_data <=  ((writedata&8'hff)!=0);
 				endcase
 			end
 		end
-		if(reset_sensors==1) begin
-			reset_sensors<=0;
+		if(reset_sensor!=0) begin
+			reset_sensor<=0;
 		end
-		if(read_magnetic_data) begin
+		if(read_magnetic_data!=0) begin
 			read_magnetic_data<=0;
 		end
 	end
 end
 
-reg [31:0] config_data[NUMBER_OF_SENSORS-1:0];
-wire [NUMBER_OF_SENSORS-1:0] parity;
-generate
-	for(k=0;k<NUMBER_OF_SENSORS;k=k+1) begin: parity_assignement
-		 assign parity[k]=(~^config_data[k]);
-	end
-endgenerate
+reg [31:0] config_data;
+wire  parity;
+assign parity=(~^config_data);
 
-reg [NUMBER_OF_SENSORS-1:0]tlv_reset_sda;
-reg [NUMBER_OF_SENSORS-1:0]tlv_reset_scl;
+reg tlv_reset_sda;
+reg tlv_reset_scl;
 reg reset_done;
-reg [1:0] frame_counter[NUMBER_OF_SENSORS-1:0];
-
-reg [3:0] state;
+reg [1:0] frame_counter;
+reg reset_first_time;
+reg [3:0] tlv_state;
+reg [3:0] tlv_state_next;
 always @(posedge clock, posedge reset) begin: TLV_FSM
-	parameter IDLE  = 0, RESET = 1, READCONFIG = 2, CONFIGURE = 3, READMAGDATA = 4, WAIT_FOR_DATA = 5, DELAY = 6, GENERAL_RESET = 7, PARSE_CONFIG=8, READCONFIG2 = 9, PARSE_CONFIG2=10, CONFIGURE2=11, RESET2 = 12;
+	parameter IDLE  = 0, RESET = 1, READCONFIG = 2, CONFIGURE = 3, READMAGDATA = 4, WAIT_FOR_DATA = 5, DELAY = 6, GENERAL_RESET = 7, WRITECONFIG=8, READCONFIG2 = 9, PARSE_CONFIG2=10, CONFIGURE2=11, RESET2 = 12;
 	reg [31:0] delay_counter;
-	reg [8:0] i;
-	reg [8:0] j;
+	reg [8:0] general_reset_state;
 	reg config_upper_half;
 	if (reset==1) begin
-		state <= IDLE;
+			tlv_state = IDLE;
+			tlv_reset_sda <= 1;
+			tlv_reset_scl <= 1;
 	end else begin
-		for(i=0;i<NUMBER_OF_SENSORS;i=i+1) begin
-			if(fifo_clear[i]==1) begin
-				fifo_clear[i] <= 0;
-			end
-			if(fifo_read_ack[i]==1) begin
-				fifo_read_ack[i] <= 0;
-			end
+		if(fifo_clear==1) begin
+			fifo_clear <= 0;
 		end
-		case(state)
+		if(fifo_read_ack==1) begin
+			fifo_read_ack = 0;
+		end
+		case(tlv_state)
 			IDLE: begin
-				if(reset_sensors) begin
-					state <= RESET;
-					for(i=0;i<NUMBER_OF_SENSORS;i=i+1) begin
-						fifo_clear[i] <= 1;
-					end
+				if(reset_sensor || trigger_reset) begin
+					tlv_state = GENERAL_RESET;
+					fifo_clear <= 1;
+					general_reset_state <= 0;
 				end
-				if(read_magnetic_data) begin
-					state <= READMAGDATA;
+				if(read_magnetic_data || trigger_read) begin
+					tlv_state = READMAGDATA;
 				end
 			end
 			GENERAL_RESET: begin
-				for(i=0;i<NUMBER_OF_SENSORS;i=i+1) begin
-					case(j)
-						0: begin 
-							tlv_reset_sda[i] <= 1;
-							tlv_reset_scl[i] <= 1;
+				case(general_reset_state)
+					0: begin 
+						tlv_reset_sda <= 1;
+						tlv_reset_scl <= 1;
+						delay_counter <= 5000;
+						general_reset_state <= general_reset_state+1;
+					end
+					1: begin
+						if(delay_counter==0) begin
+							tlv_reset_sda <= 0;
+							delay_counter <= 500;
+							general_reset_state <= general_reset_state+1;
+						end else begin
+							delay_counter <= delay_counter-1;
+						end
+					end
+					2: begin
+						if(delay_counter==0) begin
+							tlv_reset_scl <= 0;
+							general_reset_state <= general_reset_state+1;
+							delay_counter <= 250;
+						end else begin
+							delay_counter <= delay_counter-1;
+						end
+					end
+					3: begin //1
+						if(delay_counter==0) begin
+							tlv_reset_scl <= 1;
+							general_reset_state <= general_reset_state+1;
+							delay_counter <= 250;
+						end else begin
+							delay_counter <= delay_counter-1;
+						end
+					end
+					4: begin
+						if(delay_counter==0) begin
+							tlv_reset_scl <= 0;
+							general_reset_state <= general_reset_state+1;
+							delay_counter <= 250;
+						end else begin
+							delay_counter <= delay_counter-1;
+						end
+					end
+					5: begin //2
+						if(delay_counter==0) begin
+							tlv_reset_scl <= 1;
+							general_reset_state <= general_reset_state+1;
+							delay_counter <= 250;
+						end else begin
+							delay_counter <= delay_counter-1;
+						end
+					end
+					6: begin
+						if(delay_counter==0) begin
+							tlv_reset_scl <= 0;
+							general_reset_state <= general_reset_state+1;
+							delay_counter <= 250;
+						end else begin
+							delay_counter <= delay_counter-1;
+						end
+					end
+					7: begin //3
+						if(delay_counter==0) begin
+							tlv_reset_scl <= 1;
+							general_reset_state <= general_reset_state+1;
+							delay_counter <= 250;
+						end else begin
+							delay_counter <= delay_counter-1;
+						end
+					end
+					8: begin
+						if(delay_counter==0) begin
+							tlv_reset_scl <= 0;
+							general_reset_state <= general_reset_state+1;
+							delay_counter <= 250;
+						end else begin
+							delay_counter <= delay_counter-1;
+						end
+					end
+					9: begin //4
+						if(delay_counter==0) begin
+							tlv_reset_scl <= 1;
+							general_reset_state <= general_reset_state+1;
+							delay_counter <= 250;
+						end else begin
+							delay_counter <= delay_counter-1;
+						end
+					end
+					10: begin
+						if(delay_counter==0) begin
+							tlv_reset_scl <= 0;
+							general_reset_state <= general_reset_state+1;
+							delay_counter <= 250;
+						end else begin
+							delay_counter <= delay_counter-1;
+						end
+					end
+					11: begin //5
+						if(delay_counter==0) begin
+							tlv_reset_scl <= 1;
+							general_reset_state <= general_reset_state+1;
+							delay_counter <= 250;
+						end else begin
+							delay_counter <= delay_counter-1;
+						end
+					end
+					12: begin
+						if(delay_counter==0) begin
+							tlv_reset_scl <= 0;
+							general_reset_state <= general_reset_state+1;
+							delay_counter <= 250;
+						end else begin
+							delay_counter <= delay_counter-1;
+						end
+					end
+					13: begin //6
+						if(delay_counter==0) begin
+							tlv_reset_scl <= 1;
+							general_reset_state <= general_reset_state+1;
+							delay_counter <= 250;
+						end else begin
+							delay_counter <= delay_counter-1;
+						end
+					end
+					14: begin
+						if(delay_counter==0) begin
+							tlv_reset_scl <= 0;
+							general_reset_state <= general_reset_state+1;
+							delay_counter <= 250;
+						end else begin
+							delay_counter <= delay_counter-1;
+						end
+					end
+					15: begin //7
+						if(delay_counter==0) begin
+							tlv_reset_scl <= 1;
+							general_reset_state <= general_reset_state+1;
+							delay_counter <= 250;
+						end else begin
+							delay_counter <= delay_counter-1;
+						end
+					end
+					16: begin
+						if(delay_counter==0) begin
+							tlv_reset_scl <= 0;
+							general_reset_state <= general_reset_state+1;
+							delay_counter <= 250;
+						end else begin
+							delay_counter <= delay_counter-1;
+						end
+					end
+					17: begin // 8
+						if(delay_counter==0) begin
+							tlv_reset_scl <= 1;
+							general_reset_state <= general_reset_state+1;
+							delay_counter <= 250;
+						end else begin
+							delay_counter <= delay_counter-1;
+						end
+					end
+					18: begin
+						if(delay_counter==0) begin
+							tlv_reset_scl <= 0;
+							general_reset_state <= general_reset_state+1;
+							delay_counter <= 250;
+						end else begin
+							delay_counter <= delay_counter-1;
+						end
+					end
+					19: begin // 9
+						if(delay_counter==0) begin
+							tlv_reset_scl <= 1;
+							general_reset_state <= general_reset_state+1;
+							delay_counter <= 250;
+						end else begin
+							delay_counter <= delay_counter-1;
+						end
+					end
+					20: begin
+						if(delay_counter==0) begin
+							tlv_reset_scl <= 0;
+							tlv_reset_sda <= 1'bz; // floating
+							general_reset_state <= general_reset_state+1;
+							delay_counter <= 150;
+						end else begin
+							delay_counter <= delay_counter-1;
+						end
+					end
+					21: begin
+						if(delay_counter==0) begin
+							tlv_reset_scl <= 1; //will set the tlv i2c address to 0x5e
+							tlv_reset_sda <= 1; 
+							general_reset_state <= general_reset_state+1;
+							delay_counter <= 1000;
+						end else begin
+							delay_counter <= delay_counter-1;
+						end
+					end
+					22: begin 
+						if(delay_counter==0) begin
+							tlv_reset_scl <= 1;
+							general_reset_state <= general_reset_state+1;
+							delay_counter <= 250;
+						end else begin
+							delay_counter <= delay_counter-1;
+						end
+					end
+					23: begin 
+						if(delay_counter==0) begin
+							tlv_reset_scl <= 1;
+							tlv_reset_sda <= 1;
+							general_reset_state <=0;
 							delay_counter <= 5000;
-							j <= j+1;
+							tlv_state = DELAY;
+							tlv_state_next <= RESET;
+							reset_first_time <= 1;
+							fifo_clear <= 1;
+						end else begin
+							delay_counter <= delay_counter-1;
 						end
-						1: begin
-							if(delay_counter==0) begin
-								tlv_reset_sda[i] <= 0;
-								delay_counter <= 500;
-								j <= j+1;
-							end else begin
-								delay_counter <= delay_counter-1;
-							end
-						end
-						2: begin
-							if(delay_counter==0) begin
-								tlv_reset_scl[i] <= 0;
-								j <= j+1;
-								delay_counter <= 250;
-							end else begin
-								delay_counter <= delay_counter-1;
-							end
-						end
-						3: begin //1
-							if(delay_counter==0) begin
-								tlv_reset_scl[i] <= 1;
-								j <= j+1;
-								delay_counter <= 250;
-							end else begin
-								delay_counter <= delay_counter-1;
-							end
-						end
-						4: begin
-							if(delay_counter==0) begin
-								tlv_reset_scl[i] <= 0;
-								j <= j+1;
-								delay_counter <= 250;
-							end else begin
-								delay_counter <= delay_counter-1;
-							end
-						end
-						5: begin //2
-							if(delay_counter==0) begin
-								tlv_reset_scl[i] <= 1;
-								j <= j+1;
-								delay_counter <= 250;
-							end else begin
-								delay_counter <= delay_counter-1;
-							end
-						end
-						6: begin
-							if(delay_counter==0) begin
-								tlv_reset_scl[i] <= 0;
-								j <= j+1;
-								delay_counter <= 250;
-							end else begin
-								delay_counter <= delay_counter-1;
-							end
-						end
-						7: begin //3
-							if(delay_counter==0) begin
-								tlv_reset_scl[i] <= 1;
-								j <= j+1;
-								delay_counter <= 250;
-							end else begin
-								delay_counter <= delay_counter-1;
-							end
-						end
-						8: begin
-							if(delay_counter==0) begin
-								tlv_reset_scl[i] <= 0;
-								j <= j+1;
-								delay_counter <= 250;
-							end else begin
-								delay_counter <= delay_counter-1;
-							end
-						end
-						9: begin //4
-							if(delay_counter==0) begin
-								tlv_reset_scl[i] <= 1;
-								j <= j+1;
-								delay_counter <= 250;
-							end else begin
-								delay_counter <= delay_counter-1;
-							end
-						end
-						10: begin
-							if(delay_counter==0) begin
-								tlv_reset_scl[i] <= 0;
-								j <= j+1;
-								delay_counter <= 250;
-							end else begin
-								delay_counter <= delay_counter-1;
-							end
-						end
-						11: begin //5
-							if(delay_counter==0) begin
-								tlv_reset_scl[i] <= 1;
-								j <= j+1;
-								delay_counter <= 250;
-							end else begin
-								delay_counter <= delay_counter-1;
-							end
-						end
-						12: begin
-							if(delay_counter==0) begin
-								tlv_reset_scl[i] <= 0;
-								j <= j+1;
-								delay_counter <= 250;
-							end else begin
-								delay_counter <= delay_counter-1;
-							end
-						end
-						13: begin //6
-							if(delay_counter==0) begin
-								tlv_reset_scl[i] <= 1;
-								j <= j+1;
-								delay_counter <= 250;
-							end else begin
-								delay_counter <= delay_counter-1;
-							end
-						end
-						14: begin
-							if(delay_counter==0) begin
-								tlv_reset_scl[i] <= 0;
-								j <= j+1;
-								delay_counter <= 250;
-							end else begin
-								delay_counter <= delay_counter-1;
-							end
-						end
-						15: begin //7
-							if(delay_counter==0) begin
-								tlv_reset_scl[i] <= 1;
-								j <= j+1;
-								delay_counter <= 250;
-							end else begin
-								delay_counter <= delay_counter-1;
-							end
-						end
-						16: begin
-							if(delay_counter==0) begin
-								tlv_reset_scl[i] <= 0;
-								j <= j+1;
-								delay_counter <= 250;
-							end else begin
-								delay_counter <= delay_counter-1;
-							end
-						end
-						17: begin // 8
-							if(delay_counter==0) begin
-								tlv_reset_scl[i] <= 1;
-								j <= j+1;
-								delay_counter <= 250;
-							end else begin
-								delay_counter <= delay_counter-1;
-							end
-						end
-						18: begin
-							if(delay_counter==0) begin
-								tlv_reset_scl[i] <= 0;
-								j <= j+1;
-								delay_counter <= 250;
-							end else begin
-								delay_counter <= delay_counter-1;
-							end
-						end
-						19: begin // 9
-							if(delay_counter==0) begin
-								tlv_reset_scl[i] <= 1;
-								j <= j+1;
-								delay_counter <= 250;
-							end else begin
-								delay_counter <= delay_counter-1;
-							end
-						end
-						20: begin
-							if(delay_counter==0) begin
-								tlv_reset_scl[i] <= 0;
-								tlv_reset_sda[i] <= 1'bz; // floating
-								j <= j+1;
-								delay_counter <= 150;
-							end else begin
-								delay_counter <= delay_counter-1;
-							end
-						end
-						21: begin
-							if(delay_counter==0) begin
-								tlv_reset_scl[i] <= 1; //will set the tlv i2c address to 0x5e
-								tlv_reset_sda[i] <= 1; 
-								j <= j+1;
-								delay_counter <= 1000;
-							end else begin
-								delay_counter <= delay_counter-1;
-							end
-						end
-						22: begin 
-							if(delay_counter==0) begin
-								tlv_reset_scl[i] <= 1;
-								j <= j+1;
-								delay_counter <= 250;
-							end else begin
-								delay_counter <= delay_counter-1;
-							end
-						end
-						23: begin 
-							if(delay_counter==0) begin
-								tlv_reset_scl[i] <= 1;
-								tlv_reset_sda[i] <= 1;
-								j<=0;
-								state <= RESET;
-								for(i=0;i<NUMBER_OF_SENSORS;i=i+1) begin
-									fifo_clear[i] <= 1;
-								end
-							end else begin
-								delay_counter <= delay_counter-1;
-							end
-						end
-					endcase
-				end
+					end
+				endcase
 			end
 			RESET: begin
-				for(i=0;i<NUMBER_OF_SENSORS;i=i+1) begin
-					number_of_bytes[i] <= 10;
-					addr[i] <= 7'h5e;
-					data_wd[i] <= 0; 
-					rw[i] <= 1;
-					read_only[i] <= 1;
-					ena[i] <= 1;
-					delay_counter <= 500;
-					config_data[i] = 0;
-				end
-				state <= READCONFIG;
+				number_of_bytes <= 10;
+				addr <= 7'h5e;
+				data_wd <= 0; 
+				rw <= 1;
+				read_only <= 1;
+				ena <= 1;
+				config_data = 0;
+				tlv_state = READCONFIG;
 			end
 			READCONFIG: begin
-				for(i=0;i<NUMBER_OF_SENSORS;i=i+1) begin
-					if((byte_counter[i]>=number_of_bytes[i] || ack_error[i] == 1) && ena[i] == 1) begin
-						ena[i] <= 0;
-					end
-				end
-				if(ena==0) begin
-					for(i=0;i<NUMBER_OF_SENSORS;i=i+1) begin
-						config_data[i] <= 0;
-					end
-					config_upper_half <= 1;
-					state <= PARSE_CONFIG;
+				if((byte_counter>=number_of_bytes || ack_error == 1) && ena == 1) begin
+					ena <= 0;
+					config_data |= (((data_read_fifo>>24)&8'hff)<<16);
+					config_data |= (8'b01000000|(5'b11111&((data_read_fifo>>16)&8'hff)))<<24;
+					fifo_read_ack = 1;
+					config_data |= (3'b011|((data_read_fifo)&5'b11000))<<8;
+					config_data |= ((parity<<7)<<8);
+					tlv_state = DELAY;
+					tlv_state_next <= WRITECONFIG;
 				end
 			end
-			PARSE_CONFIG: begin
-				if(config_upper_half) begin
-					for(i=0;i<NUMBER_OF_SENSORS;i=i+1) begin
-						config_data[i] |= (((data_read_fifo[i]>>24)&8'hff)<<16);
-						config_data[i] |= (8'b01000000|(5'b11111&((data_read_fifo[i]>>16)&8'hff)))<<24;
-						fifo_read_ack[i] <= 1;
-					end
-					config_upper_half <= 0;
-				end else begin
-					for(i=0;i<NUMBER_OF_SENSORS;i=i+1) begin
-						config_data[i] |= (3'b011|((data_read_fifo[i])&5'b11000))<<8;
-						config_data[i] |= (parity[i]<<7);
-					end
-					delay_counter <= delay_counter -1;
-					if(delay_counter==0) begin
-						for(i=0;i<NUMBER_OF_SENSORS;i=i+1) begin
-							fifo_clear[i] <= 1;
-							number_of_bytes[i] <= 4;
-							addr[i] <= 7'h5e;
-							data_wd[i] <= config_data[i]; 
-							rw[i] <= 0;
-							read_only[i] <= 0;
-							ena[i] <= 1;
-						end
-						state <= CONFIGURE;
-					end
-				end
+			WRITECONFIG: begin
+				number_of_bytes <= 4;
+				addr <= 7'h5e;
+				data_wd <= config_data; 
+				rw <= 0;
+				read_only <= 0;
+				ena <= 1;
+				tlv_state = CONFIGURE;
 			end
 			CONFIGURE:begin
-				for(i=0;i<NUMBER_OF_SENSORS;i=i+1) begin
-					if((byte_counter[i]>=number_of_bytes[i] || ack_error[i] == 1) && ena[i] == 1) begin
-						ena[i] <= 0;
+				if((byte_counter>=number_of_bytes || ack_error == 1) && ena == 1) begin
+					ena <= 0;
+					if(reset_first_time) begin
+						reset_first_time <= 0;
+						delay_counter <= 500;
+						tlv_state = DELAY;
+						tlv_state_next <= RESET;
+						fifo_clear <= 1;
+					end else begin
+						delay_counter <= 500;
+						tlv_state = DELAY;
+						tlv_state_next <= IDLE;
+						reset_done <= 1;
 					end
-				end
-				if(ena==0) begin
-					delay_counter <= 500;
-					state<=DELAY;
-				end
-			end
-			RESET2: begin
-				for(i=0;i<NUMBER_OF_SENSORS;i=i+1) begin
-					number_of_bytes[i] <= 10;
-					addr[i] <= 7'h5e;
-					data_wd[i] <= 0; 
-					rw[i] <= 1;
-					read_only[i] <= 1;
-					ena[i] <= 1;
-					delay_counter <= 500;
-					config_data[i] = 0;
-				end
-				state <= READCONFIG2;
-			end
-			READCONFIG2: begin
-				for(i=0;i<NUMBER_OF_SENSORS;i=i+1) begin
-					if((byte_counter[i]>=number_of_bytes[i] || ack_error[i] == 1) && ena[i] == 1) begin
-						ena[i] <= 0;
-					end
-				end
-				if(ena==0) begin
-					for(i=0;i<NUMBER_OF_SENSORS;i=i+1) begin
-						config_data[i] <= 0;
-					end
-					config_upper_half <= 1;
-					state <= PARSE_CONFIG2;
-				end
-			end
-			PARSE_CONFIG2: begin
-				if(config_upper_half) begin
-					for(i=0;i<NUMBER_OF_SENSORS;i=i+1) begin
-						config_data[i] |= (((data_read_fifo[i]>>24)&8'hff)<<16);
-						config_data[i] |= (8'b01000000|(5'b11111&((data_read_fifo[i]>>16)&8'hff)))<<24;
-						fifo_read_ack[i] <= 1;
-					end
-					config_upper_half <= 0;
-				end else begin
-					for(i=0;i<NUMBER_OF_SENSORS;i=i+1) begin
-						config_data[i] |= (3'b011|((data_read_fifo[i])&5'b11000))<<8;
-						config_data[i] |= (parity[i]<<7);
-					end
-					delay_counter <= delay_counter -1;
-					if(delay_counter==0) begin
-						for(i=0;i<NUMBER_OF_SENSORS;i=i+1) begin
-							fifo_clear[i] <= 1;
-							number_of_bytes[i] <= 4;
-							addr[i] <= 7'h5e;
-							data_wd[i] <= config_data[i]; 
-							rw[i] <= 0;
-							read_only[i] <= 0;
-							ena[i] <= 1;
-						end
-						state <= CONFIGURE2;
-					end
-				end
-			end
-			CONFIGURE2:begin
-				for(i=0;i<NUMBER_OF_SENSORS;i=i+1) begin
-					if((byte_counter[i]>=number_of_bytes[i] || ack_error[i] == 1) && ena[i] == 1) begin
-						ena[i] <= 0;
-					end
-				end
-				if(ena==0) begin
-					delay_counter <= 500;
-					state<=DELAY;
-					reset_done <= 1;
 				end
 			end
 			READMAGDATA: begin 
-				for(i=0;i<NUMBER_OF_SENSORS;i=i+1) begin
-					number_of_bytes[i] <= 7;
-					addr[i] <= 7'h5e;
-					rw[i] <= 1;
-					read_only[i] <= 1;
-					ena[i] <= 1;
-					state <= WAIT_FOR_DATA;
-					fifo_clear[i]<=1;
-				end
+				number_of_bytes <= 7;
+				addr <= 7'h5e;
+				rw <= 1;
+				read_only <= 1;
+				ena <= 1;
+				tlv_state = WAIT_FOR_DATA;
+				fifo_clear<=1;
 			end
 			WAIT_FOR_DATA: begin
-				for(i=0;i<NUMBER_OF_SENSORS;i=i+1) begin
-					if((byte_counter[i]>=number_of_bytes[i] || ack_error[i] == 1) && ena[i] == 1) begin
-						ena[i] <= 0;
-						temp[i][7:0] = (data_read_fifo[i]>>16);
-						mag_z[i][3:0] = (data_read_fifo[i]>>8)&8'b00001111;
-						pd[i] = (data_read_fifo[i]>>12)&1'b1;
-						ff[i] = (data_read_fifo[i]>>13)&1'b1;
-						t[i] = (data_read_fifo[i]>>14)&1'b1;
-						mag_y[i][3:0] = data_read_fifo[i]&8'b00001111;
-						mag_x[i][3:0] = (data_read_fifo[i]>>4)&8'b00001111;
-						fifo_read_ack[i] = 1;
-						fifo_read_ack[i] = 0;
-						temp[i][11:8] = (data_read_fifo[i]>>28)&8'b00001111;
-						if(reset_done) begin
-							reset_done <= 0;
-							frame_counter[i] = (data_read_fifo[i]>>26)&8'b00000011 + 1;
-						end else begin
-							frame_counter[i] = frame_counter[i]+1;
-							frm[i][1:0] = (data_read_fifo[i]>>26)&8'b00000011;
-							if(frame_counter[i]!=frm[i]) begin
-								state <= GENERAL_RESET;
-							end
-						end
-						ch[i][1:0] = (data_read_fifo[i]>>24)&8'b00000011;
-						mag_z[i][11:4] = (data_read_fifo[i]>>16)&8'hff;
-						mag_y[i][11:4] = (data_read_fifo[i]>>8)&8'hff;
-						mag_x[i][11:4] = (data_read_fifo[i])&8'hff;
-						state<=DELAY;
+				if((byte_counter>=number_of_bytes || ack_error == 1) && ena == 1) begin
+					ena <= 0;
+					temp[7:0] = (data_read_fifo>>16);
+					mag_z[3:0] = (data_read_fifo>>8)&8'b00001111;
+					pd = (data_read_fifo>>12)&1'b1;
+					ff = (data_read_fifo>>13)&1'b1;
+					t = (data_read_fifo>>14)&1'b1;
+					mag_y[3:0] = data_read_fifo&8'b00001111;
+					mag_x[3:0] = (data_read_fifo>>4)&8'b00001111;
+					fifo_read_ack = 1;
+					temp[11:8] = (data_read_fifo>>28)&8'b00001111;
+					if(reset_done) begin
+						reset_done <= 0;
+						frame_counter = (data_read_fifo>>26)&8'b00000011 + 1;
+					end else begin
+						frame_counter = frame_counter+1;
+						frm[1:0] = (data_read_fifo>>26)&8'b00000011;
+//						if(frame_counter!=frm) begin
+//							tlv_state = GENERAL_RESET;
+//						end
+					end
+					ch[1:0] = (data_read_fifo>>24)&8'b00000011;
+					mag_z[11:4] = (data_read_fifo>>16)&8'hff;
+					mag_y[11:4] = (data_read_fifo>>8)&8'hff;
+					mag_x[11:4] = (data_read_fifo)&8'hff;
+					if(update_frequency!=0) begin
 						delay_counter <= CLOCK_SPEED_HZ/update_frequency;
+						tlv_state = DELAY;
+						tlv_state_next <= IDLE;
+					end else begin
+						tlv_state = IDLE;
 					end
 				end
 			end
 			DELAY: begin
 				delay_counter <= delay_counter -1;
 				if(delay_counter==0) begin
-					for(i=0;i<NUMBER_OF_SENSORS;i=i+1) begin
-						fifo_clear[i] <= 1;
-					end
-					state <= IDLE;
+					fifo_clear <= 1;
+					tlv_state = tlv_state_next;
 				end
 			end
-			default: state = IDLE;
+			default: tlv_state = IDLE;
 		endcase
 	end
 end
 
-reg [NUMBER_OF_SENSORS-1:0]ena;
-reg [7:0] number_of_bytes[NUMBER_OF_SENSORS-1:0];
-reg [6:0] addr[NUMBER_OF_SENSORS-1:0];
-reg [NUMBER_OF_SENSORS-1:0] rw;
-reg [NUMBER_OF_SENSORS-1:0] busy;
-reg [NUMBER_OF_SENSORS-1:0] ack_error;
-wire [7:0] byte_counter[NUMBER_OF_SENSORS-1:0] ;
-reg [31:0] data_rd[NUMBER_OF_SENSORS-1:0] ;
-reg [31:0] data_read_fifo[NUMBER_OF_SENSORS-1:0] ;
-reg [31:0] data_wd[NUMBER_OF_SENSORS-1:0] ;
+reg ena;
+reg [7:0] number_of_bytes;
+reg [6:0] addr;
+reg  rw;
+reg  busy;
+reg  ack_error;
+wire [7:0] byte_counter ;
+reg [31:0] data_rd ;
+reg [31:0] data_read_fifo ;
+reg [31:0] data_wd ;
 
-reg read_only[NUMBER_OF_SENSORS-1:0];
+reg read_only;
 
-wire fifo_write[NUMBER_OF_SENSORS-1:0];
-reg read_fifo[NUMBER_OF_SENSORS-1:0];
-reg write_fifo[NUMBER_OF_SENSORS-1:0];
-wire fifo_write_ack[NUMBER_OF_SENSORS-1:0];
-reg fifo_read_ack[NUMBER_OF_SENSORS-1:0];
-reg fifo_clear[NUMBER_OF_SENSORS-1:0];
-wire fifo_empty[NUMBER_OF_SENSORS-1:0];
-wire fifo_full[NUMBER_OF_SENSORS-1:0];
-reg [7:0] usedw[NUMBER_OF_SENSORS-1:0];
+wire fifo_write;
+reg read_fifo;
+reg write_fifo;
+wire fifo_write_ack;
+reg fifo_read_ack;
+reg fifo_clear;
+wire fifo_empty;
+wire fifo_full;
+reg [7:0] usedw;
+fifo fifo(
+	.clock(clock),
+	.data(data_rd),
+	.rdreq(fifo_read_ack),
+	.sclr(reset||fifo_clear),
+	.wrreq(fifo_write),
+	.q(data_read_fifo),
+	.empty(fifo_empty),
+	.full(fifo_full),
+	.usedw(usedw)
+);
 
-reg [NUMBER_OF_SENSORS-1:0]i2c_select;
+oneshot oneshot(
+	.clk(clock),
+	.edge_sig(fifo_write_ack),
+	.level_sig(fifo_write)
+);
 
-genvar k;
-generate 
-	for(k=0; k<NUMBER_OF_SENSORS; k = k+1) begin : i2c_cores
-		fifo fifo(
-			.clock(clock),
-			.data(data_rd[k]),
-			.rdreq(fifo_read_ack[k]),
-			.sclr(reset||fifo_clear[k]),
-			.wrreq(fifo_write[k]),
-			.q(data_read_fifo[k]),
-			.empty(fifo_empty[k]),
-			.full(fifo_full[k]),
-			.usedw(usedw[k])
-		);
-
-		oneshot oneshot(
-			.clk(clock),
-			.edge_sig(fifo_write_ack[k]),
-			.level_sig(fifo_write[k])
-		);
-
-		i2c_master #(CLOCK_SPEED_HZ, BUS_SPEED_HZ) i2c(
-			.clk(clock),
-			.reset_n(~reset_sensors),
-			.ena(ena[k]),
-			.addr(addr[k]),
-			.rw(rw[k]),
-			.data_wr(data_wd[k]),
-			.busy(busy[k]),
-			.data_rd(data_rd[k]),
-			.ack_error(ack_error[k]),
-			.sda(sda[k]),
-			.scl(scl[k]),
-			.byte_counter(byte_counter[k]),
-			.read_only(read_only[k]),
-			.number_of_bytes(number_of_bytes[k]),
-			.fifo_write_ack(fifo_write_ack[k]),
-			.tlv_scl(1'b1),
-			.tlv_sda(1'b1)
-		);
-	end
-endgenerate 
+i2c_master #(CLOCK_SPEED_HZ, BUS_SPEED_HZ) i2c(
+	.clk(clock),
+	.reset_n(~reset_sensor),
+	.ena(ena),
+	.addr(addr),
+	.rw(rw),
+	.data_wr(data_wd),
+	.busy(busy),
+	.data_rd(data_rd),
+	.ack_error(ack_error),
+	.sda(sda),
+	.scl(scl),
+	.byte_counter(byte_counter),
+	.read_only(read_only),
+	.number_of_bytes(number_of_bytes),
+	.fifo_write_ack(fifo_write_ack),
+	.tlv_scl(tlv_reset_scl),
+	.tlv_sda(tlv_reset_sda)
+);
 
 
 
