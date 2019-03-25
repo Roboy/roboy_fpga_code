@@ -353,6 +353,7 @@ always @(posedge clock, posedge reset) begin: TLV_FSM
 				ena <= 1;
 				config_data <= 0;
 				tlv_state <= READCONFIG;
+				fifo_clear <= 1;
 			end
 			READCONFIG: begin
 				if((byte_counter>=number_of_bytes) && ena == 1) begin
@@ -400,11 +401,11 @@ always @(posedge clock, posedge reset) begin: TLV_FSM
 					ena <= 0;
 					if(reset_first_time) begin
 						reset_first_time <= 0;
-						delay_counter <= 500;
+						delay_counter <= 5000;
 						tlv_state <= DELAY;
 						tlv_state_next <= RESET;
 					end else begin
-						delay_counter <= 500;
+						delay_counter <= 5000;
 						tlv_state <= DELAY;
 						tlv_state_next <= READMAGDATA;
 						reset_done <= 1;
@@ -439,6 +440,9 @@ always @(posedge clock, posedge reset) begin: TLV_FSM
 						frm[1:0] = (data_read_fifo>>26)&8'b00000011;
 //						if(frame_counter!=frm) begin
 //							tlv_state <= GENERAL_RESET;
+//							fifo_clear <= 1;
+//							fifo_read_ack <= 0;
+//							general_reset_state <= 0;
 //						end
 					end
 					ch[1:0] = (data_read_fifo>>24)&8'b00000011;
