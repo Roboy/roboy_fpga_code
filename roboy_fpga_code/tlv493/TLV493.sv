@@ -12,11 +12,14 @@ module TLV493(
 	output  scl, // clock
 	inout  sda,
 	input trigger_reset,
-	input trigger_read
+	input trigger_read,
+	output fifo_write_ack_out
 );
 
 parameter CLOCK_SPEED_HZ = 50_000_000;
 parameter BUS_SPEED_HZ = 400_000;
+
+assign fifo_write_ack_out = fifo_write;
 
 assign waitrequest = (waitFlag && read); // if waiting for data
 reg waitFlag;
@@ -85,33 +88,37 @@ reg tlv_reset_scl;
 reg reset_done;
 reg [1:0] frame_counter;
 reg reset_first_time;
-reg [3:0] tlv_state;
-reg [3:0] tlv_state_next;
+reg [4:0] tlv_state;
+reg [4:0] tlv_state_next;
 always @(posedge clock, posedge reset) begin: TLV_FSM
-	parameter IDLE  = 0, RESET = 1, READCONFIG = 2, CONFIGURE = 3, READMAGDATA = 4, WAIT_FOR_DATA = 5, DELAY = 6, GENERAL_RESET = 7, WRITECONFIG=8, READCONFIG2 = 9, PARSE_CONFIG2=10, CONFIGURE2=11, RESET2 = 12;
+	parameter IDLE  = 0, RESET = 1, READCONFIG = 2, CONFIGURE = 3, READMAGDATA = 4, WAIT_FOR_DATA = 5, DELAY = 6, GENERAL_RESET = 7, BYTE7=8, BYTE8AND9 = 9, PARITY=10, WAITFORCONFIGURE=11, THROWAWAYFIRSTBYTE = 12;
 	reg [31:0] delay_counter;
 	reg [8:0] general_reset_state;
-	reg config_upper_half;
+	reg init;
 	if (reset==1) begin
-			tlv_state = IDLE;
+			tlv_state <= IDLE;
 			tlv_reset_sda <= 1;
 			tlv_reset_scl <= 1;
+			init <= 1;
 	end else begin
 		if(fifo_clear==1) begin
 			fifo_clear <= 0;
 		end
-		if(fifo_read_ack==1) begin
-			fifo_read_ack = 0;
+		if(fifo_read_ack) begin
+			fifo_read_ack <= 0;
 		end
 		case(tlv_state)
 			IDLE: begin
-				if(reset_sensor || trigger_reset) begin
-					tlv_state = GENERAL_RESET;
+//				if(reset_sensor || trigger_reset) begin
+				if(init) begin
+					init <= 0;
+					tlv_state <= GENERAL_RESET;
 					fifo_clear <= 1;
+					fifo_read_ack <= 0;
 					general_reset_state <= 0;
-				end
-				if(read_magnetic_data || trigger_read) begin
-					tlv_state = READMAGDATA;
+				end else begin
+//				if(read_magnetic_data || trigger_read) begin
+					tlv_state <= READMAGDATA;
 				end
 			end
 			GENERAL_RESET: begin
@@ -328,10 +335,9 @@ always @(posedge clock, posedge reset) begin: TLV_FSM
 							tlv_reset_sda <= 1;
 							general_reset_state <=0;
 							delay_counter <= 5000;
-							tlv_state = DELAY;
+							tlv_state <= DELAY;
 							tlv_state_next <= RESET;
 							reset_first_time <= 1;
-							fifo_clear <= 1;
 						end else begin
 							delay_counter <= delay_counter-1;
 						end
@@ -345,43 +351,62 @@ always @(posedge clock, posedge reset) begin: TLV_FSM
 				rw <= 1;
 				read_only <= 1;
 				ena <= 1;
-				config_data = 0;
-				tlv_state = READCONFIG;
+				config_data <= 0;
+				tlv_state <= READCONFIG;
 			end
 			READCONFIG: begin
-				if((byte_counter>=number_of_bytes || ack_error == 1) && ena == 1) begin
+				if((byte_counter>=number_of_bytes) && ena == 1) begin
 					ena <= 0;
-					config_data |= (((data_read_fifo>>24)&8'hff)<<16);
-					config_data |= (8'b01000000|(5'b11111&((data_read_fifo>>16)&8'hff)))<<24;
-					fifo_read_ack = 1;
-					config_data |= (3'b011|((data_read_fifo)&5'b11000))<<8;
-					config_data |= ((parity<<7)<<8);
-					tlv_state = DELAY;
-					tlv_state_next <= WRITECONFIG;
+					fifo_read_ack <= 1;
+					delay_counter <= 500;
+					tlv_state <= DELAY;
+					tlv_state_next <= THROWAWAYFIRSTBYTE;
+				end 
+			end
+			THROWAWAYFIRSTBYTE: begin
+				if(fifo_read_ack==0) begin
+					delay_counter <= 500;
+					tlv_state <= DELAY;
+					tlv_state_next <= BYTE8AND9;
+					config_data |= ((3'b011|((data_read_fifo)&5'b11000))<<8);
+					fifo_read_ack <= 1;
+					tlv_state <= BYTE8AND9;
 				end
 			end
-			WRITECONFIG: begin
+			BYTE8AND9: begin
+				if(fifo_read_ack==0) begin
+					config_data |= (((data_read_fifo>>24)&8'hff)<<16);
+					config_data |= ((8'b01000000|(5'b11111&((data_read_fifo>>16)&8'hff)))<<24);
+					tlv_state <= PARITY;
+				end
+			end
+			PARITY: begin
+				config_data |= (parity<<15);
+				delay_counter <= 500;
+				tlv_state <= DELAY;
+				tlv_state_next <= CONFIGURE;
+			end
+			CONFIGURE:begin
 				number_of_bytes <= 4;
 				addr <= 7'h5e;
-				data_wd <= config_data; 
+				data_wd <= config_data;  
 				rw <= 0;
 				read_only <= 0;
 				ena <= 1;
-				tlv_state = CONFIGURE;
+				tlv_state <= WAITFORCONFIGURE;
 			end
-			CONFIGURE:begin
-				if((byte_counter>=number_of_bytes || ack_error == 1) && ena == 1) begin
+			WAITFORCONFIGURE: begin
+				if((byte_counter>=number_of_bytes) && ena == 1) begin
 					ena <= 0;
 					if(reset_first_time) begin
 						reset_first_time <= 0;
 						delay_counter <= 500;
-						tlv_state = DELAY;
+						tlv_state <= DELAY;
 						tlv_state_next <= RESET;
-						fifo_clear <= 1;
 					end else begin
 						delay_counter <= 500;
-						tlv_state = DELAY;
-						tlv_state_next <= IDLE;
+						tlv_state <= DELAY;
+						tlv_state_next <= READMAGDATA;
 						reset_done <= 1;
 					end
 				end
@@ -392,8 +417,7 @@ always @(posedge clock, posedge reset) begin: TLV_FSM
 				rw <= 1;
 				read_only <= 1;
 				ena <= 1;
-				tlv_state = WAIT_FOR_DATA;
-				fifo_clear<=1;
+				tlv_state <= WAIT_FOR_DATA;
 			end
 			WAIT_FOR_DATA: begin
 				if((byte_counter>=number_of_bytes || ack_error == 1) && ena == 1) begin
@@ -405,7 +429,7 @@ always @(posedge clock, posedge reset) begin: TLV_FSM
 					t = (data_read_fifo>>14)&1'b1;
 					mag_y[3:0] = data_read_fifo&8'b00001111;
 					mag_x[3:0] = (data_read_fifo>>4)&8'b00001111;
-					fifo_read_ack = 1;
+					fifo_read_ack <= 1;
 					temp[11:8] = (data_read_fifo>>28)&8'b00001111;
 					if(reset_done) begin
 						reset_done <= 0;
@@ -414,7 +438,7 @@ always @(posedge clock, posedge reset) begin: TLV_FSM
 						frame_counter = frame_counter+1;
 						frm[1:0] = (data_read_fifo>>26)&8'b00000011;
 //						if(frame_counter!=frm) begin
-//							tlv_state = GENERAL_RESET;
+//							tlv_state <= GENERAL_RESET;
 //						end
 					end
 					ch[1:0] = (data_read_fifo>>24)&8'b00000011;
@@ -423,21 +447,20 @@ always @(posedge clock, posedge reset) begin: TLV_FSM
 					mag_x[11:4] = (data_read_fifo)&8'hff;
 					if(update_frequency!=0) begin
 						delay_counter <= CLOCK_SPEED_HZ/update_frequency;
-						tlv_state = DELAY;
+						tlv_state <= DELAY;
 						tlv_state_next <= IDLE;
 					end else begin
-						tlv_state = IDLE;
+						tlv_state <= IDLE;
 					end
 				end
 			end
 			DELAY: begin
 				delay_counter <= delay_counter -1;
 				if(delay_counter==0) begin
-					fifo_clear <= 1;
-					tlv_state = tlv_state_next;
+					tlv_state <= tlv_state_next;
 				end
 			end
-			default: tlv_state = IDLE;
+			default: tlv_state <= IDLE;
 		endcase
 	end
 end
@@ -464,11 +487,12 @@ reg fifo_clear;
 wire fifo_empty;
 wire fifo_full;
 reg [7:0] usedw;
+
 fifo fifo(
 	.clock(clock),
 	.data(data_rd),
 	.rdreq(fifo_read_ack),
-	.sclr(reset||fifo_clear),
+	.sclr(fifo_clear),
 	.wrreq(fifo_write),
 	.q(data_read_fifo),
 	.empty(fifo_empty),
