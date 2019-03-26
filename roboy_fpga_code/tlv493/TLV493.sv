@@ -357,7 +357,7 @@ always @(posedge clock, posedge reset) begin: TLV_FSM
 				fifo_clear <= 1;
 			end
 			READCONFIG: begin
-				if((byte_counter>=number_of_bytes) && ena == 1) begin
+				if((byte_counter>=number_of_bytes || ack_error == 1) && ena == 1) begin
 					ena <= 0;
 					fifo_read_ack <= 1;
 					delay_counter <= 500;
@@ -398,7 +398,7 @@ always @(posedge clock, posedge reset) begin: TLV_FSM
 				tlv_state <= WAITFORCONFIGURE;
 			end
 			WAITFORCONFIGURE: begin
-				if((byte_counter>=number_of_bytes) && ena == 1) begin
+				if((byte_counter>=number_of_bytes || ack_error == 1) && ena == 1) begin
 					ena <= 0;
 					if(reset_first_time) begin
 						reset_first_time <= 0;
@@ -424,14 +424,19 @@ always @(posedge clock, posedge reset) begin: TLV_FSM
 			WAIT_FOR_DATA: begin
 				if((byte_counter>=number_of_bytes || ack_error == 1) && ena == 1) begin
 					ena <= 0;
-					temp[7:0] <= (data_read_fifo>>16);
-					mag_z[3:0] <= (data_read_fifo>>8)&8'b00001111;
-					pd <= (data_read_fifo>>12)&1'b1;
-					ff <= (data_read_fifo>>13)&1'b1;
-					t <= (data_read_fifo>>14)&1'b1;
-					mag_y[3:0] <= data_read_fifo&8'b00001111;
-					mag_x[3:0] <= (data_read_fifo>>4)&8'b00001111;
-					tlv_state <= LOWER_HALF;
+					if(reset_done) begin
+						reset_done <= 0;
+						frame_counter = ((data_read_fifo>>26)&8'b00000011) + 1;
+					end else begin
+						frame_counter = frame_counter+1;
+						temp[11:8] <= ((data_read_fifo>>28)&8'b00001111);
+						frm[1:0] = (data_read_fifo>>26)&8'b00000011;
+						ch[1:0] <= (data_read_fifo>>24)&8'b00000011;
+						mag_z[11:4] <= ((data_read_fifo>>16)&8'hff);
+						mag_y[11:4] <= ((data_read_fifo>>8)&8'hff);
+						mag_x[11:4] <= ((data_read_fifo)&8'hff);
+						tlv_state <= LOWER_HALF;
+					end
 				end
 			end
 			LOWER_HALF: begin
@@ -441,31 +446,27 @@ always @(posedge clock, posedge reset) begin: TLV_FSM
 				tlv_state_next <= UPPER_HALF;
 			end
 			UPPER_HALF: begin
-				temp[11:8] <= (data_read_fifo>>28)&8'b00001111;
-				if(reset_done) begin
-					reset_done <= 0;
-					frame_counter = (data_read_fifo>>26)&8'b00000011 + 1;
-				end else begin
-					frame_counter = frame_counter+1;
-					frm[1:0] = (data_read_fifo>>26)&8'b00000011;
-					if(frame_counter!=frm) begin
-						tlv_state <= GENERAL_RESET;
-						fifo_clear <= 1;
-						fifo_read_ack <= 0;
-						general_reset_state <= 0;
+				temp[7:0] <= (data_read_fifo>>16)&8'hff;
+				mag_z[3:0] <= (data_read_fifo>>8)&4'b1111;
+				pd <= (data_read_fifo>>12)&1'b1;
+				ff <= (data_read_fifo>>13)&1'b1;
+				t <= (data_read_fifo>>14)&1'b1;
+				mag_y[3:0] <= data_read_fifo&4'b1111;
+				mag_x[3:0] <= (data_read_fifo>>4)&4'b1111;
+//					if(frame_counter!=frm) begin
+//						tlv_state <= GENERAL_RESET;
+//						fifo_clear <= 1;
+//						fifo_read_ack <= 0;
+//						general_reset_state <= 0;
+//					end else begin
+					if(update_frequency!=0) begin
+						delay_counter <= CLOCK_SPEED_HZ/update_frequency;
+						tlv_state <= DELAY;
+						tlv_state_next <= IDLE;
+					end else begin
+						tlv_state <= IDLE;
 					end
-				end
-				ch[1:0] <= (data_read_fifo>>24)&8'b00000011;
-				mag_z[11:4] <= (data_read_fifo>>16)&8'hff;
-				mag_y[11:4] <= (data_read_fifo>>8)&8'hff;
-				mag_x[11:4] <= (data_read_fifo)&8'hff;
-				if(update_frequency!=0) begin
-					delay_counter <= CLOCK_SPEED_HZ/update_frequency;
-					tlv_state <= DELAY;
-					tlv_state_next <= IDLE;
-				end else begin
-					tlv_state <= IDLE;
-				end
+//					end
 			end
 			DELAY: begin
 				delay_counter <= delay_counter -1;
