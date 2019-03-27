@@ -120,7 +120,7 @@ initial
 
 	@(posedge clk);
 
-`include "test_bench/sel_test.vh"
+//`include "sel_test.vh"
 
 	repeat (4)	@(posedge clk);
 	$display("\n\n");

@@ -563,59 +563,59 @@ wire		ez_del;
 wire		lr;
 wire	[7:0]	shr, shl, exp_div_del;
 
-delay2 #26 ud000(clk, test.u0.fracta, fracta_del);
-delay2 #26 ud001(clk, test.u0.fractb, fractb_del);
-delay1  #2 ud002(clk, {g,r,s}, grs_del);
-delay1  #0 ud004(clk, dn, dn_del);
-delay1  #7 ud005(clk, exp_in, exp_in_del);
-delay1  #7 ud007(clk, exp_out_rnd, exp_out_del);
-delay1 #47 ud009(clk, fract_in, fract_in_del);
-delay1  #0 ud010(clk, overflow, overflow_del);
-delay1  #1 ud011(clk, exp_ovf, exp_ovf_del);
-delay1 #22 ud014(clk, fract_out, fract_out_x_del);
-delay1 #24 ud015(clk, fract_trunc, trunc_xx_del);
-delay1 	#0 ud017(clk, exp_rnd_adj2a, exp_rnd_adj2a_del);
-delay1  #4 ud019(clk, div_opa_ldz, div_opa_ldz_del);
-delay3 #23 ud020(clk, test.u0.fdiv_opa[49:26],	fracta_div_del);
-delay3 #23 ud021(clk, test.u0.fractb_mul,	fractb_div_del);
-delay1 	#0 ud023(clk, div_inf, div_inf_del);
-delay1  #7 ud024(clk, fi_ldz_2, fi_ldz_2_del);
-delay1 	#0 ud025(clk, inf_out, inf_out_del);
-delay1 	#0 ud026(clk, max_num, max_num_del);
-delay1 	#5 ud027(clk, fi_ldz, fi_ldz_del);
-delay1  #0 ud028(clk, rem_00, rx_del);
-
-delay1  #0 ud029(clk, left_right, lr);
-delay1  #7 ud030(clk, shift_right, shr);
-delay1  #7 ud031(clk, shift_left, shl);
-delay1 #22 ud032(clk, fract_out_rnd2a, fract_out_rnd2a_del);
-
-delay1  #7 ud033(clk, exp_div, exp_div_del);
-
-always @(test.error_event)
-   begin
-
-	$display("\n----------------------------------------------");
-
-	$display("ERROR: GRS: %b exp_ovf: %b dn: %h exp_in: %h exp_out: %h, exp_rnd_adj2a: %b",
-			grs_del, exp_ovf_del, dn_del, exp_in_del, exp_out_del, exp_rnd_adj2a_del);
-
-	$display("      div_opa: %b, div_opb: %b, rem_00: %b, exp_div: %h",
-			fracta_div_del, fractb_div_del, rx_del, exp_div_del);
-
-	$display("      lr: %b, shl: %h, shr: %h",
-			lr, shl, shr);
-
-
-	$display("       overflow: %b, fract_in=%b  fa:%h fb:%h",
-			overflow_del, fract_in_del, fracta_del, fractb_del);
-
-	$display("       div_opa_ldz: %h, div_inf: %b, inf_out: %b, max_num: %b, fi_ldz: %h, fi_ldz_2: %h",
-			div_opa_ldz_del, div_inf_del, inf_out_del, max_num_del, fi_ldz_del, fi_ldz_2_del);
-
-	$display("       fract_out_x: %b, fract_out_rnd2a_del: %h, fract_trunc: %b\n",
-			fract_out_x_del, fract_out_rnd2a_del, trunc_xx_del);
-   end
+//delay2 #26 ud000(clk, test.u0.fracta, fracta_del);
+//delay2 #26 ud001(clk, test.u0.fractb, fractb_del);
+//delay1  #2 ud002(clk, {g,r,s}, grs_del);
+//delay1  #0 ud004(clk, dn, dn_del);
+//delay1  #7 ud005(clk, exp_in, exp_in_del);
+//delay1  #7 ud007(clk, exp_out_rnd, exp_out_del);
+//delay1 #47 ud009(clk, fract_in, fract_in_del);
+//delay1  #0 ud010(clk, overflow, overflow_del);
+//delay1  #1 ud011(clk, exp_ovf, exp_ovf_del);
+//delay1 #22 ud014(clk, fract_out, fract_out_x_del);
+//delay1 #24 ud015(clk, fract_trunc, trunc_xx_del);
+//delay1 	#0 ud017(clk, exp_rnd_adj2a, exp_rnd_adj2a_del);
+//delay1  #4 ud019(clk, div_opa_ldz, div_opa_ldz_del);
+//delay3 #23 ud020(clk, test.u0.fdiv_opa[49:26],	fracta_div_del);
+//delay3 #23 ud021(clk, test.u0.fractb_mul,	fractb_div_del);
+//delay1 	#0 ud023(clk, div_inf, div_inf_del);
+//delay1  #7 ud024(clk, fi_ldz_2, fi_ldz_2_del);
+//delay1 	#0 ud025(clk, inf_out, inf_out_del);
+//delay1 	#0 ud026(clk, max_num, max_num_del);
+//delay1 	#5 ud027(clk, fi_ldz, fi_ldz_del);
+//delay1  #0 ud028(clk, rem_00, rx_del);
+//
+//delay1  #0 ud029(clk, left_right, lr);
+//delay1  #7 ud030(clk, shift_right, shr);
+//delay1  #7 ud031(clk, shift_left, shl);
+//delay1 #22 ud032(clk, fract_out_rnd2a, fract_out_rnd2a_del);
+//
+//delay1  #7 ud033(clk, exp_div, exp_div_del);
+//
+//always @(test.error_event)
+//   begin
+//
+//	$display("\n----------------------------------------------");
+//
+//	$display("ERROR: GRS: %b exp_ovf: %b dn: %h exp_in: %h exp_out: %h, exp_rnd_adj2a: %b",
+//			grs_del, exp_ovf_del, dn_del, exp_in_del, exp_out_del, exp_rnd_adj2a_del);
+//
+//	$display("      div_opa: %b, div_opb: %b, rem_00: %b, exp_div: %h",
+//			fracta_div_del, fractb_div_del, rx_del, exp_div_del);
+//
+//	$display("      lr: %b, shl: %h, shr: %h",
+//			lr, shl, shr);
+//
+//
+//	$display("       overflow: %b, fract_in=%b  fa:%h fb:%h",
+//			overflow_del, fract_in_del, fracta_del, fractb_del);
+//
+//	$display("       div_opa_ldz: %h, div_inf: %b, inf_out: %b, max_num: %b, fi_ldz: %h, fi_ldz_2: %h",
+//			div_opa_ldz_del, div_inf_del, inf_out_del, max_num_del, fi_ldz_del, fi_ldz_2_del);
+//
+//	$display("       fract_out_x: %b, fract_out_rnd2a_del: %h, fract_trunc: %b\n",
+//			fract_out_x_del, fract_out_rnd2a_del, trunc_xx_del);
+//   end
 
 
 // synopsys translate_on
