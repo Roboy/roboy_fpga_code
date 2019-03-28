@@ -44,53 +44,80 @@ module PID_controller (
 	input [31:0] Kd,
 	input [31:0] state,
 	input [31:0] setpoint,
+	input [31:0] offset,
 	input [31:0] outputPosMax,
 	input [31:0] outputNegMax,
-	input [31:0] integralNegMax,
 	input [31:0] integralPosMax,
-	input [31:0] deadBand,
+	input [31:0] integralNegMax,
+	input [31:0] deadBandPosMax,
+	input [31:0] deadBandNegMax,
 	input update_controller,
-	output [31:0] result
+	output reg [31:0] result,
+	output wire [31:0] result_integer
 	);
 	
 localparam ADD = 0, SUB = 1, MUL = 2, DIV = 3, I2F = 4, F2I = 5;
 	
-wire [31:0] pos;
-wire [31:0] vel;
+wire [31:0] s;
 wire [31:0] err;
 wire [31:0] d_err;
 reg [31:0] err_prev;
 wire [31:0] p_term;
 wire [31:0] d_term;
 wire [31:0] i_term;
+reg [31:0] integral;
+wire [31:0] integral2;
 wire [31:0] res;
 wire [31:0] res_with_upper_limit;
 wire [31:0] res_with_limits;
 wire [31:0] res_integer;
+wire [31:0] p_term_res;
+wire [31:0] pd_term_res;
+wire [31:0] pid_term_res;
+wire [31:0] pid_term_res_with_offset;
 
+// output limits
+wire res_lt_outputPosMax, res_is_nan, res_is_inf, blta0, aeqb0, zero0;
+fcmp cmp0(pid_term_res_with_offset, outputPosMax, res_is_nan, res_lt_outputPosMax, blta0, aeqb0, res_is_inf, zero0);
 
-wire res_lt_outputPosMax, res_is_nan, res_is_inf;
-fcmp(res, outputPosMax, res_is_nan, res_lt_outputPosMax, 0, 0, res_is_inf, 0);
+wire outputNegMax_lt_res_with_upper_limit, res_with_upper_limit_is_nan, res_with_upper_limit_is_inf, blta1, aeqb1, zero1;
+fcmp cmp1(outputNegMax, res_with_upper_limit, res_with_upper_limit_is_nan, outputNegMax_lt_res_with_upper_limit, blta1, aeqb1, res_with_upper_limit_is_inf, zero1);
 
-wire outputNegMax_lt_res_with_upper_limit, res_with_upper_limit_is_nan, res_with_upper_limit_is_inf;
-fcmp(outputNegMax, res_with_upper_limit, res_with_upper_limit_is_nan, outputNegMax_lt_res_with_upper_limit, 0, 0, res_with_upper_limit_is_nan, 0);
+assign res_with_upper_limit = ((res_is_nan||res_is_inf||aeqb0)?0:(res_lt_outputPosMax?outputPosMax:pid_term_res_with_offset));
+assign res_with_limits = ((res_with_upper_limit_is_nan||res_with_upper_limit_is_inf||aeqb1)?0:(outputNegMax_lt_res_with_upper_limit?outputPosMax:res_with_upper_limit));
 
-assign res_with_upper_limit = ((res_is_nan||res_is_inf)?0:(res_lt_outputPosMax?outputPosMax:res));
-assign res_with_limits = ((res_with_upper_limit_is_nan||res_with_upper_limit_is_inf)?0:(outputNegMax_lt_res_with_upper_limit?outputNegMax:res_with_upper_limit));
+// dead_band
+wire deadBandPosMax_lt_err, err_is_nan0, err_is_inf0, blta2, aeqb2, zero2;
+fcmp cmp2(deadBandPosMax, err, err_is_nan0, deadBandPosMax_lt_err, blta2, aeqb2, err_is_inf0, zero2);
 
-fpu(clock, 0, F2I, res_with_limits, 0, result);
-fpu(clock, 0, SUB, sp, state, err);
-fpu(clock, 0, SUB, err, err_prev, d_err);
-fpu(clock, 0, MUL, Kp, err, p_term);
-fpu(clock, 0, MUL, Kd, d_err, d_term);
-fpu(clock, 0, ADD, p_term, d_term, res);
+wire err_lt_deadBandNegMax, err_is_nan1, err_is_inf1, blta3, aeqb3, zero3;
+fcmp cmp3(err, deadBandNegMax, err_is_nan1, err_lt_deadBandNegMax, blta3, aeqb3, err_is_inf1, zero3);
+
+wire deadband_active;
+assign deadband_active = ((deadBandPosMax_lt_err||aeqb2) && (err_lt_deadBandNegMax||aeqb3));
+
+fpu convert_to_integer(clock, 0, F2I, result, 0, result_integer);
+	
+fpu f1(clock, 0, SUB, setpoint, state, err);
+fpu f2(clock, 0, SUB, err, err_prev, d_err);
+fpu f3(clock, 0, MUL, Kp, err, p_term);
+fpu f4(clock, 0, MUL, Ki, err, i_term);
+fpu f5(clock, 0, MUL, Kd, d_err, d_term);
+fpu f6(clock, 0, ADD, integral, i_term, integral2);
+fpu f7(clock, 0, ADD, result, p_term, p_term_res);
+fpu f8(clock, 0, ADD, p_term_res, d_term, pd_term_res);
+fpu f9(clock, 0, ADD, pd_term_res, integral2, pid_term_res);
+fpu f10(clock, 0, ADD, pid_term_res, offset, pid_term_res_with_offset);
 
 always @(posedge clock, posedge reset) begin: PD_CONTROLLER_PD_CONTROLLERLOGIC
 	if(reset) begin
-		
+		result <= 0;
+		err_prev <= 0;
+		integral <= 0;
 	end else begin
 		if(update_controller) begin
 			err_prev <= err;
+			result <= (deadband_active?0:res_with_limits);
 		end
 	end
 end

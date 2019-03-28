@@ -126,14 +126,14 @@ always @(posedge clock, posedge reset) begin: AVALON_READ_INTERFACE
 				8'h06: returnvalue <= outputNegMax[address[7:0]][31:0];
 				8'h07: returnvalue <= deadBandPosMax[address[7:0]][31:0];
 				8'h08: returnvalue <= deadBandPosMax[address[7:0]][31:0];
-				8'h0A: returnvalue <= a1339_interface.sensor_angle[address[7:0]][31:0];
-				8'h0B: returnvalue <= a1339_interface.sensor_angle_absolute[address[7:0]][31:0];
-				8'h0C: returnvalue <= a1339_interface.sensor_angle_offset[address[7:0]][31:0];
-				8'h0D: returnvalue <= a1339_interface.sensor_angle_relative[address[7:0]][31:0];
-				8'h0E: returnvalue <= a1339_interface.sensor_angle_velocity[address[7:0]][31:0];
-				8'h0F: returnvalue <= a1339_interface.sensor_revolution_counter[address[7:0]][31:0];
-				8'h10: returnvalue <= dutys[address[7:0]][31:0];
-				8'h11: returnvalue <= zero_speed[address[7:0]][31:0];
+				8'h09: returnvalue <= a1339_interface.sensor_angle[address[7:0]][31:0];
+				8'h0A: returnvalue <= a1339_interface.sensor_angle_absolute[address[7:0]][31:0];
+				8'h0B: returnvalue <= a1339_interface.sensor_angle_offset[address[7:0]][31:0];
+				8'h0C: returnvalue <= a1339_interface.sensor_angle_relative[address[7:0]][31:0];
+				8'h0D: returnvalue <= a1339_interface.sensor_angle_velocity[address[7:0]][31:0];
+				8'h0E: returnvalue <= a1339_interface.sensor_revolution_counter[address[7:0]][31:0];
+				8'h0F: returnvalue <= dutys[address[7:0]][31:0];
+				8'h10: returnvalue <= zero_speed[address[7:0]][31:0];
 				default: returnvalue <= 32'hDEADBEEF;
 			endcase
 			if(waitFlag==1) begin // next clock cycle the returnvalue should be ready
@@ -154,14 +154,14 @@ always @(posedge clock, posedge reset) begin: WRITE_CONTROL_LOGIC
 		reset_control <= 0;
 		mute <= 0;
 		for(i=0;i<NUMBER_OF_MOTORS;i=i+1)begin
-			Kp[i] <= 1;
+			Kp[i] <= 32'h3c23d70a; //0.01;
 			Ki[i] <= 0;
 			Kd[i] <= 0;
-			outputPosMax[i] <= 350;
-			outputNegMax[i] <= 310;
+			outputPosMax[i] <= 32'h43af0000; //350;
+			outputNegMax[i] <= 32'h439b0000; //310;
 			integralPosMax[i] <= 0;
 			integralNegMax[i] <= 0;
-			zero_speed[i] <= 330;
+			zero_speed[i] <= 32'h43a50000; //330;
 			deadBandPosMax [i] <= 0;
 			deadBandNegMax [i] <= 0;
 			control_mode[i] <= 0;
@@ -192,10 +192,10 @@ always @(posedge clock, posedge reset) begin: WRITE_CONTROL_LOGIC
 					8'h09: integralPosMax[address[7:0]][31:0]<= writedata;
 					8'h0A: integralNegMax[address[7:0]][31:0]<= writedata;
 					8'h0B: deadBandPosMax[address[7:0]][31:0]<= writedata;
-					8'h0B: deadBandNegMax[address[7:0]][31:0]<= writedata;
-					8'h0C: zero_speed[address[7:0]][31:0]<= writedata;
-					8'h0D: mute <= (writedata!=0);
-					8'h0E: update_freq_sensors <= writedata;
+					8'h0C: deadBandNegMax[address[7:0]][31:0]<= writedata;
+					8'h0D: zero_speed[address[7:0]][31:0]<= writedata;
+					8'h0E: mute <= (writedata!=0);
+					8'h0F: update_freq_sensors <= writedata;
 				endcase
 			end
 		end
@@ -237,7 +237,7 @@ wire [31:0] angle_f[NUMBER_OF_MOTORS-1:0];
 genvar j;
 generate
 	for(j=0; j<NUMBER_OF_MOTORS; j = j+1) begin : instantiate_pid_controllers
-		fpu(clock, 0, I2F, a1339_interface.sensor_angle_absolute[j], 0, angle_f[j]);
+		fpu convert_to_float(clock, 0, I2F, a1339_interface.sensor_angle_absolute[j], 0, angle_f[j]);
 		PID_controller pid_controller(
 			.clock(clock),
 			.reset(reset_control),
@@ -251,9 +251,10 @@ generate
 			.outputNegMax(outputNegMax[j]),
 			.deadBandPosMax(deadBandPosMax[j]),
 			.deadBandNegMax(deadBandNegMax[j]),
+			.offset(zero_speed[j]),
 			.state(angle_f[j]),
 			.update_controller(a1339_interface.cycle[j]||update_controller[j]),
-			.result(dutys[j])
+			.result_integer(dutys[j])
 		);
 	end
 	
