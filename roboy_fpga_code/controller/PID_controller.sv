@@ -79,11 +79,7 @@ assign res_with_upper_limit = ((res_is_nan||res_is_inf)?0:(res_lt_outputPosMax?o
 assign res_with_limits = ((res_with_upper_limit_is_nan||res_with_upper_limit_is_inf)?0:(outputNegMax_lt_res_with_upper_limit?outputNegMax:res_with_upper_limit));
 
 fpu(clock, 0, F2I, res_with_limits, 0, result);
-
-	
-fpu(clock, 0, I2F, position, 0, pos);
-fpu(clock, 0, I2F, velocity, 0, vel);
-fpu(clock, 0, SUB, sp, pos, err);
+fpu(clock, 0, SUB, sp, state, err);
 fpu(clock, 0, SUB, err, err_prev, d_err);
 fpu(clock, 0, MUL, Kp, err, p_term);
 fpu(clock, 0, MUL, Kd, d_err, d_term);
