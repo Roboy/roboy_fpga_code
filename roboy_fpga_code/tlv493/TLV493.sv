@@ -41,6 +41,7 @@ always @(posedge clock, posedge reset) begin: AVALON_INTERFACE
 	if (reset == 1) begin
 		waitFlag <= 0;
 		update_frequency <= 100;
+		reset_sensor <= 1;
 	end else begin
 		waitFlag <= 1;
 		if(read) begin	
@@ -95,12 +96,10 @@ always @(posedge clock, posedge reset) begin: TLV_FSM
 					BYTE7=8, BYTE8AND9 = 9, PARITY=10, WAITFORCONFIGURE=11, THROWAWAYFIRSTBYTE = 12, LOWER_HALF = 13, UPPER_HALF = 14;
 	reg [31:0] delay_counter;
 	reg [8:0] general_reset_state;
-	reg init;
 	if (reset==1) begin
 		tlv_state <= IDLE;
 		tlv_reset_sda <= 1;
 		tlv_reset_scl <= 1;
-		init <= 1;
 	end else begin
 		if(fifo_clear==1) begin
 			fifo_clear <= 0;
@@ -111,14 +110,13 @@ always @(posedge clock, posedge reset) begin: TLV_FSM
 		if(reset_i2c) begin
 			reset_i2c <= 0;
 		end
-		if(ack_error || init) begin
-			init <= 0;
+		if(reset_sensor) begin
 			tlv_state <= GENERAL_RESET;
 			fifo_clear <= 1;
 			fifo_read_ack <= 0;
 			general_reset_state <= 0;
 			reset_i2c <= 1;
-		end
+		end 
 		case(tlv_state)
 			IDLE: begin
 				fifo_clear <= 1;
