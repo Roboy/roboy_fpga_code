@@ -145,7 +145,7 @@ reg signed [15:0] IntegralPosMax[NUMBER_OF_MOTORS-1:0];
 // deadband
 reg signed [15:0] deadBand[NUMBER_OF_MOTORS-1:0];
 // control mode
-reg [1:0] control_mode[NUMBER_OF_MOTORS-1:0];
+reg [2:0] control_mode[NUMBER_OF_MOTORS-1:0];
 // reset pid_controller
 reg reset_controller[NUMBER_OF_MOTORS-1:0];
 // output divider
@@ -194,7 +194,7 @@ always @(posedge clock, posedge reset) begin: AVALON_READ_INTERFACE
 				8'h07: returnvalue <= IntegralPosMax[address[7:0]][15:0];
 				8'h08: returnvalue <= IntegralNegMax[address[7:0]][15:0];
 				8'h09: returnvalue <= deadBand[address[7:0]][15:0];
-				8'h0A: returnvalue <= control_mode[address[7:0]][1:0];
+				8'h0A: returnvalue <= control_mode[address[7:0]][2:0];
 				8'h0B: returnvalue <= positions[address[7:0]][31:0];
 				8'h0C: returnvalue <= velocitys[address[7:0]][15:0];
 				8'h0D: returnvalue <= currents[address[7:0]][15:0];
@@ -333,7 +333,7 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 					8'h07: IntegralPosMax[address[7:0]][15:0] <= writedata[15:0];
 					8'h08: IntegralNegMax[address[7:0]][15:0] <= writedata[15:0];
 					8'h09: deadBand[address[7:0]][15:0] <= writedata[15:0];
-					8'h0A: control_mode[address[7:0]][1:0] <= writedata[1:0];
+					8'h0A: control_mode[address[7:0]][2:0] <= writedata[2:0];
 					8'h0B: reset_myo_control <= (writedata!=0);
 					8'h0C: spi_activated <= (writedata!=0);
 					8'h0D: reset_controller[address[7:0]] <= (writedata!=0);
@@ -365,10 +365,12 @@ end
 
 reg [NUMBER_OF_MOTORS-1:0] myo_brick;
 reg [6:0] myo_brick_device_id[NUMBER_OF_MOTORS-1:0];
+reg signed [31:0] position_offset[NUMBER_OF_MOTORS-1:0];
 reg signed [31:0] myo_brick_gear_box_ratio[NUMBER_OF_MOTORS-1:0];
 reg signed [31:0] myo_brick_encoder_multiplier[NUMBER_OF_MOTORS-1:0];
 reg signed [31:0] motor_spring_angle[NUMBER_OF_MOTORS-1:0];
 reg signed [31:0] motor_angle[NUMBER_OF_MOTORS-1:0];
+reg signed [31:0] motor_angle_raw[NUMBER_OF_MOTORS-1:0];
 reg signed [31:0] motor_angle_offset[NUMBER_OF_MOTORS-1:0];
 reg [31:0] status[NUMBER_OF_MOTORS-1:0];
 reg [NUMBER_OF_MOTORS-1:0] myo_brick_ack_error;
@@ -393,26 +395,30 @@ generate
 			end else begin
 				// the angle sensor has no internal rotation counter, therefore we gotta count over-/underflow on ower own
 				if(power_sense_n) begin // if power sense is off (high), reset the overflow counters
-					motor_angle_counter[angle_motor_index] <= 0;
-					motor_angle_offset[angle_motor_index] <= angle_signed;
-				end else begin
-					if(motor_angle_prev[angle_motor_index]>3500 && angle_signed < 500) begin
-						motor_angle_counter[angle_motor_index] <= motor_angle_counter[angle_motor_index] + 1;
+					for(i=0; i<NUMBER_OF_MOTORS; i = i+1) begin : reset_angle_counter
+						motor_angle_counter[i] <= 0;
+						motor_angle_offset[i] <= motor_angle_raw[i];
 					end
-					if(motor_angle_prev[angle_motor_index]<500 && angle_signed > 3500) begin
-						motor_angle_counter[angle_motor_index] <= motor_angle_counter[angle_motor_index] - 1;
-					end
-				end
-				// motor_angle_offset is set to the angle after power on of the motor boards
-				motor_angle[angle_motor_index] <= (angle_signed - motor_angle_offset[angle_motor_index] + motor_angle_counter[angle_motor_index]*4096); 
-				// division by gearbox ration gives encoder ticks, angle sensor divided by 4 gives the same range
-				motor_spring_angle[angle_motor_index] <= (positions[angle_motor_index]/myo_brick_gear_box_ratio[angle_motor_index])*myo_brick_encoder_multiplier[angle_motor_index] 
-																		- ((angle_signed - motor_angle_offset[angle_motor_index] + motor_angle_counter[angle_motor_index]*4096)/4);
-				motor_angle_prev[angle_motor_index] <= angle_signed;
-				if(angle_motor_index<NUMBER_OF_MOTORS-1) begin
-					angle_motor_index <= angle_motor_index + 1;
 				end else begin
-					angle_motor_index <= 0;
+					if(update_controller && myo_brick[pid_update]) begin
+						if(motor_angle_prev[pid_update]>3500 && angle_signed < 500) begin
+							motor_angle_counter[pid_update] <= motor_angle_counter[pid_update] + 1;
+						end
+						if(motor_angle_prev[pid_update]<500 && angle_signed > 3500) begin
+							motor_angle_counter[pid_update] <= motor_angle_counter[pid_update] - 1;
+						end
+						motor_angle_raw[pid_update] <= angle_signed;
+						// motor_angle_offset is set to the angle after power on of the motor boards
+						motor_angle[pid_update] <= (angle_signed - motor_angle_offset[pid_update] + motor_angle_counter[pid_update]*4096); 
+						// division by gearbox ration gives encoder ticks, angle sensor divided by 4 gives the same range
+						motor_spring_angle[pid_update] <= (positions[pid_update]-position_offset[pid_update])*myo_brick_encoder_multiplier[pid_update] 
+										- (angle_signed - motor_angle_offset[pid_update] + motor_angle_counter[pid_update]*4096)*myo_brick_gear_box_ratio[pid_update];
+						motor_angle_prev[pid_update] <= angle_signed;
+					end
+					if(~myo_brick[pid_update]) begin
+						motor_angle[pid_update] <= 0;
+						motor_spring_angle[pid_update] <= 0;
+					end
 				end
 			end 
 		end
@@ -421,7 +427,7 @@ generate
 			.clock(clock),
 			.reset_n(~reset),
 			.sensor_angle(angle),
-			.sensor(angle_motor_index),
+			.sensor(pid_update),
 			// SPI
 			.sck_o(angle_sck), // clock
 			.ss_n_o(angle_ss_n_o), // slave select line for each sensor
@@ -502,12 +508,14 @@ generate
 			.IntegralNegMax(IntegralNegMax[j]),
 			.IntegralPosMax(IntegralPosMax[j]),
 			.deadBand(deadBand[j]),
-			.control_mode(control_mode[j]), // position velocity displacement
+			.control_mode(control_mode[j]), // position velocity displacement current direct
 			.position(positions[j]),
 			.velocity(velocitys[j]),
 			.displacement(displacements[j]),
+			.current(currents[j]),
 			.outputDivider(outputDivider[j]),
 			.update_controller(pid_update==j && update_controller),
+			.myo_brick(myo_brick[j]),
 			.pwmRef(pwmRefs[j])
 		);
 		assign ss_n_o[j] = (motor==j?ss_n:1);

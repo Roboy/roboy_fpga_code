@@ -12,6 +12,8 @@ module A1339Control(
 );
 
 parameter NUMBER_OF_SENSORS = 1;
+parameter CLOCK_MHZ = 50_000_000;
+parameter UPDATE_FREQUENCY = 2000;
 
 assign sensor_angle = angle[sensor];
 
@@ -104,9 +106,10 @@ always @(posedge clock, negedge reset_n) begin: SPI_DATA_PROCESS
 					
 					if(NUMBER_OF_SENSORS==1) begin
 						state = DELAY;
-						delay_counter <= 100;
+						delay_counter <= 50000;
 					end else begin
-						state = IDLE;
+						state = DELAY;
+						delay_counter <= 5000;
 					end
 					
 				end

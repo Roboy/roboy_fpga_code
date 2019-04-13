@@ -49,12 +49,14 @@ module PIDController (
 	input signed [15:0] IntegralNegMax,
 	input signed [15:0] IntegralPosMax,
 	input signed [15:0] deadBand,
-	input [1:0] control_mode, // position velocity displacement
+	input [2:0] control_mode, // position velocity displacement current direct
 	input signed [31:0] position,
 	input signed [15:0] velocity,
 	input wire [15:0] displacement,
+	input signed [15:0] current,
 	input signed [31:0] outputDivider,
 	input update_controller,
+	input myo_brick,
 	output reg signed [15:0] pwmRef
 	);
 
@@ -81,9 +83,10 @@ always @(posedge clock, posedge reset) begin: PID_CONTROLLER_PID_CONTROLLERLOGIC
 		update_controller_prev <= update_controller;
 		if(update_controller_prev==0 && update_controller==1) begin
 			case(control_mode) 
-				2'b00: err = (sp - position); 
-				2'b01: err = (sp - velocity);
-				2'b10: begin
+				0: err = (sp - position); 
+				1: err = (sp - velocity);
+				2: begin
+						if(~myo_brick)begin
 							displacement_for_real = $signed(displacement[14:0]);
 							if(displacement_for_real<0) begin
 								displacement_offset = displacement_for_real;
@@ -95,34 +98,46 @@ always @(posedge clock, posedge reset) begin: PID_CONTROLLER_PID_CONTROLLERLOGIC
 							end else begin
 								err = 0;
 							end
+						end else begin
+							if (sp>0) begin
+								err = (sp - displacement);
+							end else begin
+								err = 0;
+							end
 						end
+					end
+				5: err = (sp - current);
 				default: err = 0;
 			endcase;
-			
-			if (((err >= deadBand) || (err <= ((-1) * deadBand)))) begin
-				pterm = (Kp * err);
-				if ((pterm < outputPosMax) || (pterm > outputNegMax)) begin  //if the proportional term is not maxed
-					integral = integral + (Ki * err); //add to the integral
-					if (integral > IntegralPosMax) begin
-						integral = IntegralPosMax;
-					end else if (integral < IntegralNegMax) begin
-						integral = IntegralNegMax;
+			if(control_mode!=6) begin
+				if (((err >= deadBand) || (err <= ((-1) * deadBand)))) begin
+					pterm = (Kp * err);
+					if ((pterm < outputPosMax) || (pterm > outputNegMax)) begin  //if the proportional term is not maxed
+						integral = integral + (Ki * err); //add to the integral
+						if (integral > IntegralPosMax) begin
+							integral = IntegralPosMax;
+						end else if (integral < IntegralNegMax) begin
+							integral = IntegralNegMax;
+						end
 					end
+					dterm = ((err - lastError) * Kd);
+	//				ffterm = (forwardGain * sp);
+	//				result = (((ffterm + pterm) + integral) + dterm)>>>outputDivider;
+					result = (pterm + dterm + integral)>>>outputDivider;
+				end else begin
+					result = integral;
 				end
-				dterm = ((err - lastError) * Kd);
-//				ffterm = (forwardGain * sp);
-//				result = (((ffterm + pterm) + integral) + dterm)>>>outputDivider;
-				result = (pterm + dterm + integral)>>>outputDivider;
-				if ((result < outputNegMax)) begin
-					 result = outputNegMax;
-				end else if ((result > outputPosMax)) begin
-					 result = outputPosMax;
-				end
+				lastError = err;
 			end else begin
-				result = integral;
+				result = sp;
+			end
+			// limit output
+			if ((result < outputNegMax)) begin
+				 result = outputNegMax;
+			end else if ((result > outputPosMax)) begin
+				 result = outputPosMax;
 			end
 			pwmRef = result;
-			lastError = err;
 		end
 	end 
 end
