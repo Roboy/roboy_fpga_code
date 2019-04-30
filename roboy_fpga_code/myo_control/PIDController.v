@@ -39,22 +39,22 @@
 module PIDController (
 	input clock,
 	input reset,
-	input signed [15:0] Kp,
-	input signed [15:0] Kd,
-	input signed [15:0] Ki,
+	input signed [31:0] Kp,
+	input signed [31:0] Kd,
+	input signed [31:0] Ki,
 	input signed [31:0] sp,
-	input signed [15:0] forwardGain,
-	input signed [15:0] outputPosMax,
-	input signed [15:0] outputNegMax,
-	input signed [15:0] IntegralNegMax,
-	input signed [15:0] IntegralPosMax,
-	input signed [15:0] deadBand,
+	input signed [31:0] forwardGain,
+	input signed [31:0] outputPosMax,
+	input signed [31:0] outputNegMax,
+	input signed [31:0] IntegralNegMax,
+	input signed [31:0] IntegralPosMax,
+	input signed [31:0] deadBand,
 	input [2:0] control_mode, // position velocity displacement current direct
 	input signed [31:0] position,
 	input signed [15:0] velocity,
-	input wire [15:0] displacement,
+	input signed [31:0] displacement,
 	input signed [15:0] current,
-	input signed [31:0] outputDivider,
+	input signed [31:0] outputShifter,
 	input update_controller,
 	input myo_brick,
 	output reg signed [15:0] pwmRef
@@ -67,8 +67,7 @@ always @(posedge clock, posedge reset) begin: PID_CONTROLLER_PID_CONTROLLERLOGIC
 	reg signed [31:0] pterm;
 	reg signed [31:0] dterm;
 	reg signed [31:0] ffterm;
-	reg signed [14:0] displacement_for_real;
-	reg signed [14:0] displacement_offset;
+	reg signed [31:0] displacement_offset;
 	reg update_controller_prev;
 	reg signed [31:0] result;
 	
@@ -78,7 +77,6 @@ always @(posedge clock, posedge reset) begin: PID_CONTROLLER_PID_CONTROLLERLOGIC
 		err <=0;
 		result <= 0;
 		update_controller_prev <= 0;
-		displacement_for_real = 0;
 	end else begin
 		update_controller_prev <= update_controller;
 		if(update_controller_prev==0 && update_controller==1) begin
@@ -87,14 +85,13 @@ always @(posedge clock, posedge reset) begin: PID_CONTROLLER_PID_CONTROLLERLOGIC
 				1: err = (sp - velocity);
 				2: begin
 						if(~myo_brick)begin
-							displacement_for_real = $signed(displacement[14:0]);
-							if(displacement_for_real<0) begin
-								displacement_offset = displacement_for_real;
+							if(displacement<0) begin
+								displacement_offset = displacement;
 							end else begin
 								displacement_offset = 0;
 							end
 							if (sp>0) begin
-								err = (sp - (displacement_for_real-displacement_offset));
+								err = (sp - (displacement-displacement_offset));
 							end else begin
 								err = 0;
 							end
@@ -122,8 +119,8 @@ always @(posedge clock, posedge reset) begin: PID_CONTROLLER_PID_CONTROLLERLOGIC
 					end
 					dterm = ((err - lastError) * Kd);
 	//				ffterm = (forwardGain * sp);
-	//				result = (((ffterm + pterm) + integral) + dterm)>>>outputDivider;
-					result = (pterm + dterm + integral)>>>outputDivider;
+	//				result = (((ffterm + pterm) + integral) + dterm)>>>outputShifter;
+					result = (pterm + dterm + integral)>>>outputShifter;
 				end else begin
 					result = integral;
 				end
