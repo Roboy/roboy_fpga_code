@@ -5,44 +5,43 @@
 // the lower 8 bit define for which motor (if applicable).
 // Through the axi bridge, the following values can be READ
 //	address            -----   [type] value
-// [8'h00 8'h(motor)]         [int16] Kp - gain of PID controller
-// [8'h01 8'h(motor)]         [int16] Ki - gain of PID controller
-// [8'h02 8'h(motor)]         [int16] Kd - gain of PID controller
+// [8'h00 8'h(motor)]         [int32] Kp - gain of PID controller
+// [8'h01 8'h(motor)]         [int32] Ki - gain of PID controller
+// [8'h02 8'h(motor)]         [int32] Kd - gain of PID controller
 // [8'h03 8'h(motor)]         [int32] sp - setpoint of PID controller
-// [8'h04 8'h(motor)]         [int16] forwardGain - gain of PID controller
-// [8'h05 8'h(motor)]         [int16] outputPosMax - maximal output of PID controller
-// [8'h06 8'h(motor)]         [int16] outputNegMax - minimal output of PID controller
-// [8'h07 8'h(motor)]         [int16] IntegralPosMax - maximal integral of PID controller
-// [8'h08 8'h(motor)]         [int16] IntegralNegMax - minimal integral of PID controller
-// [8'h09 8'h(motor)]         [int16] deadBand - deadBand of PID controller
+// [8'h04 8'h(motor)]         [int32] forwardGain - gain of PID controller
+// [8'h05 8'h(motor)]         [int32] outputPosMax - maximal output of PID controller
+// [8'h06 8'h(motor)]         [int32] outputNegMax - minimal output of PID controller
+// [8'h07 8'h(motor)]         [int32] IntegralPosMax - maximal integral of PID controller
+// [8'h08 8'h(motor)]         [int32] IntegralNegMax - minimal integral of PID controller
+// [8'h09 8'h(motor)]         [int32] deadBand - deadBand of PID controller
 // [8'h0A 8'h(motor)]         [uint8] control_mode - control_mode of PID controller
 // [8'h0B 8'h(motor)]         [int32] position - motor position
 // [8'h0C 8'h(motor)]         [int16] velocity - motor velocity
 // [8'h0D 8'h(motor)]         [int16] current - motor current
-// [8'h0E 8'h(motor)]         [int16] displacement - spring displacement
+// [8'h0E 8'h(motor)]         [int32] displacement - spring displacement
 // [8'h0F 8'h(motor)]         [int16] pwmRef - output of PID controller
 // [8'h10 8'hz]               [uint32] update_frequency - update frequency between pid an motor board
 // [8'h11 8'hz]               [uint32] power_sense_n - power sense pin
 // [8'h12 8'hz]               [bool ]gpio_enable - gpio status
 // [8'h13 8'h(motor)]         [uin16] angle - myo brick motor angle
 // [8'h14 8'hz]               [uint32] myo_brick - myo_brick enable mask
-// [8'h15 8'h(motor)]         [uint8] myo_brick_device_id - myo brick i2c device id
-// [8'h16 8'h(motor)]         [int32] myo_brick_gear_box_ratio - myo brick gear box ratio
-// [8'h17 8'h(motor)]         [int32] myo_brick_encoder_multiplier - myo brick encoder mulitiplier
-// [8'h18 8'h(motor)]		   [int32] outputDivider- PID output divider
+// [8'h15 8'h(motor)]         [int32] myo_brick_gear_box_ratio - myo brick gear box ratio
+// [8'h16 8'h(motor)]         [int32] myo_brick_encoder_multiplier - myo brick encoder mulitiplier
+// [8'h17 8'h(motor)]		   [int32] outputShifter- PID output shifter, to scale PID output values (division by multiples of 2)
 //
 // Through the axi bridge, the following values can be WRITTEN
 //	address            -----   [type] value
-// [8'h00 8'h(motor)]         [int16] Kp - gain of PID controller
-// [8'h01 8'h(motor)]         [int16] Ki - gain of PID controller
-// [8'h02 8'h(motor)]         [int16] Kd - gain of PID controller
+// [8'h00 8'h(motor)]         [int32] Kp - gain of PID controller
+// [8'h01 8'h(motor)]         [int32] Ki - gain of PID controller
+// [8'h02 8'h(motor)]         [int32] Kd - gain of PID controller
 // [8'h03 8'h(motor)]         [int32] sp - setpoint of PID controller
-// [8'h04 8'h(motor)]         [int16] forwardGain - gain of PID controller
-// [8'h05 8'h(motor)]         [int16] outputPosMax - maximal output of PID controller
-// [8'h06 8'h(motor)]         [int16] outputNegMax - minimal output of PID controller
-// [8'h07 8'h(motor)]         [int16] IntegralPosMax - maximal integral of PID controller
-// [8'h08 8'h(motor)]         [int16] IntegralNegMax - minimal integral of PID controller
-// [8'h09 8'h(motor)]         [int16] deadBand - deadBand of PID controller
+// [8'h04 8'h(motor)]         [int32] forwardGain - gain of PID controller
+// [8'h05 8'h(motor)]         [int32] outputPosMax - maximal output of PID controller
+// [8'h06 8'h(motor)]         [int32] outputNegMax - minimal output of PID controller
+// [8'h07 8'h(motor)]         [int32] IntegralPosMax - maximal integral of PID controller
+// [8'h08 8'h(motor)]         [int32] IntegralNegMax - minimal integral of PID controller
+// [8'h09 8'h(motor)]         [int32] deadBand - deadBand of PID controller
 // [8'h0A 8'h(motor)]         [uint8] control_mode - control_mode of PID controller
 // [8'h0B 8'hz]               [bool] reset_myo_control - reset
 // [8'h0C 8'hz]               [bool] spi_activated - toggles spi communication
@@ -50,10 +49,9 @@
 // [8'h0E 8'hz]               [bool] update_frequency - motor pid update frequency
 // [8'h0F 8'hz]               [bool] gpio_enable - controls the gpio 
 // [8'h10 8'hz]               [uint32] myo_brick - bit mask for indicating which muscle is a myoBrick
-// [8'h11 8'h(motor)]         [uint8] myo_brick_device_id - i2c device id for reading the motor angle
 // [8'h12 8'h(motor)]         [int32] myo_brick_gear_box_ratio - myo brick gear box ratio
 // [8'h13 8'h(motor)]         [int32] myo_brick_encoder_multiplier - myo brick encoder mulitiplier
-// [8'h14 8'h(motor)]         [int32] outputDivider- PID output divider
+// [8'h14 8'h(motor)]         [int32] outputShifter- PID output shifter, to scale PID output values (division by multiples of 2)
 
 // Features: 
 // * use the NUMBER_OF_MOTORS parameter to define how many motors are connected on one SPI bus (maximum 254)
@@ -125,31 +123,31 @@ parameter ENABLE_MYOBRICK_CONTROL = 0;
 
 // gains and shit
 // p gains
-reg signed [15:0] Kp[NUMBER_OF_MOTORS-1:0];
+reg signed [31:0] Kp[NUMBER_OF_MOTORS-1:0];
 // i gains
-reg signed [15:0] Ki[NUMBER_OF_MOTORS-1:0];
+reg signed [31:0] Ki[NUMBER_OF_MOTORS-1:0];
 // d gains
-reg signed [15:0] Kd[NUMBER_OF_MOTORS-1:0];
+reg signed [31:0] Kd[NUMBER_OF_MOTORS-1:0];
 // setpoints
 reg signed [31:0] sp[NUMBER_OF_MOTORS-1:0];
 // forward gains
-reg signed [15:0] forwardGain[NUMBER_OF_MOTORS-1:0];
+reg signed [31:0] forwardGain[NUMBER_OF_MOTORS-1:0];
 // output positive limits
-reg signed [15:0] outputPosMax[NUMBER_OF_MOTORS-1:0];
+reg signed [31:0] outputPosMax[NUMBER_OF_MOTORS-1:0];
 // output negative limits
-reg signed [15:0] outputNegMax[NUMBER_OF_MOTORS-1:0];
+reg signed [31:0] outputNegMax[NUMBER_OF_MOTORS-1:0];
 // integral negative limits
-reg signed [15:0] IntegralNegMax[NUMBER_OF_MOTORS-1:0];
+reg signed [31:0] IntegralNegMax[NUMBER_OF_MOTORS-1:0];
 // integral positive limits
-reg signed [15:0] IntegralPosMax[NUMBER_OF_MOTORS-1:0];
+reg signed [31:0] IntegralPosMax[NUMBER_OF_MOTORS-1:0];
 // deadband
-reg signed [15:0] deadBand[NUMBER_OF_MOTORS-1:0];
+reg signed [31:0] deadBand[NUMBER_OF_MOTORS-1:0];
 // control mode
-reg [1:0] control_mode[NUMBER_OF_MOTORS-1:0];
+reg [2:0] control_mode[NUMBER_OF_MOTORS-1:0];
 // reset pid_controller
 reg reset_controller[NUMBER_OF_MOTORS-1:0];
-// output divider
-reg signed [31:0] outputDivider[NUMBER_OF_MOTORS-1:0];
+// output shifter
+reg signed [31:0] outputShifter[NUMBER_OF_MOTORS-1:0];
 
 // pwm output to motors 
 wire signed [0:15] pwmRefs[NUMBER_OF_MOTORS-1:0];
@@ -162,9 +160,7 @@ reg signed [15:0] velocitys[NUMBER_OF_MOTORS-1:0];
 // currents of the motors
 reg signed [15:0] currents[NUMBER_OF_MOTORS-1:0];
 // displacements of the springs
-reg [15:0] displacements[NUMBER_OF_MOTORS-1:0];
-reg [15:0] displacement_offsets[NUMBER_OF_MOTORS-1:0];
-reg [31:0] myobrick_displacement[NUMBER_OF_MOTORS-1:0];
+reg signed [31:0] displacements[NUMBER_OF_MOTORS-1:0];
 
 assign readdata = returnvalue;
 assign waitrequest = (waitFlag && read) || update_controller;
@@ -185,37 +181,34 @@ always @(posedge clock, posedge reset) begin: AVALON_READ_INTERFACE
 		waitFlag <= 1;
 		if(read) begin
 			case(address>>8)
-				8'h00: returnvalue <= Kp[address[7:0]][15:0];
-				8'h01: returnvalue <= Ki[address[7:0]][15:0];
-				8'h02: returnvalue <= Kd[address[7:0]][15:0];
+				8'h00: returnvalue <= Kp[address[7:0]][31:0];
+				8'h01: returnvalue <= Ki[address[7:0]][31:0];
+				8'h02: returnvalue <= Kd[address[7:0]][31:0];
 				8'h03: returnvalue <= sp[address[7:0]][31:0];
-				8'h04: returnvalue <= forwardGain[address[7:0]][15:0];
-				8'h05: returnvalue <= outputPosMax[address[7:0]][15:0];
-				8'h06: returnvalue <= outputNegMax[address[7:0]][15:0];
-				8'h07: returnvalue <= IntegralPosMax[address[7:0]][15:0];
-				8'h08: returnvalue <= IntegralNegMax[address[7:0]][15:0];
-				8'h09: returnvalue <= deadBand[address[7:0]][15:0];
-				8'h0A: returnvalue <= control_mode[address[7:0]][1:0];
+				8'h04: returnvalue <= forwardGain[address[7:0]][31:0];
+				8'h05: returnvalue <= outputPosMax[address[7:0]][31:0];
+				8'h06: returnvalue <= outputNegMax[address[7:0]][31:0];
+				8'h07: returnvalue <= IntegralPosMax[address[7:0]][31:0];
+				8'h08: returnvalue <= IntegralNegMax[address[7:0]][31:0];
+				8'h09: returnvalue <= deadBand[address[7:0]][31:0];
+				8'h0A: returnvalue <= control_mode[address[7:0]][2:0];
 				8'h0B: returnvalue <= positions[address[7:0]][31:0];
 				8'h0C: returnvalue <= velocitys[address[7:0]][15:0];
 				8'h0D: returnvalue <= currents[address[7:0]][15:0];
-				8'h0E: begin
-					if(myo_brick[address[7:0]])begin
-						returnvalue <= myobrick_displacement[address[7:0]][31:0];
-					end else begin
-						returnvalue <= displacements[address[7:0]][15:0];
-					end
-				end
+				8'h0E: returnvalue <= displacements[address[7:0]][31:0];
 				8'h0F: returnvalue <= pwmRefs[address[7:0]][0:15];
 				8'h10: returnvalue <= actual_update_frequency;
 				8'h11: returnvalue <= (power_sense_n==0); // active low
 				8'h12: returnvalue <= gpio_enable;
 				8'h13: returnvalue <= motor_angle[address[7:0]][31:0];
 				8'h14: returnvalue <= myo_brick;
-				8'h15: returnvalue <= myo_brick_device_id[address[7:0]][6:0];
-				8'h16: returnvalue <= myo_brick_gear_box_ratio[address[7:0]][7:0];
-				8'h17: returnvalue <= myo_brick_encoder_multiplier[address[7:0]][31:0];
-				8'h18: returnvalue <= outputDivider[address[7:0]][31:0];
+				8'h15: returnvalue <= myo_brick_gear_box_ratio[address[7:0]][31:0];
+				8'h16: returnvalue <= myo_brick_encoder_multiplier[address[7:0]][31:0];
+				8'h17: returnvalue <= outputShifter[address[7:0]][31:0];
+				8'h18: returnvalue <= motor_angle_raw[address[7:0]][31:0];
+				8'h19: returnvalue <= motor_angle_prev[address[7:0]];
+				8'h1A: returnvalue <= motor_angle_offset[address[7:0]];
+				8'h1B: returnvalue <= motor_angle_counter[address[7:0]];
 				default: returnvalue <= 32'hDEADBEEF;
 			endcase
 			if(waitFlag==1) begin // next clock cycle the returnvalue should be ready
@@ -255,7 +248,7 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 		for(i=0; i<NUMBER_OF_MOTORS; i = i+1) begin : reset_reset_controller
 			myo_brick_gear_box_ratio[i] <= 62;
 			myo_brick_encoder_multiplier[i] <= 1;
-			outputDivider[i] <= 1;
+			outputShifter[i] <= 1;
 		end
 	end else begin
 		// toggle registers need to be set to zero at every clock cycle
@@ -278,12 +271,12 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 			currents[motor][15:0] <= current[0:15];
 			if(~myo_brick[motor]) begin
 				if(mirrored_muscle_unit && motor<9) begin 
-					displacements[motor][15:0] <= (-1)*displacement[0:15]; 
+					displacements[motor][31:0] <= (-1)*$signed(displacement[0:14]); 
 				end else begin
-					displacements[motor][15:0] <= displacement[0:15];
+					displacements[motor][31:0] <= $signed(displacement[0:14]);
 				end
 			end else begin
-				myobrick_displacement[motor][31:0] <= motor_spring_angle[motor];
+				displacements[motor][31:0] <= motor_spring_angle[motor];
 			end
 			if(motor==0) begin // lazy update (we are updating the controller following the current spi transmission)
 				pid_update <= NUMBER_OF_MOTORS-1; 
@@ -330,27 +323,26 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 		if(write && ~waitrequest) begin
 			if((address>>8)<=8'h14 && address[7:0]<NUMBER_OF_MOTORS) begin
 				case(address>>8)
-					8'h00: Kp[address[7:0]][15:0] <= writedata[15:0];
-					8'h01: Ki[address[7:0]][15:0] <= writedata[15:0];
-					8'h02: Kd[address[7:0]][15:0] <= writedata[15:0];
+					8'h00: Kp[address[7:0]][31:0] <= writedata[31:0];
+					8'h01: Ki[address[7:0]][31:0] <= writedata[31:0];
+					8'h02: Kd[address[7:0]][31:0] <= writedata[31:0];
 					8'h03: sp[address[7:0]][31:0] <= writedata[31:0];
-					8'h04: forwardGain[address[7:0]][15:0] <= writedata[15:0];
-					8'h05: outputPosMax[address[7:0]][15:0] <= writedata[15:0];
-					8'h06: outputNegMax[address[7:0]][15:0] <= writedata[15:0];
-					8'h07: IntegralPosMax[address[7:0]][15:0] <= writedata[15:0];
-					8'h08: IntegralNegMax[address[7:0]][15:0] <= writedata[15:0];
-					8'h09: deadBand[address[7:0]][15:0] <= writedata[15:0];
-					8'h0A: control_mode[address[7:0]][1:0] <= writedata[1:0];
+					8'h04: forwardGain[address[7:0]][31:0] <= writedata[31:0];
+					8'h05: outputPosMax[address[7:0]][31:0] <= writedata[31:0];
+					8'h06: outputNegMax[address[7:0]][31:0] <= writedata[31:0];
+					8'h07: IntegralPosMax[address[7:0]][31:0] <= writedata[31:0];
+					8'h08: IntegralNegMax[address[7:0]][31:0] <= writedata[31:0];
+					8'h09: deadBand[address[7:0]][31:0] <= writedata[31:0];
+					8'h0A: control_mode[address[7:0]][2:0] <= writedata[2:0];
 					8'h0B: reset_myo_control <= (writedata!=0);
 					8'h0C: spi_activated <= (writedata!=0);
 					8'h0D: reset_controller[address[7:0]] <= (writedata!=0);
 					8'h0E: update_frequency <= writedata;
 					8'h0F: gpio_enable <= (writedata!=0);
 					8'h10: myo_brick <= writedata;
-					8'h11: myo_brick_device_id[address[7:0]][6:0] <= writedata[6:0];
-					8'h12: myo_brick_gear_box_ratio[address[7:0]][31:0] <= writedata[31:0];
-					8'h13: myo_brick_encoder_multiplier[address[7:0]][31:0] <= writedata[31:0];
-					8'h14: outputDivider[address[7:0]][31:0] <= writedata[31:0];
+					8'h11: myo_brick_gear_box_ratio[address[7:0]][31:0] <= writedata[31:0];
+					8'h12: myo_brick_encoder_multiplier[address[7:0]][31:0] <= writedata[31:0];
+					8'h13: outputShifter[address[7:0]][31:0] <= writedata[31:0];
 				endcase
 			end
 		end
@@ -371,19 +363,19 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 end
 
 reg [NUMBER_OF_MOTORS-1:0] myo_brick;
-reg [6:0] myo_brick_device_id[NUMBER_OF_MOTORS-1:0];
+reg signed [31:0] position_offset[NUMBER_OF_MOTORS-1:0];
 reg signed [31:0] myo_brick_gear_box_ratio[NUMBER_OF_MOTORS-1:0];
 reg signed [31:0] myo_brick_encoder_multiplier[NUMBER_OF_MOTORS-1:0];
 reg signed [31:0] motor_spring_angle[NUMBER_OF_MOTORS-1:0];
 reg signed [31:0] motor_angle[NUMBER_OF_MOTORS-1:0];
-reg signed [31:0] motor_angle_prev[NUMBER_OF_MOTORS-1:0];
 reg signed [31:0] motor_angle_raw[NUMBER_OF_MOTORS-1:0];
 reg signed [31:0] motor_angle_offset[NUMBER_OF_MOTORS-1:0];
 reg signed [31:0] motor_angle_relative[NUMBER_OF_MOTORS-1:0];
 reg signed [31:0] motor_angle_revolution_counter[NUMBER_OF_MOTORS-1:0];
 reg [31:0] status[NUMBER_OF_MOTORS-1:0];
 reg [NUMBER_OF_MOTORS-1:0] myo_brick_ack_error;
-localparam MYOBRICK_MOVING_AVERAGE_SAMPLE_LENGTH = 128;
+reg [11:0] motor_angle_prev[NUMBER_OF_MOTORS-1:0];
+reg signed [31:0] motor_angle_counter[NUMBER_OF_MOTORS-1:0];
 
 genvar l;
 generate
@@ -398,22 +390,34 @@ generate
 		reg ack_error;
 
 		always @(posedge clock, posedge reset) begin: MYOBRICK_ANGLE_CONTROL_LOGIC
+			reg [7:0]i;
 			if (reset == 1) begin
 				angle_motor_index <= 0;
 			end else begin
-				motor_angle[angle_motor_index] <= angle_signed;
-				// division by gearbox ration gives encoder ticks, angle sensor divided by 4 gives the same range
-				motor_spring_angle[angle_motor_index] <= (positions[angle_motor_index]/myo_brick_gear_box_ratio[angle_motor_index])
-																		- (angle_signed*myo_brick_encoder_multiplier[angle_motor_index]);
-				motor_angle_raw[angle_motor_index] <= angle_raw;
-				motor_angle_prev[angle_motor_index] <= angle_prev;
-				motor_angle_offset[angle_motor_index] <= angle_offset;
-				motor_angle_relative[angle_motor_index] <= angle_relative;
-				motor_angle_revolution_counter[angle_motor_index] <= angle_revolution;
-				if(angle_motor_index<NUMBER_OF_MOTORS-1) begin
-					angle_motor_index <= angle_motor_index + 1;
-				end else begin
-					angle_motor_index <= 0;
+				// the angle sensor has no internal rotation counter, therefore we gotta count over-/underflow on ower own
+				if(power_sense_n) begin // if power sense is off (high), reset the overflow counters
+					for(i=0; i<NUMBER_OF_MOTORS; i = i+1) begin : reset_angle_counter
+						motor_angle_counter[i] <= 0;
+						motor_angle_offset[i] <= motor_angle_raw[i];
+						position_offset[i] <= positions[i];
+					end
+				end
+				if(update_controller && myo_brick[pid_update]) begin
+					if(motor_angle_prev[pid_update]>3500 && angle_signed < 500) begin
+						motor_angle_counter[pid_update] <= motor_angle_counter[pid_update] + 1;
+					end
+					if(motor_angle_prev[pid_update]<500 && angle_signed > 3500) begin
+						motor_angle_counter[pid_update] <= motor_angle_counter[pid_update] - 1;
+					end
+					motor_angle_raw[pid_update] <= angle_signed;
+					// motor_angle_offset is set to the angle after power on of the motor boards
+					motor_angle[pid_update] <= (angle_signed - motor_angle_offset[pid_update] + motor_angle_counter[pid_update]*4096)*myo_brick_gear_box_ratio[pid_update]; 
+					motor_spring_angle[pid_update] <= (positions[pid_update]*myo_brick_encoder_multiplier[pid_update]) - motor_angle[pid_update];
+					motor_angle_prev[pid_update] <= angle_signed;
+				end
+				if(~myo_brick[pid_update]) begin
+					motor_angle[pid_update] <= 0;
+					motor_spring_angle[pid_update] <= 0;
 				end
 			end 
 		end
@@ -432,14 +436,9 @@ generate
 		
 		A1339Control#(NUMBER_OF_MOTORS,SAMPLES_TO_AVERAGE) a1339(
 			.clock(clock),
-			.reset_n(~reset), // shut down spi when motors are off
-			.sensor_raw(angle_raw),
-			.sensor_angle_prev(angle_prev),
-			.sensor_angle(angle_signed),
-			.sensor_angle_offset(angle_offset),
-			.sensor_angle_relative(angle_relative),
-			.sensor(angle_motor_index),
-			.rev_counter(angle_revolution),
+			.reset_n(~reset),
+			.sensor_angle(angle),
+			.sensor(pid_update),
 			// SPI
 			.sck_o(angle_sck), // clock
 			.ss_n_o(angle_ss_n_o), // slave select line for each sensor
@@ -522,13 +521,14 @@ generate
 			.IntegralNegMax(IntegralNegMax[j]),
 			.IntegralPosMax(IntegralPosMax[j]),
 			.deadBand(deadBand[j]),
-			.control_mode(control_mode[j]), // position velocity displacement
+			.control_mode(control_mode[j]), // position velocity displacement current direct
 			.position(positions[j]),
 			.velocity(velocitys[j]),
 			.displacement(displacements[j]),
-			.myobrick_displacement(myobrick_displacement[j]),
-			.outputDivider(outputDivider[j]),
+			.current(currents[j]),
+			.outputShifter(outputShifter[j]),
 			.update_controller(pid_update==j && update_controller),
+			.myo_brick(myo_brick[j]),
 			.pwmRef(pwmRefs[j])
 		);
 		assign ss_n_o[j] = (motor==j?ss_n:1);

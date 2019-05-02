@@ -7,7 +7,10 @@ module A1339Control(
 parameter CLOCK_SPEED = 50_000_000;
 localparam CLOCK_SPEED_MILLIHZ = CLOCK_SPEED/1000;
 parameter NUMBER_OF_SENSORS = 1;
-parameter SAMPLES_TO_AVERAGE = 512;
+parameter CLOCK_MHZ = 50_000_000;
+parameter UPDATE_FREQUENCY = 2000;
+
+assign sensor_angle = angle[sensor];
 
 wire di_req, wr_ack, do_valid, wren;
 reg [19:0] data_send;
@@ -124,61 +127,13 @@ always @(posedge clock, negedge reset_n) begin: SPI_DATA_PROCESS
 						revolution_counter[current_sensor] <= 0;
 						data_valid <= 0;
 					end
-					state<=TRIGGER_READ_ANGLE;
-				end
-			end
-			TRIGGER_READ_ANGLE: begin 
-				data_send <= angle_register;
-				if(sample_counter[current_sensor]==SAMPLES_TO_AVERAGE-1) begin
-					state <= WAIT_FOR_REQUEST_ANGLE; // because of the interleaved queries, we need to wait for the last sample
-				end else begin
-					state <= WAIT_FOR_RECEIVE_ANGLE;
-				end
-				trigger <= 1;
-			end
-			WAIT_FOR_REQUEST_ANGLE: begin
-				if(do_valid) begin
-					delay_counter <= 50;
-					state<=DELAYED_TRIGGER;
-					next_state<=WAIT_FOR_RECEIVE_ANGLE;
-				end
-			end
-			WAIT_FOR_RECEIVE_ANGLE: begin
-				if(do_valid) begin
-					CRC0 = 1'b1;
-					CRC1 = 1'b1;
-					CRC2 = 1'b1;
-					CRC3 = 1'b1;
-					mask = 16'h8000;
-					for (j = 0; j < 16; j=j+1) begin
-						  DoInvert = (((data_received>>4) & mask) != 0) ^ CRC3;         // XOR required?
-						  CRC3 = CRC2;
-						  CRC2 = CRC1;
-						  CRC1 = CRC0 ^ DoInvert;
-						  CRC0 = DoInvert; 
-						  mask = mask >> 1; 
-					end
-					crc = (CRC3 ? 4'd8 : 4'd0) + (CRC2 ? 4'd4 : 4'd0) + (CRC1 ? 4'd2 : 4'd0) + (CRC0 ? 4'd1 : 4'd0);
-					if(crc == data_received[3:0]) begin
-						data_valid <= 1;
-						if(SAMPLES_TO_AVERAGE!=0) begin
-							if(sample_counter[current_sensor]<SAMPLES_TO_AVERAGE)begin
-								angle_filtered[current_sensor] <= angle_filtered[current_sensor]+ val;
-								state<=IDLE;
-								sample_counter[current_sensor] <= sample_counter[current_sensor]+1;
-							end else begin
-								angle[current_sensor] <= (angle_filtered[current_sensor]>>>$clog2(SAMPLES_TO_AVERAGE));
-								angle_filtered[current_sensor] <= 0;
-								state <= CALCULATE_ANGLES;
-								sample_counter[current_sensor] <= 0;
-							end
-						end else begin // no average
-							angle[current_sensor] <= val;
-							state <= CALCULATE_ANGLES;
-						end
+
+					if(NUMBER_OF_SENSORS==1) begin
+						state = DELAY;
+						delay_counter <= 50000;
 					end else begin
-						data_valid <= 0;
-						state<=IDLE;
+						state = DELAY;
+						delay_counter <= 5000;
 					end
 				end
 			end
