@@ -370,29 +370,26 @@ reg signed [31:0] motor_spring_angle[NUMBER_OF_MOTORS-1:0];
 reg signed [31:0] motor_angle[NUMBER_OF_MOTORS-1:0];
 reg signed [31:0] motor_angle_raw[NUMBER_OF_MOTORS-1:0];
 reg signed [31:0] motor_angle_offset[NUMBER_OF_MOTORS-1:0];
-reg signed [31:0] motor_angle_relative[NUMBER_OF_MOTORS-1:0];
-reg signed [31:0] motor_angle_revolution_counter[NUMBER_OF_MOTORS-1:0];
 reg [31:0] status[NUMBER_OF_MOTORS-1:0];
 reg [NUMBER_OF_MOTORS-1:0] myo_brick_ack_error;
 reg [11:0] motor_angle_prev[NUMBER_OF_MOTORS-1:0];
 reg signed [31:0] motor_angle_counter[NUMBER_OF_MOTORS-1:0];
 
-genvar l;
 generate
 	if(ENABLE_MYOBRICK_CONTROL!=0) begin
 		integer angle_motor_index;
+		wire [11:0] angle;
 		wire signed [31:0] angle_signed;
-		wire signed [31:0] angle_raw;
-		wire signed [31:0] angle_prev;
-		wire signed [31:0] angle_revolution;
-		wire [11:0] angle_offset;
-		wire [11:0] angle_relative;
+		assign angle_signed = angle;
 		reg ack_error;
 
 		always @(posedge clock, posedge reset) begin: MYOBRICK_ANGLE_CONTROL_LOGIC
 			reg [7:0]i;
 			if (reset == 1) begin
 				angle_motor_index <= 0;
+				for(i=0; i<NUMBER_OF_MOTORS; i = i+1) begin : reset_angle_counter
+					motor_angle_counter[i] <= 0;
+				end
 			end else begin
 				// the angle sensor has no internal rotation counter, therefore we gotta count over-/underflow on ower own
 				if(power_sense_n) begin // if power sense is off (high), reset the overflow counters
@@ -422,19 +419,7 @@ generate
 			end 
 		end
 		
-//		for(l=0;l<NUMBER_OF_MOTORS;l=l+1) begin : instantiate_low_pass_filter
-//			lowpass_filter filter(
-//				.clk(clock),
-//				.clk_enable(cycle[l]),
-//				.reset(reset),
-//				.filter_in(angles[l]),
-//				.filter_out(angles_filtered[l])
-//			);
-//		end
-		
-		wire [NUMBER_OF_MOTORS-1:0] cycle;
-		
-		A1339Control#(NUMBER_OF_MOTORS,SAMPLES_TO_AVERAGE) a1339(
+		A1339Control#(NUMBER_OF_MOTORS) a1339(
 			.clock(clock),
 			.reset_n(~reset),
 			.sensor_angle(angle),
@@ -443,9 +428,7 @@ generate
 			.sck_o(angle_sck), // clock
 			.ss_n_o(angle_ss_n_o), // slave select line for each sensor
 			.mosi_o(angle_mosi),	// mosi
-			.miso_i(angle_miso),	// miso
-			.zero_offset(power_sense_n),
-			.cycle(cycle)
+			.miso_i(angle_miso)	// miso
 		);
 	end
 
@@ -537,4 +520,3 @@ endgenerate
 
 
 endmodule
-
