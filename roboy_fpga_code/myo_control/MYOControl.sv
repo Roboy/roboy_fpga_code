@@ -270,7 +270,7 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 			velocitys[motor][15:0] <= velocity[0:15];
 			currents[motor][15:0] <= current[0:15];
 			if(~myo_brick[motor]) begin
-				if(mirrored_muscle_unit && motor<9) begin 
+				if(mirrored_muscle_unit) begin 
 					displacements[motor][31:0] <= (-1)*$signed(displacement[0:14]); 
 				end else begin
 					displacements[motor][31:0] <= $signed(displacement[0:14]);
@@ -321,7 +321,7 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 	
 		// if we are writing via avalon bus and waitrequest is deasserted, write the respective register
 		if(write && ~waitrequest) begin
-			if((address>>8)<=8'h14 && address[7:0]<NUMBER_OF_MOTORS) begin
+			if((address>>8)<=8'h13 && address[7:0]<NUMBER_OF_MOTORS) begin
 				case(address>>8)
 					8'h00: Kp[address[7:0]][31:0] <= writedata[31:0];
 					8'h01: Ki[address[7:0]][31:0] <= writedata[31:0];
