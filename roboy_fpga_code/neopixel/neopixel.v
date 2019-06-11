@@ -98,14 +98,14 @@ generate
 									end else begin
 										t1 = timer - t0;
 										if( done == 0 ) begin 
-											if( t1 < CLOCK_SPEED_HZ/1666666 ) begin // 0.6 us approx 1666666 Hz
+											if( t1 < CLOCK_SPEED_HZ/1111111 ) begin // 0.9 us approx 1111111 Hz
 												one_wire <= 1;
 											end else begin
 												done <= 1;
 												t0 <= timer;
 											end
 										end else begin
-											if( t1 < CLOCK_SPEED_HZ/1666666 ) begin // 0.6 us approx 1666666 Hz
+											if( t1 < CLOCK_SPEED_HZ/3333333 ) begin // 0.3 us approx 3333333 Hz
 												one_wire <= 0;
 											end else begin
 												done <= 0;
