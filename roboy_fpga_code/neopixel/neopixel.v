@@ -40,7 +40,7 @@ always @(posedge clock, posedge reset) begin: NEOPIXEL_CONTROL_LOGIC
 				end
 			end
 		end
-		if(send_to_neopixels && bit_ctr<(32*NUMBER_OF_NEOPIXEL)) begin
+		if(send_to_neopixels && bit_ctr<(24*NUMBER_OF_NEOPIXEL)) begin
 			send_to_neopixels <= 0;
 		end
 	end 
@@ -61,17 +61,9 @@ reg [31:0] bit_ctr;
 wire color_bit;
 reg start;
 
-generate
-	if(RGBW==1) begin
-		reg [31:0] color[NUMBER_OF_NEOPIXEL-1:0];
-		assign color_bit = color[bit_ctr/32][bit_ctr%32];
-		assign waitrequest = bit_ctr<(32*NUMBER_OF_NEOPIXEL);
-	end else begin
-		reg [23:0] color[NUMBER_OF_NEOPIXEL-1:0];
-		assign color_bit = color[bit_ctr/24][bit_ctr%24];
-		assign waitrequest = bit_ctr<(24*NUMBER_OF_NEOPIXEL);
-	end
-endgenerate
+reg [23:0] color[NUMBER_OF_NEOPIXEL-1:0];
+assign color_bit = color[bit_ctr/24][bit_ctr%24];
+assign waitrequest = bit_ctr<(24*NUMBER_OF_NEOPIXEL);
 
 generate
 	if(RGBW==0) begin		
@@ -85,12 +77,12 @@ generate
 				start <= 1;
 				done <= 0;
 				state <= 3;
-				bit_ctr <= 32*NUMBER_OF_NEOPIXEL;
+				bit_ctr <= 24*NUMBER_OF_NEOPIXEL;
 			end else begin
 				case(state)
 					IDLE : 	begin
-									if(bit_ctr<(32*NUMBER_OF_NEOPIXEL)) begin
-										state <= (color_bit?SEND_0:SEND_1);
+									if(bit_ctr<(24*NUMBER_OF_NEOPIXEL)) begin
+										state <= (color_bit?SEND_1:SEND_0);
 									end else begin
 										state <= LATCH;
 										if(send_to_neopixels) begin
