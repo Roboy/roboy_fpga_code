@@ -171,6 +171,19 @@ reg [31:0] update_frequency;
 reg [31:0] actual_update_frequency;
 reg [31:0] delay_counter;
 
+reg [NUMBER_OF_MOTORS-1:0] myo_brick;
+reg signed [31:0] position_offset[NUMBER_OF_MOTORS-1:0];
+reg signed [31:0] myo_brick_gear_box_ratio[NUMBER_OF_MOTORS-1:0];
+reg signed [31:0] myo_brick_encoder_multiplier[NUMBER_OF_MOTORS-1:0];
+reg signed [31:0] motor_spring_angle[NUMBER_OF_MOTORS-1:0];
+reg signed [31:0] motor_angle[NUMBER_OF_MOTORS-1:0];
+reg signed [31:0] motor_angle_raw[NUMBER_OF_MOTORS-1:0];
+reg signed [31:0] motor_angle_offset[NUMBER_OF_MOTORS-1:0];
+reg [31:0] status[NUMBER_OF_MOTORS-1:0];
+reg [NUMBER_OF_MOTORS-1:0] myo_brick_ack_error;
+reg [11:0] motor_angle_prev[NUMBER_OF_MOTORS-1:0];
+reg signed [31:0] motor_angle_counter[NUMBER_OF_MOTORS-1:0];
+
 // the following iterface handles read requests via lightweight axi bridge
 // the upper 8 bit of the read address define which value we want to read
 // the lower 8 bit of the read address define for which motor
@@ -276,7 +289,8 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 					displacements[motor][31:0] <= $signed(displacement[0:14]);
 				end
 			end else begin
-				displacements[motor][31:0] <= motor_spring_angle[motor];
+				displacements[motor][31:0] <= $signed(displacement[0:14]);
+				motor_angle[motor] <= (positions[motor]<<<8) - (myo_brick_gear_box_ratio[motor]*myo_brick_encoder_multiplier[motor]*displacements[motor]);
 			end
 			if(motor==0) begin // lazy update (we are updating the controller following the current spi transmission)
 				pid_update <= NUMBER_OF_MOTORS-1; 
@@ -362,78 +376,6 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 	end 
 end
 
-reg [NUMBER_OF_MOTORS-1:0] myo_brick;
-reg signed [31:0] position_offset[NUMBER_OF_MOTORS-1:0];
-reg signed [31:0] myo_brick_gear_box_ratio[NUMBER_OF_MOTORS-1:0];
-reg signed [31:0] myo_brick_encoder_multiplier[NUMBER_OF_MOTORS-1:0];
-reg signed [31:0] motor_spring_angle[NUMBER_OF_MOTORS-1:0];
-reg signed [31:0] motor_angle[NUMBER_OF_MOTORS-1:0];
-reg signed [31:0] motor_angle_raw[NUMBER_OF_MOTORS-1:0];
-reg signed [31:0] motor_angle_offset[NUMBER_OF_MOTORS-1:0];
-reg [31:0] status[NUMBER_OF_MOTORS-1:0];
-reg [NUMBER_OF_MOTORS-1:0] myo_brick_ack_error;
-reg [11:0] motor_angle_prev[NUMBER_OF_MOTORS-1:0];
-reg signed [31:0] motor_angle_counter[NUMBER_OF_MOTORS-1:0];
-
-generate
-	if(ENABLE_MYOBRICK_CONTROL!=0) begin
-		integer angle_motor_index;
-		wire [11:0] angle;
-		wire signed [31:0] angle_signed;
-		assign angle_signed = angle;
-		reg ack_error;
-
-		always @(posedge clock, posedge reset) begin: MYOBRICK_ANGLE_CONTROL_LOGIC
-			reg [7:0]i;
-			if (reset == 1) begin
-				angle_motor_index <= 0;
-				for(i=0; i<NUMBER_OF_MOTORS; i = i+1) begin : reset_angle_counter
-					motor_angle_counter[i] <= 0;
-				end
-			end else begin
-				// the angle sensor has no internal rotation counter, therefore we gotta count over-/underflow on ower own
-				if(power_sense_n) begin // if power sense is off (high), reset the overflow counters
-					for(i=0; i<NUMBER_OF_MOTORS; i = i+1) begin : reset_angle_counter
-						motor_angle_counter[i] <= 0;
-						motor_angle_offset[i] <= motor_angle_raw[i];
-						position_offset[i] <= positions[i];
-					end
-				end
-				if(update_controller && myo_brick[pid_update]) begin
-					if(motor_angle_prev[pid_update]>3500 && angle_signed < 500) begin
-						motor_angle_counter[pid_update] <= motor_angle_counter[pid_update] + 1;
-					end
-					if(motor_angle_prev[pid_update]<500 && angle_signed > 3500) begin
-						motor_angle_counter[pid_update] <= motor_angle_counter[pid_update] - 1;
-					end
-					motor_angle_raw[pid_update] <= angle_signed;
-					// motor_angle_offset is set to the angle after power on of the motor boards
-					motor_angle[pid_update] <= (angle_signed - motor_angle_offset[pid_update] + motor_angle_counter[pid_update]*4096)*myo_brick_gear_box_ratio[pid_update]; 
-					motor_spring_angle[pid_update] <= (positions[pid_update]*myo_brick_encoder_multiplier[pid_update]) - motor_angle[pid_update];
-					motor_angle_prev[pid_update] <= angle_signed;
-				end
-				if(~myo_brick[pid_update]) begin
-					motor_angle[pid_update] <= 0;
-					motor_spring_angle[pid_update] <= 0;
-				end
-			end 
-		end
-		
-		A1339Control#(NUMBER_OF_MOTORS) a1339(
-			.clock(clock),
-			.reset_n(~reset),
-			.sensor_angle(angle),
-			.sensor(pid_update),
-			// SPI
-			.sck_o(angle_sck), // clock
-			.ss_n_o(angle_ss_n_o), // slave select line for each sensor
-			.mosi_o(angle_mosi),	// mosi
-			.miso_i(angle_miso)	// miso
-		);
-	end
-
-endgenerate 
-
 wire di_req, wr_ack, do_valid, wren, spi_done, ss_n;
 wire [0:15] Word;
 wire [15:0] data_out;
@@ -508,6 +450,7 @@ generate
 			.position(positions[j]),
 			.velocity(velocitys[j]),
 			.displacement(displacements[j]),
+			.motor_angle(motor_angle[j]),
 			.current(currents[j]),
 			.outputShifter(outputShifter[j]),
 			.update_controller(pid_update==j && update_controller),

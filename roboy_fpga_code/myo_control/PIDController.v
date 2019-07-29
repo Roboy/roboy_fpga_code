@@ -53,6 +53,7 @@ module PIDController (
 	input signed [31:0] position,
 	input signed [15:0] velocity,
 	input signed [31:0] displacement,
+	input signed [31:0] motor_angle,
 	input signed [15:0] current,
 	input signed [31:0] outputShifter,
 	input update_controller,
@@ -97,7 +98,7 @@ always @(posedge clock, posedge reset) begin: PID_CONTROLLER_PID_CONTROLLERLOGIC
 							end
 						end else begin
 							if (sp>0) begin
-								err = (sp - displacement);
+								err = (sp - motor_angle);
 							end else begin
 								err = 0;
 							end
