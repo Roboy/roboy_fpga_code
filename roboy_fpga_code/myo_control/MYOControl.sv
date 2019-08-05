@@ -109,12 +109,7 @@ module MYOControl (
 	output mosi,
 	output sck,
 	input mirrored_muscle_unit,
-	input power_sense_n,
-	output gpio_n,
-	output [NUMBER_OF_MOTORS-1:0] angle_ss_n_o,
-	input angle_miso,
-	output angle_mosi,
-	output angle_sck
+	input power_sense_n
 );
 
 parameter NUMBER_OF_MOTORS = 6;
@@ -123,44 +118,67 @@ parameter ENABLE_MYOBRICK_CONTROL = 0;
 
 // gains and shit
 // p gains
-reg signed [31:0] Kp[NUMBER_OF_MOTORS-1:0];
+reg [31:0] Kp_f[NUMBER_OF_MOTORS-1:0];
 // i gains
-reg signed [31:0] Ki[NUMBER_OF_MOTORS-1:0];
+reg [31:0] Ki_f[NUMBER_OF_MOTORS-1:0];
 // d gains
-reg signed [31:0] Kd[NUMBER_OF_MOTORS-1:0];
+reg [31:0] Kd_f[NUMBER_OF_MOTORS-1:0];
 // setpoints
-reg signed [31:0] sp[NUMBER_OF_MOTORS-1:0];
-// forward gains
-reg signed [31:0] forwardGain[NUMBER_OF_MOTORS-1:0];
-// output positive limits
-reg signed [31:0] outputPosMax[NUMBER_OF_MOTORS-1:0];
-// output negative limits
-reg signed [31:0] outputNegMax[NUMBER_OF_MOTORS-1:0];
-// integral negative limits
-reg signed [31:0] IntegralNegMax[NUMBER_OF_MOTORS-1:0];
-// integral positive limits
-reg signed [31:0] IntegralPosMax[NUMBER_OF_MOTORS-1:0];
-// deadband
-reg signed [31:0] deadBand[NUMBER_OF_MOTORS-1:0];
+reg [31:0] sp_f[NUMBER_OF_MOTORS-1:0];
+// output limits
+reg [31:0] outputLimit[NUMBER_OF_MOTORS-1:0];
 // control mode
 reg [2:0] control_mode[NUMBER_OF_MOTORS-1:0];
 // reset pid_controller
 reg reset_controller[NUMBER_OF_MOTORS-1:0];
-// output shifter
-reg signed [31:0] outputShifter[NUMBER_OF_MOTORS-1:0];
 
 // pwm output to motors 
-wire signed [0:15] pwmRefs[NUMBER_OF_MOTORS-1:0];
+reg [0:15] pwmRefs[NUMBER_OF_MOTORS-1:0];
 
 // the following is stuff we receive from the motors via spi
 // positions of the motors
 reg signed [31:0] positions[NUMBER_OF_MOTORS-1:0];
 // velocitys of the motors
-reg signed [15:0] velocitys[NUMBER_OF_MOTORS-1:0];
+reg signed [15:0] velocities[NUMBER_OF_MOTORS-1:0];
 // currents of the motors
 reg signed [15:0] currents[NUMBER_OF_MOTORS-1:0];
 // displacements of the springs
 reg signed [31:0] displacements[NUMBER_OF_MOTORS-1:0];
+reg signed [31:0] displacements_prev[NUMBER_OF_MOTORS-1:0];
+reg signed [15:0] rev_counter[NUMBER_OF_MOTORS-1:0];
+
+// raw motor states in float
+reg [31:0] positions_raw_f[NUMBER_OF_MOTORS-1:0];
+reg [31:0] velocities_raw_f[NUMBER_OF_MOTORS-1:0];
+reg [31:0] displacements_raw_f[NUMBER_OF_MOTORS-1:0];
+
+// converted motor states in float
+reg [31:0] positions_conv_f[NUMBER_OF_MOTORS-1:0];
+reg [31:0] velocities_conv_f[NUMBER_OF_MOTORS-1:0];
+reg [31:0] displacements_conv_f[NUMBER_OF_MOTORS-1:0];
+reg [31:0] displacements_myo_brick_conv_f[NUMBER_OF_MOTORS-1:0];
+
+// setpoint errors of the motors in float
+reg [31:0] positions_err_f[NUMBER_OF_MOTORS-1:0];
+reg [31:0] velocities_err_f[NUMBER_OF_MOTORS-1:0];
+reg [31:0] displacements_err_f[NUMBER_OF_MOTORS-1:0];
+reg [31:0] displacements_myo_brick_err_f[NUMBER_OF_MOTORS-1:0];
+
+// results of the PD controllers of the motors in float
+reg [31:0] positions_res_f[NUMBER_OF_MOTORS-1:0];
+reg [31:0] velocities_res_f[NUMBER_OF_MOTORS-1:0];
+reg [31:0] displacements_res_f[NUMBER_OF_MOTORS-1:0];
+reg [31:0] displacements_myo_brick_res_f[NUMBER_OF_MOTORS-1:0];
+
+// results of the PD controllers of the motors in int
+reg signed [31:0] positions_res[NUMBER_OF_MOTORS-1:0];
+reg signed [31:0] velocities_res[NUMBER_OF_MOTORS-1:0];
+reg signed [31:0] displacements_res[NUMBER_OF_MOTORS-1:0];
+reg signed [31:0] displacements_myo_brick_res[NUMBER_OF_MOTORS-1:0];
+
+// encoder multipliers in float
+reg [31:0] pos_encoder_multiplier_f[NUMBER_OF_MOTORS-1:0];
+reg [31:0] dis_encoder_multiplier_f[NUMBER_OF_MOTORS-1:0];
 
 assign readdata = returnvalue;
 assign waitrequest = (waitFlag && read) || update_controller;
@@ -170,19 +188,6 @@ reg waitFlag;
 reg [31:0] update_frequency;
 reg [31:0] actual_update_frequency;
 reg [31:0] delay_counter;
-
-reg [NUMBER_OF_MOTORS-1:0] myo_brick;
-reg signed [31:0] position_offset[NUMBER_OF_MOTORS-1:0];
-reg signed [31:0] myo_brick_gear_box_ratio[NUMBER_OF_MOTORS-1:0];
-reg signed [31:0] myo_brick_encoder_multiplier[NUMBER_OF_MOTORS-1:0];
-reg signed [31:0] motor_spring_angle[NUMBER_OF_MOTORS-1:0];
-reg signed [31:0] motor_angle[NUMBER_OF_MOTORS-1:0];
-reg signed [31:0] motor_angle_raw[NUMBER_OF_MOTORS-1:0];
-reg signed [31:0] motor_angle_offset[NUMBER_OF_MOTORS-1:0];
-reg [31:0] status[NUMBER_OF_MOTORS-1:0];
-reg [NUMBER_OF_MOTORS-1:0] myo_brick_ack_error;
-reg [11:0] motor_angle_prev[NUMBER_OF_MOTORS-1:0];
-reg signed [31:0] motor_angle_counter[NUMBER_OF_MOTORS-1:0];
 
 // the following iterface handles read requests via lightweight axi bridge
 // the upper 8 bit of the read address define which value we want to read
@@ -194,34 +199,49 @@ always @(posedge clock, posedge reset) begin: AVALON_READ_INTERFACE
 		waitFlag <= 1;
 		if(read) begin
 			case(address>>8)
-				8'h00: returnvalue <= Kp[address[7:0]][31:0];
-				8'h01: returnvalue <= Ki[address[7:0]][31:0];
-				8'h02: returnvalue <= Kd[address[7:0]][31:0];
-				8'h03: returnvalue <= sp[address[7:0]][31:0];
-				8'h04: returnvalue <= forwardGain[address[7:0]][31:0];
-				8'h05: returnvalue <= outputPosMax[address[7:0]][31:0];
-				8'h06: returnvalue <= outputNegMax[address[7:0]][31:0];
-				8'h07: returnvalue <= IntegralPosMax[address[7:0]][31:0];
-				8'h08: returnvalue <= IntegralNegMax[address[7:0]][31:0];
-				8'h09: returnvalue <= deadBand[address[7:0]][31:0];
+				8'h00: returnvalue <= Kp_f[address[7:0]];
+				8'h01: returnvalue <= Ki_f[address[7:0]];
+				8'h02: returnvalue <= Kd_f[address[7:0]];
+				
+				8'h03: returnvalue <= sp_f[address[7:0]];
+				8'h05: returnvalue <= outputLimit[address[7:0]];
 				8'h0A: returnvalue <= control_mode[address[7:0]][2:0];
-				8'h0B: returnvalue <= positions[address[7:0]][31:0];
-				8'h0C: returnvalue <= velocitys[address[7:0]][15:0];
-				8'h0D: returnvalue <= currents[address[7:0]][15:0];
-				8'h0E: returnvalue <= displacements[address[7:0]][31:0];
+				
+				8'h0B: returnvalue <= positions[address[7:0]];
+				8'h0C: returnvalue <= velocities[address[7:0]];
+				8'h0D: returnvalue <= currents[address[7:0]];
+				8'h0E: returnvalue <= displacements[address[7:0]];
+				
 				8'h0F: returnvalue <= pwmRefs[address[7:0]][0:15];
 				8'h10: returnvalue <= actual_update_frequency;
 				8'h11: returnvalue <= (power_sense_n==0); // active low
-				8'h12: returnvalue <= gpio_enable;
-				8'h13: returnvalue <= motor_angle[address[7:0]][31:0];
-				8'h14: returnvalue <= myo_brick;
-				8'h15: returnvalue <= myo_brick_gear_box_ratio[address[7:0]][31:0];
-				8'h16: returnvalue <= myo_brick_encoder_multiplier[address[7:0]][31:0];
-				8'h17: returnvalue <= outputShifter[address[7:0]][31:0];
-				8'h18: returnvalue <= motor_angle_raw[address[7:0]][31:0];
-				8'h19: returnvalue <= motor_angle_prev[address[7:0]];
-				8'h1A: returnvalue <= motor_angle_offset[address[7:0]];
-				8'h1B: returnvalue <= motor_angle_counter[address[7:0]];
+				
+				8'h12: returnvalue <= positions_raw_f[address[7:0]];
+				8'h13: returnvalue <= velocities_raw_f[address[7:0]];
+				8'h14: returnvalue <= displacements_raw_f[address[7:0]];
+				
+				8'h15: returnvalue <= positions_conv_f[address[7:0]];
+				8'h16: returnvalue <= velocities_conv_f[address[7:0]];
+				8'h17: returnvalue <= displacements_conv_f[address[7:0]];
+				8'h18: returnvalue <= displacements_myo_brick_conv_f[address[7:0]];
+				
+				8'h19: returnvalue <= positions_err_f[address[7:0]];
+				8'h1A: returnvalue <= velocities_err_f[address[7:0]];
+				8'h1B: returnvalue <= displacements_err_f[address[7:0]];
+				8'h1C: returnvalue <= displacements_myo_brick_err_f[address[7:0]];
+				
+				8'h1D: returnvalue <= positions_res_f[address[7:0]];
+				8'h1E: returnvalue <= velocities_res_f[address[7:0]];
+				8'h1F: returnvalue <= displacements_res_f[address[7:0]];
+				8'h20: returnvalue <= displacements_myo_brick_res_f[address[7:0]];
+				
+				8'h21: returnvalue <= positions_res[address[7:0]];
+				8'h22: returnvalue <= velocities_res[address[7:0]];
+				8'h23: returnvalue <= displacements_res[address[7:0]];
+				8'h24: returnvalue <= displacements_myo_brick_res[address[7:0]];
+				
+				8'h25: returnvalue <= pos_encoder_multiplier_f[address[7:0]];
+				8'h26: returnvalue <= dis_encoder_multiplier_f[address[7:0]];
 				default: returnvalue <= 32'hDEADBEEF;
 			endcase
 			if(waitFlag==1) begin // next clock cycle the returnvalue should be ready
@@ -235,8 +255,6 @@ reg reset_myo_control;
 reg spi_activated;
 reg update_controller;
 reg start_spi_transmission;
-reg gpio_enable;
-assign gpio_n = !gpio_enable;
 	
 reg [7:0] motor;
 reg [7:0] pid_update;
@@ -257,12 +275,6 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 		counter <= 0;
 		spi_enable_counter <= 0;
 		spi_enable <= 0;
-		myo_brick <= 0;
-		for(i=0; i<NUMBER_OF_MOTORS; i = i+1) begin : reset_reset_controller
-			myo_brick_gear_box_ratio[i] <= 62;
-			myo_brick_encoder_multiplier[i] <= 1;
-			outputShifter[i] <= 1;
-		end
 	end else begin
 		// toggle registers need to be set to zero at every clock cycle
 		update_controller <= 0;
@@ -279,19 +291,105 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 		
 		// when spi is done, latch the received values for the current motor and toggle PID controller update of previous motor
 		if(spi_done_prev==0 && spi_done) begin
-			positions[motor][31:0] <= position[0:31];
-			velocitys[motor][15:0] <= velocity[0:15];
-			currents[motor][15:0] <= current[0:15];
-			if(~myo_brick[motor]) begin
-				if(mirrored_muscle_unit) begin 
-					displacements[motor][31:0] <= (-1)*$signed(displacement[0:14]); 
-				end else begin
-					displacements[motor][31:0] <= $signed(displacement[0:14]);
-				end
+			positions[motor] <= position[0:31];
+			velocities[motor] <= velocity[0:15];
+			currents[motor] <= current[0:15];
+			
+			positions_raw_f[motor] <= pos_raw_f;
+			velocities_raw_f[motor] <= vel_raw_f;
+			displacements_raw_f[motor] <= dis_raw_f;
+			
+			positions_conv_f[motor] <= pos_conv_f;
+			velocities_conv_f[motor] <= vel_conv_f;
+			displacements_conv_f[motor] <= dis_conv_f;
+			displacements_myo_brick_conv_f[motor] <= myo_brick_dis_f;
+			
+			positions_err_f[motor] <= p_pos_err_f;
+			velocities_err_f[motor] <= p_vel_err_f;
+			displacements_err_f[motor] <= p_dis_err_f;
+			displacements_myo_brick_err_f[motor] <= p_dis_myo_brick_err_f;
+			
+			positions_res_f[motor] <= pos_res_f;
+			velocities_res_f[motor] <= vel_res_f;
+			displacements_res_f[motor] <= dis_res_f;
+			displacements_myo_brick_res_f[motor] <= dis_myo_brick_res_f;
+			
+			positions_res[motor] <= pos_res;
+			velocities_res[motor] <= vel_res;
+			displacements_res[motor] <= dis_res;
+			displacements_myo_brick_res[motor] <= dis_myo_brick_res;
+			
+			pos_err_prev_f[motor] <= p_pos_err_f;
+			vel_err_prev_f[motor] <= p_vel_err_f;
+			dis_err_prev_f[motor] <= p_dis_err_f;
+			dis_myo_brick_err_prev_f[motor] <= p_dis_myo_brick_err_f;
+			
+			if(mirrored_muscle_unit) begin 
+				if(displacements_prev[motor]>16000 && (-1)*$signed(displacement[0:14])<300) begin
+					rev_counter[motor] <= rev_counter[motor]+1;
+				end 
+				if(displacements_prev[motor]<300 && (-1)*$signed(displacement[0:14])>16000) begin
+					rev_counter[motor] <= rev_counter[motor]-1;
+				end 
+				displacements[motor][31:0] <= rev_counter[motor]*16384+(-1)*$signed(displacement[0:14]);
 			end else begin
-				displacements[motor][31:0] <= $signed(displacement[0:14]);
-				motor_angle[motor] <= (positions[motor]<<<8) - (myo_brick_gear_box_ratio[motor]*myo_brick_encoder_multiplier[motor]*displacements[motor]);
+				if(displacements_prev[motor]>16000 && (-1)*$signed(displacement[0:14])<300) begin
+					rev_counter[motor] <= rev_counter[motor]+1;
+				end 
+				if(displacements_prev[motor]<300 && (-1)*$signed(displacement[0:14])>16000) begin
+					rev_counter[motor] <= rev_counter[motor]-1;
+				end 
+				displacements[motor][31:0] <= rev_counter[motor]*16384+(-1)*$signed(displacement[0:14]);
 			end
+			
+			case(control_mode[motor]) 
+				0: begin
+					if(positions_res[motor][30:0]>outputLimit[motor]) begin
+						if(positions_res[motor][31]) begin // negativ
+							pwmRefs[motor] <= -outputLimit[motor];
+						end else begin // positiv
+							pwmRefs[motor] <= outputLimit[motor];
+						end
+					end else begin
+						pwmRefs[motor] <= positions_res[motor]; 
+					end
+				end
+				1: begin
+					if(velocities_res[motor][30:0]>outputLimit[motor]) begin
+						if(velocities_res[motor][31]) begin // negativ
+							pwmRefs[motor] <= -outputLimit[motor];
+						end else begin // positiv
+							pwmRefs[motor] <= outputLimit[motor];
+						end
+					end else begin
+						pwmRefs[motor] <= velocities_res[motor]; 
+					end
+				end
+				2: begin
+					if(displacements_res[motor][30:0]>outputLimit[motor]) begin
+						if(displacements_res[motor][31]) begin // negativ
+							pwmRefs[motor] <= -outputLimit[motor];
+						end else begin // positiv
+							pwmRefs[motor] <= outputLimit[motor];
+						end
+					end else begin
+						pwmRefs[motor] <= displacements_res[motor]; 
+					end
+				end
+				3: begin
+					if(displacements_myo_brick_res[motor][30:0]>outputLimit[motor]) begin
+						if(displacements_myo_brick_res[motor][31]) begin // negativ
+							pwmRefs[motor] <= -outputLimit[motor];
+						end else begin // positiv
+							pwmRefs[motor] <= outputLimit[motor];
+						end
+					end else begin
+						pwmRefs[motor] <= displacements_myo_brick_res[motor]; 
+					end
+				end
+				default: pwmRefs[motor] <= 0;
+			endcase;
+			
 			if(motor==0) begin // lazy update (we are updating the controller following the current spi transmission)
 				pid_update <= NUMBER_OF_MOTORS-1; 
 			end else begin
@@ -337,26 +435,18 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 		if(write && ~waitrequest) begin
 			if((address>>8)<=8'h13 && address[7:0]<NUMBER_OF_MOTORS) begin
 				case(address>>8)
-					8'h00: Kp[address[7:0]][31:0] <= writedata[31:0];
-					8'h01: Ki[address[7:0]][31:0] <= writedata[31:0];
-					8'h02: Kd[address[7:0]][31:0] <= writedata[31:0];
-					8'h03: sp[address[7:0]][31:0] <= writedata[31:0];
-					8'h04: forwardGain[address[7:0]][31:0] <= writedata[31:0];
-					8'h05: outputPosMax[address[7:0]][31:0] <= writedata[31:0];
-					8'h06: outputNegMax[address[7:0]][31:0] <= writedata[31:0];
-					8'h07: IntegralPosMax[address[7:0]][31:0] <= writedata[31:0];
-					8'h08: IntegralNegMax[address[7:0]][31:0] <= writedata[31:0];
-					8'h09: deadBand[address[7:0]][31:0] <= writedata[31:0];
+					8'h00: Kp_f[address[7:0]] <= writedata;
+					8'h01: Ki_f[address[7:0]] <= writedata;
+					8'h02: Kd_f[address[7:0]] <= writedata;
+					8'h03: sp_f[address[7:0]] <= writedata;
+					8'h05: outputLimit[address[7:0]] <= writedata;
 					8'h0A: control_mode[address[7:0]][2:0] <= writedata[2:0];
 					8'h0B: reset_myo_control <= (writedata!=0);
 					8'h0C: spi_activated <= (writedata!=0);
 					8'h0D: reset_controller[address[7:0]] <= (writedata!=0);
 					8'h0E: update_frequency <= writedata;
-					8'h0F: gpio_enable <= (writedata!=0);
-					8'h10: myo_brick <= writedata;
-					8'h11: myo_brick_gear_box_ratio[address[7:0]][31:0] <= writedata[31:0];
-					8'h12: myo_brick_encoder_multiplier[address[7:0]][31:0] <= writedata[31:0];
-					8'h13: outputShifter[address[7:0]][31:0] <= writedata[31:0];
+					8'h10: pos_encoder_multiplier_f[address[7:0]] <= writedata;
+					8'h11: dis_encoder_multiplier_f[address[7:0]] <= writedata;
 				endcase
 			end
 		end
@@ -370,6 +460,9 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 				spi_activated <= 1;
 			end
 		end else begin 
+			for(i=0;i<NUMBER_OF_MOTORS;i=i+1) begin // reset rev counters
+				rev_counter[i] <= 0;
+			end
 			spi_enable_counter <= 0;
 			reset_myo_control <= 1;
 		end
@@ -429,37 +522,97 @@ spi_master #(16, 1'b0, 1'b1, 2, 5) spi(
 	.do_o(data_out[15:0])
 );
 
-// PID controller for NUMBER_OF_MOTORS
-genvar j;
-generate 
-	for(j=0; j<NUMBER_OF_MOTORS; j = j+1) begin : instantiate_pid_controllers
-	  PIDController pid_controller(
-			.clock(clock),
-			.reset(reset_myo_control||reset_controller[j]),
-			.Kp(Kp[j]),
-			.Kd(Kd[j]),
-			.Ki(Ki[j]),
-			.sp(sp[j]),
-			.forwardGain(forwardGain[j]),
-			.outputPosMax(outputPosMax[j]),
-			.outputNegMax(outputNegMax[j]),
-			.IntegralNegMax(IntegralNegMax[j]),
-			.IntegralPosMax(IntegralPosMax[j]),
-			.deadBand(deadBand[j]),
-			.control_mode(control_mode[j]), // position velocity displacement current direct
-			.position(positions[j]),
-			.velocity(velocitys[j]),
-			.displacement(displacements[j]),
-			.motor_angle(motor_angle[j]),
-			.current(currents[j]),
-			.outputShifter(outputShifter[j]),
-			.update_controller(pid_update==j && update_controller),
-			.myo_brick(myo_brick[j]),
-			.pwmRef(pwmRefs[j])
-		);
-		assign ss_n_o[j] = (motor==j?ss_n:1);
-	end
-endgenerate 
+localparam ADD = 0;
+localparam SUB = 1;
+localparam MUL = 2;
+localparam DIV = 3;
+localparam INT2FLO = 4;
+localparam FLO2INT = 5;
+
+wire [31:0] pos_raw_f;
+wire [31:0] vel_raw_f;
+wire [31:0] dis_raw_f;
+
+wire [31:0] pos_conv_f;
+wire [31:0] vel_conv_f;
+wire [31:0] dis_conv_f;
+wire [31:0] myo_brick_dis_f;
+
+wire [31:0] p_pos_err_f;
+wire [31:0] p_vel_err_f;
+wire [31:0] p_dis_err_f;
+wire [31:0] p_dis_myo_brick_err_f;
+
+wire [31:0] p_pos_res_f;
+wire [31:0] p_vel_res_f;
+wire [31:0] p_dis_res_f;
+wire [31:0] p_dis_myo_brick_res_f;
+
+wire [31:0] d_pos_err_f;
+wire [31:0] d_vel_err_f;
+wire [31:0] d_dis_err_f;
+wire [31:0] d_dis_myo_brick_err_f;
+
+wire [31:0] d_pos_res_f;
+wire [31:0] d_vel_res_f;
+wire [31:0] d_dis_res_f;
+wire [31:0] d_dis_myo_brick_res_f;
+
+reg [31:0] pos_err_prev_f[NUMBER_OF_MOTORS-1:0];
+reg [31:0] vel_err_prev_f[NUMBER_OF_MOTORS-1:0];
+reg [31:0] dis_err_prev_f[NUMBER_OF_MOTORS-1:0];
+reg [31:0] dis_myo_brick_err_prev_f[NUMBER_OF_MOTORS-1:0];
+
+wire [31:0] pos_res_f;
+wire [31:0] vel_res_f;
+wire [31:0] dis_res_f;
+wire [31:0] dis_myo_brick_res_f;
+
+wire [31:0] pos_res;
+wire [31:0] vel_res;
+wire [31:0] dis_res;
+wire [31:0] dis_myo_brick_res;
+
+reg [7:0] pid_motor;
+
+fpu pos2flo( clock, 0, INT2FLO, positions[motor], 0, pos_raw_f);
+fpu vel2flo( clock, 0, INT2FLO, velocities[motor], 0, vel_raw_f);
+fpu dis2flo( clock, 0, INT2FLO, displacements[motor], 0, dis_raw_f);
+
+fpu pos_conv( clock, 0, MUL, pos_raw_f, pos_encoder_multiplier_f[motor], pos_conv_f);
+fpu vel_conv( clock, 0, MUL, vel_raw_f, pos_encoder_multiplier_f[motor], vel_conv_f);
+fpu dis_conv( clock, 0, MUL, dis_raw_f, dis_encoder_multiplier_f[motor], dis_conv_f);
+fpu myo_brick_dis (clock, 0, SUB, pos_conv_f, dis_conv_f, myo_brick_dis_f);
+
+fpu pos_err( clock, 0, SUB, sp_f[motor], pos_conv_f, p_pos_err_f);
+fpu vel_err( clock, 0, SUB, sp_f[motor], vel_conv_f, p_vel_err_f);
+fpu dis_err( clock, 0, SUB, sp_f[motor], dis_conv_f, p_dis_err_f);
+fpu dis_myo_err( clock, 0, SUB, sp_f[motor], myo_brick_dis_f, p_dis_myo_brick_err_f);
+
+fpu pos_err_prev( clock, 0, SUB, p_pos_err_f, pos_err_prev_f[motor], d_pos_err_f);
+fpu vel_err_prev( clock, 0, SUB, p_vel_err_f, vel_err_prev_f[motor], d_vel_err_f);
+fpu dis_err_prev( clock, 0, SUB, p_dis_err_f, dis_err_prev_f[motor], d_dis_err_f);
+fpu dis_myo_brick_err_prev( clock, 0, SUB, p_dis_myo_brick_err_f, dis_myo_brick_err_prev_f[motor], d_dis_myo_brick_err_f);
+
+fpu p_pos_res( clock, 0, MUL, p_pos_err_f, Kp_f[motor], p_pos_res_f);
+fpu p_vel_res( clock, 0, MUL, p_vel_err_f, Kp_f[motor], p_vel_res_f);
+fpu p_dis_res( clock, 0, MUL, p_dis_err_f, Kp_f[motor], p_dis_res_f);
+fpu p_dis_myo_brick_res( clock, 0, MUL, p_dis_myo_brick_err_f, Kp_f[motor], p_dis_myo_brick_res_f);
+
+fpu d_pos_res( clock, 0, MUL, d_pos_err_f, Kd_f[motor], d_pos_res_f);
+fpu d_vel_res( clock, 0, MUL, d_vel_err_f, Kd_f[motor], d_vel_res_f);
+fpu d_dis_res( clock, 0, MUL, d_dis_err_f, Kd_f[motor], d_dis_res_f);
+fpu d_dis_myo_brick_res( clock, 0, MUL, d_dis_myo_brick_err_f, Kd_f[motor], d_dis_myo_brick_res_f);
+
+fpu pos_result( clock, 0, ADD, p_pos_res_f, d_pos_res_f, pos_res_f);
+fpu vel_result( clock, 0, ADD, p_vel_res_f, d_pos_res_f, vel_res_f);
+fpu dis_result( clock, 0, ADD, p_dis_res_f, d_pos_res_f, dis_res_f);
+fpu dis_myo_brick_result( clock, 0, ADD, p_dis_myo_brick_res_f, d_dis_myo_brick_res_f, dis_myo_brick_res_f);
+
+fpu pos_res2int( clock, 0, FLO2INT, pos_res_f, 0, pos_res);
+fpu vel_res2int( clock, 0, FLO2INT, vel_res_f, 0, vel_res);
+fpu dis_res2int( clock, 0, FLO2INT, dis_res_f, 0, dis_res);
+fpu dis_myo_brick_res2int( clock, 0, FLO2INT, dis_myo_brick_res_f, 0, dis_myo_brick_res);
 
 
 endmodule
