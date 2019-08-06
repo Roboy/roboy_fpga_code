@@ -325,21 +325,23 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 			dis_myo_brick_err_prev_f[motor] <= p_dis_myo_brick_err_f;
 			
 			if(mirrored_muscle_unit) begin 
-				if(displacements_prev[motor]>16000 && (-1)*$signed(displacement[0:14])<300) begin
-					rev_counter[motor] <= rev_counter[motor]+1;
-				end 
-				if(displacements_prev[motor]<300 && (-1)*$signed(displacement[0:14])>16000) begin
+				displacements_prev[motor] <= -$signed(displacement[0:14]);
+				if(displacements_prev[motor]>16300 && -$signed(displacement[0:14])<-16300) begin
 					rev_counter[motor] <= rev_counter[motor]-1;
 				end 
-				displacements[motor][31:0] <= rev_counter[motor]*16384+(-1)*$signed(displacement[0:14]);
+				if(displacements_prev[motor]<-16300 && -$signed(displacement[0:14])>16300) begin
+					rev_counter[motor] <= rev_counter[motor]+1;
+				end 
+				displacements[motor][31:0] <= rev_counter[motor]*16384-$signed(displacement[0:14]);
 			end else begin
-				if(displacements_prev[motor]>16000 && (-1)*$signed(displacement[0:14])<300) begin
+				displacements_prev[motor] <= $signed(displacement[0:14]);
+				if(displacements_prev[motor]>16300 && $signed(displacement[0:14])<-16300) begin
 					rev_counter[motor] <= rev_counter[motor]+1;
 				end 
-				if(displacements_prev[motor]<300 && (-1)*$signed(displacement[0:14])>16000) begin
+				if(displacements_prev[motor]<-16300 && $signed(displacement[0:14])>16300) begin
 					rev_counter[motor] <= rev_counter[motor]-1;
 				end 
-				displacements[motor][31:0] <= rev_counter[motor]*16384+(-1)*$signed(displacement[0:14]);
+				displacements[motor][31:0] <= rev_counter[motor]*32768+$signed(displacement[0:14]);
 			end
 			
 			case(control_mode[motor]) 
@@ -462,6 +464,7 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 		end else begin 
 			for(i=0;i<NUMBER_OF_MOTORS;i=i+1) begin // reset rev counters
 				rev_counter[i] <= 0;
+				displacements_prev[motor] <= 0;
 			end
 			spi_enable_counter <= 0;
 			reset_myo_control <= 1;
@@ -482,6 +485,12 @@ wire signed [0:15] sensor2;
 
 // the pwmRef signal is wired to the active motor pid controller output
 assign pwmRef = pwmRefs[motor];
+genvar j;
+generate 
+	for(j=0; j<NUMBER_OF_MOTORS; j = j+1) begin : slave_select_lines
+		assign ss_n_o[j] = (motor==j?ss_n:1);
+	end
+endgenerate 
 
 // control logic for handling myocontrol frame
 SpiControl spi_control(
