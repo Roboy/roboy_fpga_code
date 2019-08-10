@@ -330,40 +330,16 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 			
 			case(control_mode[motor]) 
 				0: begin
-					if(positions_res[motor]>outputLimit[motor]) begin
-						pwmRefs[motor] <= outputLimit[motor];
-					end else if(positions_res[motor]<outputLimit[motor]) begin
-						pwmRefs[motor] <= -outputLimit[motor]; 
-					end else begin
-						pwmRefs[motor] <= positions_res[motor];
-					end
+					pwmRefs[motor] <= positions_res[motor];
 				end
 				1: begin
-					if(velocities_res[motor]>outputLimit[motor]) begin
-						pwmRefs[motor] <= outputLimit[motor];
-					end else if(velocities_res[motor]<outputLimit[motor]) begin
-						pwmRefs[motor] <= -outputLimit[motor]; 
-					end else begin
-						pwmRefs[motor] <= velocities_res[motor];
-					end
+					pwmRefs[motor] <= velocities_res[motor];
 				end
 				2: begin
-					if(displacements_res[motor]>outputLimit[motor]) begin
-						pwmRefs[motor] <= outputLimit[motor];
-					end else if(displacements_res[motor]<outputLimit[motor]) begin
-						pwmRefs[motor] <= -outputLimit[motor]; 
-					end else begin
-						pwmRefs[motor] <= positions_res[motor];
-					end
+					pwmRefs[motor] <= positions_res[motor];
 				end
 				3: begin
-					if(displacements_myo_brick_res[motor]>outputLimit[motor]) begin
-						pwmRefs[motor] <= outputLimit[motor];
-					end else if(displacements_myo_brick_res[motor]<outputLimit[motor]) begin
-						pwmRefs[motor] <= -outputLimit[motor]; 
-					end else begin
-						pwmRefs[motor] <= displacements_myo_brick_res[motor];
-					end
+					pwmRefs[motor] <= displacements_myo_brick_res[motor];
 				end
 				default: pwmRefs[motor] <= 0;
 			endcase;
