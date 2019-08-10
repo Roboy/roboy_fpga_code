@@ -42,19 +42,19 @@ module SpiControl (
 	input di_req,
 	input write_ack,
 	input data_read_valid,
-	input [0:15] data_read,
+	input [15:0] data_read,
 	input start,
-	input signed [0:15] pwmRef,
+	input signed [15:0] pwmRef,
+	input [15:0] controlFlag,
 	input ss_n,
-	output reg [0:15] Word,
+	output reg [15:0] Word,
 	output reg wren,
 	output reg spi_done,
-	output reg signed[0:31] position,
-	output reg signed[0:15] velocity,
-	output reg signed[0:15] current,
-	output reg signed[0:15] displacement,
-	output reg signed[0:15] sensor1,
-	output reg signed[0:15] sensor2
+	output reg signed[31:0] position,
+	output reg signed[15:0] velocity,
+	output reg signed[15:0] current,
+	output reg signed[31:0] displacement,
+	output reg signed[15:0] sensor1
 );
 
 reg [7:0] numberOfWordsTransmitted;
@@ -63,13 +63,15 @@ reg write_ack_prev;
 reg next_value;
 reg start_frame;
 reg data_read_valid_prev;
-reg [5:0] delay_counter;
+reg [7:0] delay_counter;
 
 `define ENABLE_DELAY
 
+localparam SPI_FRAME_WORDS = 10;
+
 always @(posedge clock, posedge reset) begin: SPICONTROL_SPILOGIC
 	if (reset == 1) begin
-		numberOfWordsTransmitted <= 12;
+		numberOfWordsTransmitted <= SPI_FRAME_WORDS;
 		wren <= 0;
 		write_ack_prev <= 0;
 		start_frame <= 0;
@@ -85,14 +87,12 @@ always @(posedge clock, posedge reset) begin: SPICONTROL_SPILOGIC
 		
 		// if it's the start of a frame or we are trigger by di_reg to send the next value.
 		// of course we stop if everything was sent
-		if( (di_req || start_frame) && numberOfWordsTransmitted<12 && next_value==1) begin
+		if( (di_req || start_frame) && numberOfWordsTransmitted<SPI_FRAME_WORDS && next_value==1) begin
 			case(numberOfWordsTransmitted)
 				0: Word <= 16'h8000;
-				1: Word <= pwmRef & 16'h7fff;
-				2: Word <= 0;
-				3: Word <= 0;
-				4: Word <= 0;
-				default: Word <= 0;
+				1: Word <= pwmRef;
+				2: Word <= controlFlag;
+				default: Word <= numberOfWordsTransmitted;
 			endcase
 			// reset next_value
 			next_value <= 0;
@@ -121,21 +121,21 @@ always @(posedge clock, posedge reset) begin: SPICONTROL_SPILOGIC
 		data_read_valid_prev <= data_read_valid;
 		// if data_read_valid goes high, we can put the received data into correspondig register
 		if( data_read_valid_prev==1 && data_read_valid==0 ) begin
-			// the first reveived word we are interested in is word 6, but since we increment afterwards it is 5
+			// the first received word we are interested in is word 3, but since we increment afterwards it is 2
 			case(numberOfWordsReceived)
-				5: position[0:15] <= data_read;
-				6: position[16:31] <= data_read;
-				7: velocity <= data_read;
-				8: current <= data_read;
-				9: displacement <= data_read;
-				10: sensor1 <= data_read;
-				11: sensor2 <= data_read;
+				3: position[15:0] <= data_read;
+				4: position[31:16] <= data_read;
+				5: velocity <= data_read;
+				6: current <= data_read;
+				7: displacement[15:0] <= data_read;
+				8: displacement[31:16] <= data_read;
+				9: sensor1 <= data_read;
 			endcase
 			numberOfWordsReceived <= numberOfWordsReceived + 1;
 		end
 		
 		// if all data was transmitted and slaveslect is high...again
-		if ( numberOfWordsTransmitted>=12 && ss_n==1 ) begin 		
+		if ( numberOfWordsTransmitted>=SPI_FRAME_WORDS && ss_n==1 ) begin 		
 			spi_done <= 1;
 			// start transmission of next spi frame
 			if ( start ) begin

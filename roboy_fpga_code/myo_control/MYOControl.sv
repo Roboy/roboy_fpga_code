@@ -126,14 +126,14 @@ reg [31:0] Kd_f[NUMBER_OF_MOTORS-1:0];
 // setpoints
 reg [31:0] sp_f[NUMBER_OF_MOTORS-1:0];
 // output limits
-reg [31:0] outputLimit[NUMBER_OF_MOTORS-1:0];
+reg signed [31:0] outputLimit[NUMBER_OF_MOTORS-1:0];
 // control mode
 reg [2:0] control_mode[NUMBER_OF_MOTORS-1:0];
 // reset pid_controller
 reg reset_controller[NUMBER_OF_MOTORS-1:0];
 
 // pwm output to motors 
-reg [0:15] pwmRefs[NUMBER_OF_MOTORS-1:0];
+reg signed [15:0] pwmRefs[NUMBER_OF_MOTORS-1:0];
 
 // the following is stuff we receive from the motors via spi
 // positions of the motors
@@ -144,8 +144,8 @@ reg signed [15:0] velocities[NUMBER_OF_MOTORS-1:0];
 reg signed [15:0] currents[NUMBER_OF_MOTORS-1:0];
 // displacements of the springs
 reg signed [31:0] displacements[NUMBER_OF_MOTORS-1:0];
-reg signed [31:0] displacements_prev[NUMBER_OF_MOTORS-1:0];
-reg signed [15:0] rev_counter[NUMBER_OF_MOTORS-1:0];
+// controlflags for each motor
+reg [15:0] controlFlags[NUMBER_OF_MOTORS-1:0];
 
 // raw motor states in float
 reg [31:0] positions_raw_f[NUMBER_OF_MOTORS-1:0];
@@ -181,7 +181,7 @@ reg [31:0] pos_encoder_multiplier_f[NUMBER_OF_MOTORS-1:0];
 reg [31:0] dis_encoder_multiplier_f[NUMBER_OF_MOTORS-1:0];
 
 assign readdata = returnvalue;
-assign waitrequest = (waitFlag && read) || update_controller;
+assign waitrequest = (waitFlag && read);
 reg [31:0] returnvalue;
 reg waitFlag;
 
@@ -212,7 +212,7 @@ always @(posedge clock, posedge reset) begin: AVALON_READ_INTERFACE
 				8'h0D: returnvalue <= currents[address[7:0]];
 				8'h0E: returnvalue <= displacements[address[7:0]];
 				
-				8'h0F: returnvalue <= pwmRefs[address[7:0]][0:15];
+				8'h0F: returnvalue <= pwmRefs[address[7:0]];
 				8'h10: returnvalue <= actual_update_frequency;
 				8'h11: returnvalue <= (power_sense_n==0); // active low
 				
@@ -242,6 +242,7 @@ always @(posedge clock, posedge reset) begin: AVALON_READ_INTERFACE
 				
 				8'h25: returnvalue <= pos_encoder_multiplier_f[address[7:0]];
 				8'h26: returnvalue <= dis_encoder_multiplier_f[address[7:0]];
+				8'h27: returnvalue <= controlFlags[address[7:0]];
 				default: returnvalue <= 32'hDEADBEEF;
 			endcase
 			if(waitFlag==1) begin // next clock cycle the returnvalue should be ready
@@ -253,11 +254,9 @@ end
 	
 reg reset_myo_control;
 reg spi_activated;
-reg update_controller;
 reg start_spi_transmission;
 	
 reg [7:0] motor;
-reg [7:0] pid_update;
 reg [31:0] spi_enable_counter;
 	
 always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
@@ -277,7 +276,6 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 		spi_enable <= 0;
 	end else begin
 		// toggle registers need to be set to zero at every clock cycle
-		update_controller <= 0;
 		start_spi_transmission <= 0;
 		reset_myo_control <= 0;
 		for(i=0; i<NUMBER_OF_MOTORS; i = i+1) begin : reset_reset_controller
@@ -291,9 +289,9 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 		
 		// when spi is done, latch the received values for the current motor and toggle PID controller update of previous motor
 		if(spi_done_prev==0 && spi_done) begin
-			positions[motor] <= position[0:31];
-			velocities[motor] <= velocity[0:15];
-			currents[motor] <= current[0:15];
+			positions[motor] <= position[31:0];
+			velocities[motor] <= velocity[15:0];
+			currents[motor] <= current[15:0];
 			
 			positions_raw_f[motor] <= pos_raw_f;
 			velocities_raw_f[motor] <= vel_raw_f;
@@ -325,79 +323,51 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 			dis_myo_brick_err_prev_f[motor] <= p_dis_myo_brick_err_f;
 			
 			if(mirrored_muscle_unit) begin 
-				displacements_prev[motor] <= -$signed(displacement[0:14]);
-				if(displacements_prev[motor]>16300 && -$signed(displacement[0:14])<-16300) begin
-					rev_counter[motor] <= rev_counter[motor]-1;
-				end 
-				if(displacements_prev[motor]<-16300 && -$signed(displacement[0:14])>16300) begin
-					rev_counter[motor] <= rev_counter[motor]+1;
-				end 
-				displacements[motor][31:0] <= rev_counter[motor]*16384-$signed(displacement[0:14]);
+				displacements[motor] <= -displacement;
 			end else begin
-				displacements_prev[motor] <= $signed(displacement[0:14]);
-				if(displacements_prev[motor]>16300 && $signed(displacement[0:14])<-16300) begin
-					rev_counter[motor] <= rev_counter[motor]+1;
-				end 
-				if(displacements_prev[motor]<-16300 && $signed(displacement[0:14])>16300) begin
-					rev_counter[motor] <= rev_counter[motor]-1;
-				end 
-				displacements[motor][31:0] <= rev_counter[motor]*32768+$signed(displacement[0:14]);
+				displacements[motor] <= displacement;
 			end
 			
 			case(control_mode[motor]) 
 				0: begin
-					if(positions_res[motor][30:0]>outputLimit[motor]) begin
-						if(positions_res[motor][31]) begin // negativ
-							pwmRefs[motor] <= -outputLimit[motor];
-						end else begin // positiv
-							pwmRefs[motor] <= outputLimit[motor];
-						end
+					if(positions_res[motor]>outputLimit[motor]) begin
+						pwmRefs[motor] <= outputLimit[motor];
+					end else if(positions_res[motor]<outputLimit[motor]) begin
+						pwmRefs[motor] <= -outputLimit[motor]; 
 					end else begin
-						pwmRefs[motor] <= positions_res[motor]; 
+						pwmRefs[motor] <= positions_res[motor];
 					end
 				end
 				1: begin
-					if(velocities_res[motor][30:0]>outputLimit[motor]) begin
-						if(velocities_res[motor][31]) begin // negativ
-							pwmRefs[motor] <= -outputLimit[motor];
-						end else begin // positiv
-							pwmRefs[motor] <= outputLimit[motor];
-						end
+					if(velocities_res[motor]>outputLimit[motor]) begin
+						pwmRefs[motor] <= outputLimit[motor];
+					end else if(velocities_res[motor]<outputLimit[motor]) begin
+						pwmRefs[motor] <= -outputLimit[motor]; 
 					end else begin
-						pwmRefs[motor] <= velocities_res[motor]; 
+						pwmRefs[motor] <= velocities_res[motor];
 					end
 				end
 				2: begin
-					if(displacements_res[motor][30:0]>outputLimit[motor]) begin
-						if(displacements_res[motor][31]) begin // negativ
-							pwmRefs[motor] <= -outputLimit[motor];
-						end else begin // positiv
-							pwmRefs[motor] <= outputLimit[motor];
-						end
+					if(displacements_res[motor]>outputLimit[motor]) begin
+						pwmRefs[motor] <= outputLimit[motor];
+					end else if(displacements_res[motor]<outputLimit[motor]) begin
+						pwmRefs[motor] <= -outputLimit[motor]; 
 					end else begin
-						pwmRefs[motor] <= displacements_res[motor]; 
+						pwmRefs[motor] <= positions_res[motor];
 					end
 				end
 				3: begin
-					if(displacements_myo_brick_res[motor][30:0]>outputLimit[motor]) begin
-						if(displacements_myo_brick_res[motor][31]) begin // negativ
-							pwmRefs[motor] <= -outputLimit[motor];
-						end else begin // positiv
-							pwmRefs[motor] <= outputLimit[motor];
-						end
+					if(displacements_myo_brick_res[motor]>outputLimit[motor]) begin
+						pwmRefs[motor] <= outputLimit[motor];
+					end else if(displacements_myo_brick_res[motor]<outputLimit[motor]) begin
+						pwmRefs[motor] <= -outputLimit[motor]; 
 					end else begin
-						pwmRefs[motor] <= displacements_myo_brick_res[motor]; 
+						pwmRefs[motor] <= displacements_myo_brick_res[motor];
 					end
 				end
 				default: pwmRefs[motor] <= 0;
 			endcase;
 			
-			if(motor==0) begin // lazy update (we are updating the controller following the current spi transmission)
-				pid_update <= NUMBER_OF_MOTORS-1; 
-			end else begin
-				pid_update <= motor-1;
-			end
-			update_controller <= 1; 
 		end
 		
 		// if a frequency is requested, a delay counter makes sure the next motor cycle will be delayed accordingly
@@ -449,6 +419,7 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 					8'h0E: update_frequency <= writedata;
 					8'h10: pos_encoder_multiplier_f[address[7:0]] <= writedata;
 					8'h11: dis_encoder_multiplier_f[address[7:0]] <= writedata;
+					9'h12: controlFlags[address[7:0]] <= writedata;
 				endcase
 			end
 		end
@@ -462,10 +433,6 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 				spi_activated <= 1;
 			end
 		end else begin 
-			for(i=0;i<NUMBER_OF_MOTORS;i=i+1) begin // reset rev counters
-				rev_counter[i] <= 0;
-				displacements_prev[motor] <= 0;
-			end
 			spi_enable_counter <= 0;
 			reset_myo_control <= 1;
 		end
@@ -473,17 +440,18 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 end
 
 wire di_req, wr_ack, do_valid, wren, spi_done, ss_n;
-wire [0:15] Word;
+wire [15:0] Word;
 wire [15:0] data_out;
-wire signed [0:15] pwmRef;
-wire signed [0:31] position; 
-wire signed [0:15] velocity;
-wire signed [0:15] current;
-wire [0:15] displacement;
-wire signed [0:15] sensor1;
-wire signed [0:15] sensor2;
+wire [15:0] controlFlag;
+wire signed [15:0] pwmRef;
+wire signed [31:0] position; 
+wire signed [15:0] velocity;
+wire signed [15:0] current;
+wire signed [31:0] displacement;
+wire signed [15:0] sensor1;
 
 // the pwmRef signal is wired to the active motor pid controller output
+assign controlFlag = controlFlags[motor];
 assign pwmRef = pwmRefs[motor];
 genvar j;
 generate 
@@ -501,16 +469,16 @@ SpiControl spi_control(
 	.data_read_valid(do_valid),
 	.data_read(data_out[15:0]),
 	.start(spi_activated && start_spi_transmission),
-	.Word(Word[0:15]),
+	.Word(Word[15:0]),
 	.wren(wren),
 	.spi_done(spi_done),
 	.pwmRef(pwmRef),
+	.controlFlag(controlFlag),
 	.position(position),
 	.velocity(velocity),
 	.current(current),
 	.displacement(displacement),
 	.sensor1(sensor1),
-	.sensor2(sensor2),
 	.ss_n(ss_n)
 );
 
@@ -520,7 +488,7 @@ spi_master #(16, 1'b0, 1'b1, 2, 5) spi(
 	.pclk_i(clock),
 	.rst_i(reset_myo_control),
 	.spi_miso_i(miso),
-	.di_i(Word[0:15]),
+	.di_i(Word[15:0]),
 	.wren_i(wren),
 	.spi_ssel_o(ss_n),
 	.spi_sck_o(sck),
