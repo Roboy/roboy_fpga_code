@@ -109,7 +109,8 @@ module MYOControl (
 	output mosi,
 	output sck,
 	input mirrored_muscle_unit,
-	input power_sense_n
+	input power_sense_n,
+	MyoControlInterface interf
 );
 
 parameter NUMBER_OF_MOTORS = 6;
@@ -180,14 +181,56 @@ reg signed [31:0] displacements_myo_brick_res[NUMBER_OF_MOTORS-1:0];
 reg [31:0] pos_encoder_multiplier_f[NUMBER_OF_MOTORS-1:0];
 reg [31:0] dis_encoder_multiplier_f[NUMBER_OF_MOTORS-1:0];
 
+// freaky freaky
+reg [31:0] update_frequency;
+reg [31:0] actual_update_frequency;
+reg [31:0] delay_counter;
+
+// interface connections
+assign interf.Kp_f = Kp_f;
+assign interf.Ki_f = Ki_f;
+assign interf.Kd_f = Kd_f;
+assign interf.sp_f = sp_f;
+assign interf.outputLimit = outputLimit;
+assign interf.control_mode = control_mode;
+assign interf.controlFlags = controlFlags;
+assign interf.pwmRefs = pwmRefs;
+assign interf.positions = positions;
+assign interf.velocities = velocities;
+assign interf.currents = currents;
+assign interf.displacements = displacements;
+assign interf.positions_raw_f = positions_raw_f;
+assign interf.velocities_raw_f = velocities_raw_f;
+assign interf.displacements_raw_f = displacements_raw_f;
+assign interf.positions_conv_f = positions_conv_f;
+assign interf.velocities_conv_f = velocities_conv_f;
+assign interf.displacements_conv_f = displacements_conv_f;
+assign interf.displacements_myo_brick_conv_f = displacements_myo_brick_conv_f;
+assign interf.positions_err_f = positions_err_f;
+assign interf.velocities_err_f = velocities_err_f;
+assign interf.displacements_err_f = displacements_err_f;
+assign interf.displacements_myo_brick_conv_f = displacements_myo_brick_conv_f;
+assign interf.positions_res_f = positions_res_f;
+assign interf.velocities_res_f = velocities_res_f;
+assign interf.displacements_res_f = displacements_res_f;
+assign interf.displacements_myo_brick_res_f = displacements_myo_brick_res_f;
+assign interf.positions_res = positions_res;
+assign interf.velocities_res = velocities_res;
+assign interf.displacements_res = displacements_res;
+assign interf.displacements_myo_brick_res = displacements_myo_brick_res;
+assign interf.positions_res = positions_res;
+assign interf.velocities_res = velocities_res;
+assign interf.displacements_res = displacements_res;
+assign interf.displacements_myo_brick_res = displacements_myo_brick_res;
+assign interf.pos_encoder_multiplier_f = pos_encoder_multiplier_f;
+assign interf.dis_encoder_multiplier_f = dis_encoder_multiplier_f;
+assign interf.update_frequency = update_frequency;
+assign interf.actual_update_frequency = actual_update_frequency;
+
 assign readdata = returnvalue;
 assign waitrequest = (waitFlag && read);
 reg [31:0] returnvalue;
 reg waitFlag;
-
-reg [31:0] update_frequency;
-reg [31:0] actual_update_frequency;
-reg [31:0] delay_counter;
 
 // the following iterface handles read requests via lightweight axi bridge
 // the upper 8 bit of the read address define which value we want to read
