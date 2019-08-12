@@ -111,7 +111,7 @@ module MYOControl (
 	input mirrored_muscle_unit,
 	input power_sense_n,
 	MyoControlInterface interf
-);
+)/* synthesis noprune */;
 
 parameter NUMBER_OF_MOTORS = 6;
 parameter CLOCK_SPEED_HZ = 50_000_000;
@@ -130,8 +130,6 @@ reg [31:0] sp_f[NUMBER_OF_MOTORS-1:0];
 reg signed [31:0] outputLimit[NUMBER_OF_MOTORS-1:0];
 // control mode
 reg [2:0] control_mode[NUMBER_OF_MOTORS-1:0];
-// reset pid_controller
-reg reset_controller[NUMBER_OF_MOTORS-1:0];
 
 // pwm output to motors 
 reg signed [15:0] pwmRefs[NUMBER_OF_MOTORS-1:0];
@@ -187,45 +185,50 @@ reg [31:0] actual_update_frequency;
 reg [31:0] delay_counter;
 
 // interface connections
-assign interf.Kp_f = Kp_f;
-assign interf.Ki_f = Ki_f;
-assign interf.Kd_f = Kd_f;
-assign interf.sp_f = sp_f;
-assign interf.outputLimit = outputLimit;
-assign interf.control_mode = control_mode;
-assign interf.controlFlags = controlFlags;
-assign interf.pwmRefs = pwmRefs;
-assign interf.positions = positions;
-assign interf.velocities = velocities;
-assign interf.currents = currents;
-assign interf.displacements = displacements;
-assign interf.positions_raw_f = positions_raw_f;
-assign interf.velocities_raw_f = velocities_raw_f;
-assign interf.displacements_raw_f = displacements_raw_f;
-assign interf.positions_conv_f = positions_conv_f;
-assign interf.velocities_conv_f = velocities_conv_f;
-assign interf.displacements_conv_f = displacements_conv_f;
-assign interf.displacements_myo_brick_conv_f = displacements_myo_brick_conv_f;
-assign interf.positions_err_f = positions_err_f;
-assign interf.velocities_err_f = velocities_err_f;
-assign interf.displacements_err_f = displacements_err_f;
-assign interf.displacements_myo_brick_conv_f = displacements_myo_brick_conv_f;
-assign interf.positions_res_f = positions_res_f;
-assign interf.velocities_res_f = velocities_res_f;
-assign interf.displacements_res_f = displacements_res_f;
-assign interf.displacements_myo_brick_res_f = displacements_myo_brick_res_f;
-assign interf.positions_res = positions_res;
-assign interf.velocities_res = velocities_res;
-assign interf.displacements_res = displacements_res;
-assign interf.displacements_myo_brick_res = displacements_myo_brick_res;
-assign interf.positions_res = positions_res;
-assign interf.velocities_res = velocities_res;
-assign interf.displacements_res = displacements_res;
-assign interf.displacements_myo_brick_res = displacements_myo_brick_res;
-assign interf.pos_encoder_multiplier_f = pos_encoder_multiplier_f;
-assign interf.dis_encoder_multiplier_f = dis_encoder_multiplier_f;
-assign interf.update_frequency = update_frequency;
-assign interf.actual_update_frequency = actual_update_frequency;
+genvar k;
+generate
+for(k=0;k<NUMBER_OF_MOTORS;k=k+1) begin : assign_interfaces
+	assign interf.Kp_f[k] = Kp_f[k];
+	assign interf.Ki_f[k] = Ki_f[k];
+	assign interf.Kd_f[k] = Kd_f[k];
+	assign interf.sp_f[k] = sp_f[k];
+	assign interf.outputLimit[k] = outputLimit[k];
+	assign interf.control_mode[k] = control_mode[k];
+	assign interf.controlFlags[k] = controlFlags[k];
+	assign interf.pwmRefs[k] = pwmRefs[k];
+	assign interf.positions[k] = positions[k];
+	assign interf.velocities[k] = velocities[k];
+	assign interf.currents[k] = currents[k];
+	assign interf.displacements[k] = displacements[k];
+	assign interf.positions_raw_f[k] = positions_raw_f[k];
+	assign interf.velocities_raw_f[k] = velocities_raw_f[k];
+	assign interf.displacements_raw_f[k] = displacements_raw_f[k];
+	assign interf.positions_conv_f[k] = positions_conv_f[k];
+	assign interf.velocities_conv_f[k] = velocities_conv_f[k];
+	assign interf.displacements_conv_f[k] = displacements_conv_f[k];
+	assign interf.displacements_myo_brick_conv_f[k] = displacements_myo_brick_conv_f[k];
+	assign interf.positions_err_f[k] = positions_err_f[k];
+	assign interf.velocities_err_f[k] = velocities_err_f[k];
+	assign interf.displacements_err_f[k] = displacements_err_f[k];
+	assign interf.displacements_myo_brick_conv_f[k] = displacements_myo_brick_conv_f[k];
+	assign interf.positions_res_f[k] = positions_res_f[k];
+	assign interf.velocities_res_f[k] = velocities_res_f[k];
+	assign interf.displacements_res_f[k] = displacements_res_f[k];
+	assign interf.displacements_myo_brick_res_f[k] = displacements_myo_brick_res_f[k];
+	assign interf.positions_res[k] = positions_res[k];
+	assign interf.velocities_res[k] = velocities_res[k];
+	assign interf.displacements_res[k] = displacements_res[k];
+	assign interf.displacements_myo_brick_res[k] = displacements_myo_brick_res[k];
+	assign interf.positions_res[k] = positions_res[k];
+	assign interf.velocities_res[k] = velocities_res[k];
+	assign interf.displacements_res[k] = displacements_res[k];
+	assign interf.displacements_myo_brick_res[k] = displacements_myo_brick_res[k];
+	assign interf.pos_encoder_multiplier_f[k] = pos_encoder_multiplier_f[k];
+	assign interf.dis_encoder_multiplier_f[k] = dis_encoder_multiplier_f[k];
+	assign interf.update_frequency[k] = update_frequency[k];
+	assign interf.actual_update_frequency[k] = actual_update_frequency[k];
+end
+endgenerate
 
 assign readdata = returnvalue;
 assign waitrequest = (waitFlag && read);
@@ -313,7 +316,7 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 	reg pos_result2ready_prev, vel_result2ready_prev, dis_result2ready_prev, myo_result2ready_prev;
 	if (reset == 1) begin
 		reset_myo_control <= 0;
-		spi_activated <= 0;
+		spi_activated <= 1;
 		motor <= 0;
 		spi_done_prev <= 0;
 		delay_counter <= 0;
@@ -326,9 +329,6 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 		start_spi_transmission <= 0;
 		next_motor <= 0;
 		reset_myo_control <= 0;
-		for(i=0; i<NUMBER_OF_MOTORS; i = i+1) begin : reset_reset_controller
-			reset_controller[i] <= 0;
-		end
 		// for rising edge detection of spi done
 		spi_done_prev <= spi_done;
 		
@@ -449,7 +449,6 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 					8'h05: control_mode[address[7:0]][2:0] <= writedata[2:0];
 					8'h06: reset_myo_control <= (writedata!=0);
 					8'h07: spi_activated <= (writedata!=0);
-					8'h08: reset_controller[address[7:0]] <= (writedata!=0);
 					8'h09: update_frequency <= writedata;
 					8'h1A: pos_encoder_multiplier_f[address[7:0]] <= writedata;
 					8'h1B: dis_encoder_multiplier_f[address[7:0]] <= writedata;
@@ -586,12 +585,7 @@ wire [31:0] dis_myo_brick_res;
 
 reg [7:0] pid_motor;
 
-
-fpu pos2flo( clock, INT2FLO, positions[motor], 0, pos_raw_f);
-fpu vel2flo( clock, INT2FLO, velocities[motor], 0, vel_raw_f);
-fpu dis2flo( clock, INT2FLO, displacements[motor], 0, dis_raw_f);
-
-wire pos_conv, vel_conv, dis_conv, myo_brick_dis_conv;
+wire pos_conv, vel_conv, dis_conv, myo_conv;
 wire pos_conv2err, vel_conv2err, dis_conv2err, myo_conv2err;
 wire pos_err2preverr, vel_err2preverr, dis_err2preverr, myo_err2preverr;
 wire pos_preverr2pres, vel_preverr2pres, dis_preverr2pres, myo_preverr2pres;
@@ -599,41 +593,83 @@ wire pos_pposres2dres, vel_pposres2dres, dis_pposres2dres, myo_pposres2dres;
 wire pos_dres2result, vel_dres2result, dis_dres2result, myo_dres2result;
 wire pos_result2ready, vel_result2ready, dis_result2ready, myo_result2ready;
 
+//fpu pos2flo( clock, 0, INT2FLO, positions[motor], 0, pos_raw_f);
+//fpu vel2flo( clock, 0, INT2FLO, velocities[motor], 0, vel_raw_f);
+//fpu dis2flo( clock, 0, INT2FLO, displacements[motor], 0, dis_raw_f);
+wire overflow;
+qmult pos_conv_fpu( pos_raw_f, pos_encoder_multiplier_f[motor], pos_conv_f, overflow);
+//fpu100 vel_conv_fpu( vel_raw_f, pos_encoder_multiplier_f[motor], MUL, 0, vel_conv_f);
+//fpu100 dis_conv_fpu( dis_raw_f, dis_encoder_multiplier_f[motor], MUL, 0, dis_conv_f);
+//fpu100 myo_brick_dis_fpu (clock, pos_conv_f, dis_conv_f, SUB, 0, myo_brick_dis_f, 														myo_conv, myo_conv2err);
+//
+//fpu100 pos_err( clock, sp_f[motor], pos_conv_f, SUB, 0, p_pos_err_f, 																		pos_conv2err, pos_err2preverr);
+//fpu100 vel_err( clock, sp_f[motor], vel_conv_f, SUB, 0, p_vel_err_f, 																		vel_conv2err, vel_err2preverr);
+//fpu100 dis_err( clock, sp_f[motor], dis_conv_f, SUB, 0, p_dis_err_f, 																		dis_conv2err, dis_err2preverr);
+//fpu100 dis_myo_err( clock, sp_f[motor], myo_brick_dis_f, SUB, 0,p_dis_myo_brick_err_f,													myo_conv2err, myo_err2preverr);
+//
+//fpu100 pos_err_prev( clock, p_pos_err_f, pos_err_prev_f[motor], SUB, 0, d_pos_err_f,														pos_err2preverr, pos_preverr2pres);
+//fpu100 vel_err_prev( clock, p_vel_err_f, vel_err_prev_f[motor], SUB, 0, d_vel_err_f,														vel_err2preverr, vel_preverr2pres);
+//fpu100 dis_err_prev( clock, p_dis_err_f, dis_err_prev_f[motor], SUB, 0, d_dis_err_f,														dis_err2preverr, dis_preverr2pres);
+//fpu100 dis_myo_brick_err_prev( clock, p_dis_myo_brick_err_f, dis_myo_brick_err_prev_f[motor], SUB, 0, d_dis_myo_brick_err_f,	myo_err2preverr, myo_preverr2pres);
+//
+//fpu100 p_pos_res( clock, p_pos_err_f, Kp_f[motor], MUL, 0, p_pos_res_f,																		pos_preverr2pres, pos_pposres2dres);
+//fpu100 p_vel_res( clock, p_vel_err_f, Kp_f[motor], MUL, 0, p_vel_res_f,																		vel_preverr2pres, vel_pposres2dres);
+//fpu100 p_dis_res( clock, p_dis_err_f, Kp_f[motor], MUL, 0, p_dis_res_f,																		dis_preverr2pres, dis_pposres2dres);
+//fpu100 p_dis_myo_brick_res( clock, p_dis_myo_brick_err_f, Kp_f[motor], MUL, 0, p_dis_myo_brick_res_f,								myo_preverr2pres, myo_pposres2dres);
+//
+//fpu100 d_pos_res( clock, d_pos_err_f, Kd_f[motor], MUL, 0, d_pos_res_f,																		pos_pposres2dres, pos_dres2result);
+//fpu100 d_vel_res( clock, d_vel_err_f, Kd_f[motor], MUL, 0, d_vel_res_f,																		vel_pposres2dres, vel_dres2result);
+//fpu100 d_dis_res( clock, d_dis_err_f, Kd_f[motor], MUL, 0, d_dis_res_f,																		dis_pposres2dres, dis_dres2result);
+//fpu100 d_dis_myo_brick_res( clock, d_dis_myo_brick_err_f, Kd_f[motor], MUL, 0, d_dis_myo_brick_res_f,								myo_pposres2dres, myo_dres2result);
+//
+//fpu100 pos_result( clock, p_pos_res_f, d_pos_res_f, ADD, 0, pos_res_f,																		pos_dres2result, pos_result2ready);
+//fpu100 vel_result( clock, p_vel_res_f, d_pos_res_f, ADD, 0, vel_res_f,																		vel_dres2result, vel_result2ready);
+//fpu100 dis_result( clock, p_dis_res_f, d_pos_res_f, ADD, 0, dis_res_f,																		dis_dres2result, dis_result2ready);
+//fpu100 dis_myo_brick_result( clock, p_dis_myo_brick_res_f, d_dis_myo_brick_res_f, ADD, 0, dis_myo_brick_res_f,					myo_dres2result, myo_result2ready);
 
-fpu100 pos_conv_fpu( clock, pos_raw_f, pos_encoder_multiplier_f[motor], MUL, 0, pos_conv_f, 											pos_conv, pos_conv2err);
-fpu100 vel_conv_fpu( clock, MUL, vel_raw_f, pos_encoder_multiplier_f[motor], MUL, 0, vel_conv_f, 									vel_conv, vel_conv2err);
-fpu100 dis_conv_fpu( clock, MUL, dis_raw_f, dis_encoder_multiplier_f[motor], MUL, 0, dis_conv_f, 									dis_conv, dis_conv2err);
-fpu100 myo_brick_dis_fpu (clock, pos_conv_f, dis_conv_f, SUB, 0, myo_brick_dis_f, 														myo_conv, myo_conv2err);
+//fpu pos_res2int( clock, 0, FLO2INT, pos_res_f, 0, pos_res);
+//fpu vel_res2int( clock, 0, FLO2INT, vel_res_f, 0, vel_res);
+//fpu dis_res2int( clock, 0, FLO2INT, dis_res_f, 0, dis_res);
+//fpu dis_myo_brick_res2int( clock, 0, FLO2INT, dis_myo_brick_res_f, 0, dis_myo_brick_res);
 
-fpu100 pos_err( clock, sp_f[motor], pos_conv_f, SUB, 0, p_pos_err_f, 																		pos_conv2err, pos_err2preverr);
-fpu100 vel_err( clock, sp_f[motor], vel_conv_f, SUB, 0, p_vel_err_f, 																		vel_conv2err, vel_err2preverr);
-fpu100 dis_err( clock, sp_f[motor], dis_conv_f, SUB, 0, p_dis_err_f, 																		dis_conv2err, dis_err2preverr);
-fpu100 dis_myo_err( clock, sp_f[motor], myo_brick_dis_f, SUB, 0,p_dis_myo_brick_err_f,													myo_conv2err, myo_err2preverr);
-
-fpu pos_err_prev( clock, p_pos_err_f, pos_err_prev_f[motor], SUB, 0, d_pos_err_f,														pos_err2preverr, pos_preverr2pres);
-fpu vel_err_prev( clock, p_vel_err_f, vel_err_prev_f[motor], SUB, 0, d_vel_err_f,														vel_err2preverr, vel_preverr2pres);
-fpu dis_err_prev( clock, p_dis_err_f, dis_err_prev_f[motor], SUB, 0, d_dis_err_f,														dis_err2preverr, dis_preverr2pres);
-fpu dis_myo_brick_err_prev( clock, p_dis_myo_brick_err_f, dis_myo_brick_err_prev_f[motor], SUB, 0, d_dis_myo_brick_err_f,	myo_err2preverr, myo_preverr2pres);
-
-fpu100 p_pos_res( clock, p_pos_err_f, Kp_f[motor], MUL, 0, p_pos_res_f,																		pos_preverr2pres, pos_pposres2dres);
-fpu100 p_vel_res( clock, p_vel_err_f, Kp_f[motor], MUL, 0, p_vel_res_f,																		vel_preverr2pres, vel_pposres2dres);
-fpu100 p_dis_res( clock, p_dis_err_f, Kp_f[motor], MUL, 0, p_dis_res_f,																		dis_preverr2pres, dis_pposres2dres);
-fpu100 p_dis_myo_brick_res( clock, p_dis_myo_brick_err_f, Kp_f[motor], MUL, 0, p_dis_myo_brick_res_f,								myo_preverr2pres, myo_pposres2dres);
-
-fpu100 d_pos_res( clock, d_pos_err_f, Kd_f[motor], MUL, 0, d_pos_res_f,																		pos_pposres2dres, pos_dres2result);
-fpu100 d_vel_res( clock, d_vel_err_f, Kd_f[motor], MUL, 0, d_vel_res_f,																		vel_pposres2dres, vel_dres2result);
-fpu100 d_dis_res( clock, d_dis_err_f, Kd_f[motor], MUL, 0, d_dis_res_f,																		dis_pposres2dres, dis_dres2result);
-fpu100 d_dis_myo_brick_res( clock, d_dis_myo_brick_err_f, Kd_f[motor], MUL, 0, d_dis_myo_brick_res_f,								myo_pposres2dres, myo_dres2result);
-
-fpu100 pos_result( clock, p_pos_res_f, d_pos_res_f, ADD, 0, pos_res_f,																		pos_dres2result, pos_result2ready);
-fpu100 vel_result( clock, p_vel_res_f, d_pos_res_f, ADD, 0, vel_res_f,																		vel_dres2result, vel_result2ready);
-fpu100 dis_result( clock, p_dis_res_f, d_pos_res_f, ADD, 0, dis_res_f,																		dis_dres2result, dis_result2ready);
-fpu100 dis_myo_brick_result( clock, p_dis_myo_brick_res_f, d_dis_myo_brick_res_f, ADD, 0, dis_myo_brick_res_f,					myo_dres2result, myo_result2ready);
-
-fpu pos_res2int( clock, FLO2INT, pos_res_f, pos_res);
-fpu vel_res2int( clock, FLO2INT, vel_res_f, vel_res);
-fpu dis_res2int( clock, FLO2INT, dis_res_f, dis_res);
-fpu dis_myo_brick_res2int( clock, FLO2INT, dis_myo_brick_res_f, dis_myo_brick_res);
+//fpu pos2flo( clock, 0, INT2FLO, positions[motor], 0, pos_raw_f);
+//fpu vel2flo( clock, 0, INT2FLO, velocities[motor], 0, vel_raw_f);
+//fpu dis2flo( clock, 0, INT2FLO, displacements[motor], 0, dis_raw_f);
+//
+//fpu100 pos_conv_fpu( clock, pos_raw_f, pos_encoder_multiplier_f[motor], MUL, 0, pos_conv_f, 											pos_conv, pos_conv2err);
+//fpu100 vel_conv_fpu( clock, vel_raw_f, pos_encoder_multiplier_f[motor], MUL, 0, vel_conv_f, 									vel_conv, vel_conv2err);
+//fpu100 dis_conv_fpu( clock, dis_raw_f, dis_encoder_multiplier_f[motor], MUL, 0, dis_conv_f, 									dis_conv, dis_conv2err);
+//fpu100 myo_brick_dis_fpu (clock, pos_conv_f, dis_conv_f, SUB, 0, myo_brick_dis_f, 														myo_conv, myo_conv2err);
+//
+//fpu100 pos_err( clock, sp_f[motor], pos_conv_f, SUB, 0, p_pos_err_f, 																		pos_conv2err, pos_err2preverr);
+//fpu100 vel_err( clock, sp_f[motor], vel_conv_f, SUB, 0, p_vel_err_f, 																		vel_conv2err, vel_err2preverr);
+//fpu100 dis_err( clock, sp_f[motor], dis_conv_f, SUB, 0, p_dis_err_f, 																		dis_conv2err, dis_err2preverr);
+//fpu100 dis_myo_err( clock, sp_f[motor], myo_brick_dis_f, SUB, 0,p_dis_myo_brick_err_f,													myo_conv2err, myo_err2preverr);
+//
+//fpu100 pos_err_prev( clock, p_pos_err_f, pos_err_prev_f[motor], SUB, 0, d_pos_err_f,														pos_err2preverr, pos_preverr2pres);
+//fpu100 vel_err_prev( clock, p_vel_err_f, vel_err_prev_f[motor], SUB, 0, d_vel_err_f,														vel_err2preverr, vel_preverr2pres);
+//fpu100 dis_err_prev( clock, p_dis_err_f, dis_err_prev_f[motor], SUB, 0, d_dis_err_f,														dis_err2preverr, dis_preverr2pres);
+//fpu100 dis_myo_brick_err_prev( clock, p_dis_myo_brick_err_f, dis_myo_brick_err_prev_f[motor], SUB, 0, d_dis_myo_brick_err_f,	myo_err2preverr, myo_preverr2pres);
+//
+//fpu100 p_pos_res( clock, p_pos_err_f, Kp_f[motor], MUL, 0, p_pos_res_f,																		pos_preverr2pres, pos_pposres2dres);
+//fpu100 p_vel_res( clock, p_vel_err_f, Kp_f[motor], MUL, 0, p_vel_res_f,																		vel_preverr2pres, vel_pposres2dres);
+//fpu100 p_dis_res( clock, p_dis_err_f, Kp_f[motor], MUL, 0, p_dis_res_f,																		dis_preverr2pres, dis_pposres2dres);
+//fpu100 p_dis_myo_brick_res( clock, p_dis_myo_brick_err_f, Kp_f[motor], MUL, 0, p_dis_myo_brick_res_f,								myo_preverr2pres, myo_pposres2dres);
+//
+//fpu100 d_pos_res( clock, d_pos_err_f, Kd_f[motor], MUL, 0, d_pos_res_f,																		pos_pposres2dres, pos_dres2result);
+//fpu100 d_vel_res( clock, d_vel_err_f, Kd_f[motor], MUL, 0, d_vel_res_f,																		vel_pposres2dres, vel_dres2result);
+//fpu100 d_dis_res( clock, d_dis_err_f, Kd_f[motor], MUL, 0, d_dis_res_f,																		dis_pposres2dres, dis_dres2result);
+//fpu100 d_dis_myo_brick_res( clock, d_dis_myo_brick_err_f, Kd_f[motor], MUL, 0, d_dis_myo_brick_res_f,								myo_pposres2dres, myo_dres2result);
+//
+//fpu100 pos_result( clock, p_pos_res_f, d_pos_res_f, ADD, 0, pos_res_f,																		pos_dres2result, pos_result2ready);
+//fpu100 vel_result( clock, p_vel_res_f, d_pos_res_f, ADD, 0, vel_res_f,																		vel_dres2result, vel_result2ready);
+//fpu100 dis_result( clock, p_dis_res_f, d_pos_res_f, ADD, 0, dis_res_f,																		dis_dres2result, dis_result2ready);
+//fpu100 dis_myo_brick_result( clock, p_dis_myo_brick_res_f, d_dis_myo_brick_res_f, ADD, 0, dis_myo_brick_res_f,					myo_dres2result, myo_result2ready);
+//
+//fpu pos_res2int( clock, 0, FLO2INT, pos_res_f, 0, pos_res);
+//fpu vel_res2int( clock, 0, FLO2INT, vel_res_f, 0, vel_res);
+//fpu dis_res2int( clock, 0, FLO2INT, dis_res_f, 0, dis_res);
+//fpu dis_myo_brick_res2int( clock, 0, FLO2INT, dis_myo_brick_res_f, 0, dis_myo_brick_res);
 
 //fpu pos2flo( clock, 0, INT2FLO, positions[motor], 0, pos_raw_f);
 //fpu vel2flo( clock, 0, INT2FLO, velocities[motor], 0, vel_raw_f);

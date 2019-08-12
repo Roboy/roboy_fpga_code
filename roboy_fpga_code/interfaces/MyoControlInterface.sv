@@ -66,7 +66,6 @@ interface MyoControlInterface #(parameter NUMBER_OF_MOTORS = 1) ();
 	// freaky freaky
 	wire [31:0] update_frequency;
 	wire [31:0] actual_update_frequency;
-	wire [31:0] delay_counter;
 	// From child module perspective				
 	modport child(
 				inout Kp_f, inout Ki_f, inout Kd_f, inout sp_f, inout outputLimit, inout control_mode, inout controlFlags, 
