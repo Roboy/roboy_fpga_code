@@ -32,7 +32,7 @@ module rot_enc_flt(
 	assign dir_changed = dir_reg[1] ^ dir_reg[0];
 	
 	// debouncing
-	lpf_cap #(7) // 2^7 - it's about 1/8 of min encoder period
+	lpf_cap #(4) // 2^7 - it's about 1/8 of min encoder period
 		f0(.clock, .sclr(dir_changed), .in(A_reg), .out(A_flt), .init(init[0])),
 		f1(.clock, .sclr(dir_changed), .in(B_reg), .out(B_flt), .init(init[1]));
 	
