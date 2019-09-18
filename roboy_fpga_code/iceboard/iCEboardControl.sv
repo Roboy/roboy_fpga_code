@@ -10,7 +10,8 @@ module ICEboardControl (
 		output waitrequest,
 		input rx,
 		output tx,
-		inout rx_receive
+		inout rx_receive,
+		output [3:0] debug_signals
 );
 	
 	parameter NUMBER_OF_MOTORS = 6;
@@ -50,8 +51,8 @@ module ICEboardControl (
 	
 	wire [7:0] motor;
 	wire [7:0] addr;
-	assign motor = (address>>8);
-	assign addr = (address&8'hFF);
+	assign addr = (address>>8);
+	assign motor = (address&8'hFF);
 
 	always @(posedge clk, posedge reset) begin: AVALON_READ_INTERFACE
 		if (reset == 1) begin
@@ -149,7 +150,8 @@ module ICEboardControl (
 		.IntegralLimit(IntegralLimit),
 		.deadband(deadband),
 		.error_code(error_code),
-		.rx_receive(rx_receive)
+		.rx_receive(rx_receive),
+		.debug_signals(debug_signals)
 	);
 	
 endmodule
