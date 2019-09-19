@@ -39,10 +39,7 @@ module ICEboardControl (
 	reg [31:0] error_code[NUMBER_OF_MOTORS-1:0];
 	reg [31:0] crc_checksum[NUMBER_OF_MOTORS-1:0];
 	reg [31:0] communication_quality[NUMBER_OF_MOTORS-1:0];
-	reg [31:0] status_update_frequency_Hz;
-	reg [7:0] motor_to_update;
-	reg trigger_control_mode_update;
-	reg trigger_setpoint_update;
+	reg [31:0] update_frequency_Hz;
 
 	assign readdata = returnvalue;
 	assign waitrequest = (waitFlag && read);
@@ -75,7 +72,7 @@ module ICEboardControl (
 					8'h0B: returnvalue <= control_mode[motor];
 					8'h0C: returnvalue <= sp[motor];
 					8'h0D: returnvalue <= error_code[motor];
-					8'h11: returnvalue <= status_update_frequency_Hz;
+					8'h11: returnvalue <= update_frequency_Hz;
 					8'h12: returnvalue <= current_phase1[motor];
 					8'h13: returnvalue <= current_phase2[motor];
 					8'h14: returnvalue <= current_phase3[motor];
@@ -103,11 +100,8 @@ module ICEboardControl (
 				PWMLimit[i] <= 127;
 				IntegralLimit[i] <= 50;
 			end
-			status_update_frequency_Hz <= 100;
+			update_frequency_Hz <= 100;
 		end else begin
-			trigger_control_mode_update <= 0;
-			trigger_setpoint_update <= 0;
-			
 			if(write && ~waitrequest) begin
 				case(addr)
 					8'h01: Kp[motor] <= writedata;
@@ -118,10 +112,7 @@ module ICEboardControl (
 					8'h0A: deadband[motor] <= writedata;
 					8'h0B: control_mode[motor] <= writedata;
 					8'h0C: sp[motor] <= writedata;
-					8'h0E: trigger_control_mode_update <= (writedata!=0);
-					8'h0F: trigger_setpoint_update <= (writedata!=0);
-					8'h10: motor_to_update <= writedata;
-					8'h11: status_update_frequency_Hz <= writedata;
+					8'h11: update_frequency_Hz <= writedata;
 				endcase
 			end
 		end 
@@ -132,10 +123,7 @@ module ICEboardControl (
 		.reset(reset),
 		.tx_o(tx),
 		.rx_i(rx),
-		.status_update_frequency_Hz(status_update_frequency_Hz),
-		.trigger_control_mode_update(trigger_control_mode_update),
-		.trigger_setpoint_update(trigger_setpoint_update),
-		.motor_to_update(motor_to_update),
+		.update_frequency_Hz(update_frequency_Hz),
 		.encoder0_position(encoder0_position),
 		.encoder1_position(encoder1_position),
 		.encoder0_velocity(encoder0_velocity),

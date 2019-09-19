@@ -4,10 +4,7 @@ module coms #(parameter NUMBER_OF_MOTORS = 6, parameter CLK_FREQ_HZ = 50_000_000
 	output tx_o,
 	output tx_enable,
 	input rx_i,
-	input wire [31:0] status_update_frequency_Hz,
-	input wire trigger_control_mode_update,
-	input wire trigger_setpoint_update,
-	input wire [7:0] motor_to_update,
+	input wire [31:0] update_frequency_Hz,
 	output wire signed [31:0] encoder0_position[NUMBER_OF_MOTORS-1:0],
 	output wire signed [31:0] encoder1_position[NUMBER_OF_MOTORS-1:0],
 	output wire signed [31:0] encoder0_velocity[NUMBER_OF_MOTORS-1:0],
@@ -85,7 +82,7 @@ endfunction
 	localparam  STATUS_REQUEST_FRAME_MAGICNUMBER = 32'h1CE1CEBB;
 	localparam	STATUS_REQUEST_FRAME_LENGTH = 7;
 	localparam 	STATUS_FRAME_MAGICNUMBER = 32'h1CEB00DA;
-	localparam  STATUS_FRAME_LENGTH = 30;
+	localparam  STATUS_FRAME_LENGTH = 34;
 	localparam 	SETPOINT_FRAME_MAGICNUMBER = 32'hD0D0D0D0;
 	localparam  SETPOINT_FRAME_LENGTH = 11;
 	localparam 	CONTROL_MODE_FRAME_MAGICNUMBER = 32'hBAADA555;
@@ -113,17 +110,21 @@ endfunction
 	reg timeout;
 	reg [31:0] status_requests[NUMBER_OF_MOTORS-1:0];
 	reg [31:0] status_received[NUMBER_OF_MOTORS-1:0];
+	reg trigger_control_mode_update;
+	reg trigger_setpoint_update;
+	reg signed [31:0] setpoint_actual[NUMBER_OF_MOTORS-1:0];
+	
 	always @(posedge clk, posedge reset) begin: UART_TRANSMITTER
 		localparam IDLE=8'h0, PREPARE_CONTROL_MODE = 8'h1, SEND_CONTROL_MODE = 8'h2, PREPARE_SETPOINT  = 8'h3, SEND_SETPOINT = 8'h4,
 				PREPARE_STATUS_REQUEST = 8'h5, SEND_STATUS_REQUEST = 8'h6, WAIT_UNTIL_BUS_FREE = 8'h7;
 		reg [7:0] state;
 		reg done;
-		reg [31:0] status_update_delay_counter;
+		reg [31:0] update_delay_counter;
 		integer i;
 		if(reset) begin
 			state = IDLE;
 			done <= 1;
-			status_update_delay_counter <= 0;
+			update_delay_counter <= 0;
 			for(i=0;i<NUMBER_OF_MOTORS;i=i+1)begin
 				status_requests[i] <= 0;
 			end
@@ -133,38 +134,26 @@ endfunction
 			timeout <= 0;
 			
 			if(trigger_control_mode_update)begin
-				if(motor_to_update==8'hFF) begin
-					done <= 0;
-					motor <= 0;
-				end else begin
-					motor <= motor_to_update;
-				end
 				state = PREPARE_CONTROL_MODE;
 			end
 			
 			if(trigger_setpoint_update)begin
-				if(motor_to_update==8'hFF) begin
-					done <= 0;
-					motor <= 0;
-				end else begin
-					motor <= motor_to_update;
-				end
 				state = PREPARE_SETPOINT;
 			end
 			
-			if(status_update_delay_counter!=0)begin
-				status_update_delay_counter <= status_update_delay_counter - 1;
+			if(update_delay_counter!=0)begin
+				update_delay_counter <= update_delay_counter - 1;
 			end
 			
 			if(status_byte_received)begin
-				byte_transmit_counter = receive_byte_counter;
-				data_out[receive_byte_counter] <= data_in_frame[receive_byte_counter];
+				byte_transmit_counter = receive_byte_counter-1;
+				data_out[receive_byte_counter-1] <= data_in_frame[receive_byte_counter-1];
 				tx_transmit <= 1;
 			end
 			
 			case(state)
 				IDLE: begin
-					if(!done && motor_to_update==8'hFF)begin // if we are not done and all motors should be updated
+					if(!done)begin // if we are not done and all motors should be updated
 						if(motor<NUMBER_OF_MOTORS-1) begin
 							motor <= motor + 1;
 						end else begin
@@ -172,8 +161,8 @@ endfunction
 							motor <= 0; 
 						end
 					end else begin
-						if(status_update_delay_counter==0) begin
-							status_update_delay_counter <= (CLK_FREQ_HZ/status_update_frequency_Hz/NUMBER_OF_MOTORS);
+						if(update_delay_counter==0) begin
+							update_delay_counter <= (CLK_FREQ_HZ/update_frequency_Hz/NUMBER_OF_MOTORS);
 							state = PREPARE_STATUS_REQUEST;
 							if(motor<NUMBER_OF_MOTORS-1) begin
 								motor <= motor + 1;
@@ -283,7 +272,7 @@ endfunction
 					data_out[STATUS_REQUEST_FRAME_LENGTH-2] = tx_crc[15:8];
 					data_out[STATUS_REQUEST_FRAME_LENGTH-1] = tx_crc[7:0];
 					byte_transmit_counter = 0;
-					delay_counter = CLK_FREQ_HZ/BAUDRATE*(MAX_FRAME_LENGTH*8+MAX_FRAME_LENGTH*2);
+					delay_counter = CLK_FREQ_HZ/BAUDRATE*(MAX_FRAME_LENGTH*8+MAX_FRAME_LENGTH*3);
 					status_requests[motor] <= status_requests[motor] + 1;
 					state = SEND_STATUS_REQUEST;
 				end
@@ -303,7 +292,7 @@ endfunction
 					if(delay_counter==0) begin // we have to wait until the bus is free
 						state = IDLE;
 						timeout <= 1;
-						if(status_requests[motor]>status_update_frequency_Hz)begin
+						if(status_requests[motor]>update_frequency_Hz)begin
 							status_requests[motor] <= 0;
 						end else begin
 							communication_quality[motor] <= (status_received[motor]*100)/status_requests[motor];
@@ -338,6 +327,8 @@ endfunction
 		end else begin
 			rx_data_ready_prev <= rx_data_ready;
 			status_byte_received <= 0;
+			trigger_control_mode_update <= 0;
+			trigger_setpoint_update <= 0;
 			if(status_requests[motor]==0)begin // reset for communication_quality measurement
 				status_received[motor] <= 0;
 			end
@@ -385,7 +376,7 @@ endfunction
 						  && rx_crc[7:0]==data_in_frame[STATUS_FRAME_LENGTH-MAGIC_NUMBER_LENGTH-1]
 						  && (motor_id==motor)) begin // MATCH! and from the motor we requested
 						if(data_in_frame[1]!=control_mode[data_in_frame[0]]) begin
-							error_code[data_in_frame[0]] <= 8'h3; // control mode error
+							trigger_control_mode_update <= 1;
 						end else begin
 							error_code[data_in_frame[0]] <= 8'h0;
 						end
@@ -411,7 +402,14 @@ endfunction
 						current_phase2[motor_id][7:0] <= data_in_frame[21];
 						current_phase3[motor_id][15:8] <= data_in_frame[22];
 						current_phase3[motor_id][7:0] <= data_in_frame[23];
+						setpoint_actual[motor_id][31:24] <= data_in_frame[24];
+						setpoint_actual[motor_id][23:16] <= data_in_frame[25];
+						setpoint_actual[motor_id][15:8] <= data_in_frame[26];
+						setpoint_actual[motor_id][7:0] <= data_in_frame[27];
 						status_received[motor_id] <= status_received[motor_id] + 1;
+						if(setpoint_actual[motor_id]!=setpoint[motor])begin
+							trigger_setpoint_update <= 1;
+						end
 						state = IDLE;
 					end else begin
 						error_code[motor] <= {32'hBAADC0DE}; // crc error
