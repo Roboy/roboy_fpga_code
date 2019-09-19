@@ -23,9 +23,9 @@ module coms #(parameter NUMBER_OF_MOTORS = 6, parameter CLK_FREQ_HZ = 50_000_000
 	input wire signed [31:0] PWMLimit[NUMBER_OF_MOTORS-1:0],
 	input wire signed [31:0] IntegralLimit[NUMBER_OF_MOTORS-1:0],
 	input wire signed [31:0] deadband[NUMBER_OF_MOTORS-1:0],
-	output reg [31:0] error_code[NUMBER_OF_MOTORS-1:0],
-	output rx_receive,
-	output reg [3:0] debug_signals
+	output wire [31:0] error_code[NUMBER_OF_MOTORS-1:0],
+	output wire [31:0] crc_checksum[NUMBER_OF_MOTORS-1:0],
+	output wire [31:0] communication_quality[NUMBER_OF_MOTORS-1:0]
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -110,6 +110,9 @@ endfunction
 	reg [31:0]delay_counter;
 	reg tx_active_prev;
 	reg [7:0] motor;
+	reg timeout;
+	reg [31:0] status_requests[NUMBER_OF_MOTORS-1:0];
+	reg [31:0] status_received[NUMBER_OF_MOTORS-1:0];
 	always @(posedge clk, posedge reset) begin: UART_TRANSMITTER
 		localparam IDLE=8'h0, PREPARE_CONTROL_MODE = 8'h1, SEND_CONTROL_MODE = 8'h2, PREPARE_SETPOINT  = 8'h3, SEND_SETPOINT = 8'h4,
 				PREPARE_STATUS_REQUEST = 8'h5, SEND_STATUS_REQUEST = 8'h6, WAIT_UNTIL_BUS_FREE = 8'h7;
@@ -121,9 +124,13 @@ endfunction
 			state = IDLE;
 			done <= 1;
 			status_update_delay_counter <= 0;
+			for(i=0;i<NUMBER_OF_MOTORS;i=i+1)begin
+				status_requests[i] <= 0;
+			end
 		end else begin
 			tx_active_prev <= tx_active;
 			tx_transmit <= 0;
+			timeout <= 0;
 			
 			if(trigger_control_mode_update)begin
 				if(motor_to_update==8'hFF) begin
@@ -149,7 +156,7 @@ endfunction
 				status_update_delay_counter <= status_update_delay_counter - 1;
 			end
 			
-			if(rx_receive)begin
+			if(status_byte_received)begin
 				byte_transmit_counter = receive_byte_counter;
 				data_out[receive_byte_counter] <= data_in_frame[receive_byte_counter];
 				tx_transmit <= 1;
@@ -277,6 +284,7 @@ endfunction
 					data_out[STATUS_REQUEST_FRAME_LENGTH-1] = tx_crc[7:0];
 					byte_transmit_counter = 0;
 					delay_counter = CLK_FREQ_HZ/BAUDRATE*(MAX_FRAME_LENGTH*8+MAX_FRAME_LENGTH*2);
+					status_requests[motor] <= status_requests[motor] + 1;
 					state = SEND_STATUS_REQUEST;
 				end
 				SEND_STATUS_REQUEST: begin
@@ -294,6 +302,12 @@ endfunction
 				WAIT_UNTIL_BUS_FREE: begin
 					if(delay_counter==0) begin // we have to wait until the bus is free
 						state = IDLE;
+						timeout <= 1;
+						if(status_requests[motor]>status_update_frequency_Hz)begin
+							status_requests[motor] <= 0;
+						end else begin
+							communication_quality[motor] <= (status_received[motor]*100)/status_requests[motor];
+						end
 					end else begin
 						delay_counter = delay_counter - 1;
 					end
@@ -301,8 +315,6 @@ endfunction
 			endcase
 		end
 	end
-
-	assign rx_receive = rx_data_ready;
 	
 	wire [7:0] rx_data ;
 
@@ -312,6 +324,7 @@ endfunction
 	reg [7:0] data_in_frame[MAX_FRAME_LENGTH-1:0];
 
 	reg [15:0] rx_crc;
+	reg status_byte_received;
 	
 	always @(posedge clk, posedge reset) begin: FRAME_MATCHER
 		localparam IDLE = 8'h0, RECEIVE_STATUS = 8'h1, CHECK_CRC_STATUS = 8'h2;
@@ -324,6 +337,10 @@ endfunction
 			receive_byte_counter <= 0;
 		end else begin
 			rx_data_ready_prev <= rx_data_ready;
+			status_byte_received <= 0;
+			if(status_requests[motor]==0)begin // reset for communication_quality measurement
+				status_received[motor] <= 0;
+			end
 			if(rx_data_ready)begin
 			  data_in[MAGIC_NUMBER_LENGTH-1] <= rx_data;
 			  for(j=MAGIC_NUMBER_LENGTH-2;j>=0;j=j-1)begin
@@ -334,36 +351,44 @@ endfunction
 				IDLE: begin
 					if({data_in[0],data_in[1],data_in[2],data_in[3]}==STATUS_FRAME_MAGICNUMBER)begin
 						receive_byte_counter <= 0;
+						error_code[motor] <= 32'h1;
 						state = RECEIVE_STATUS;
-						debug_signals[0] <= 1;
 					end
 				end
 				RECEIVE_STATUS: begin
-					if(rx_data_ready==1 && rx_data_ready_prev==0)begin
-						data_in_frame[receive_byte_counter] = rx_data;
-						receive_byte_counter <= receive_byte_counter + 1;
-						debug_signals[1] <= 1;
-					end
-					if(receive_byte_counter>STATUS_FRAME_LENGTH-MAGIC_NUMBER_LENGTH-2) begin
-						state = CHECK_CRC_STATUS;
-						motor_id <= data_in_frame[0];
-						error_code[motor] <= 32'h1CE1CEBB;
-						debug_signals[2] <= 1;
+					if(!timeout) begin
+						if(rx_data_ready==1 && rx_data_ready_prev==0)begin
+							status_byte_received <= 1;
+							data_in_frame[receive_byte_counter] <= rx_data;
+							receive_byte_counter <= receive_byte_counter + 1;
+						end
+						if(receive_byte_counter>(STATUS_FRAME_LENGTH-MAGIC_NUMBER_LENGTH-1)) begin
+							state = CHECK_CRC_STATUS;
+							motor_id <= data_in_frame[0];
+							error_code[motor] <= 32'h2;
+						end
+					end else begin
+						state <= IDLE;
+						error_code[motor] <= 32'hDEADBEAF;
+						crc_checksum[motor] = 0;
 					end
 				end
 				CHECK_CRC_STATUS: begin
-//					rx_crc = 16'hFFFF;
-//					for(k=0;k<STATUS_FRAME_LENGTH-MAGIC_NUMBER_LENGTH-2;k=k+1) begin
-//						rx_crc = nextCRC16_D8(data_in_frame[k],rx_crc);
-//					end
-//					if(rx_crc[15:8]==data_in_frame[STATUS_FRAME_LENGTH-MAGIC_NUMBER_LENGTH-2]
-//						  && rx_crc[7:0]==data_in_frame[STATUS_FRAME_LENGTH-MAGIC_NUMBER_LENGTH-1]
-//						  && (motor_id==motor)) begin // MATCH! and from the motor we requested
-//						if(data_in_frame[1]!=control_mode[data_in_frame[0]]) begin
-//							error_code[data_in_frame[0]] <= 8'h1; // control mode error
-//						end else begin
-//							error_code[data_in_frame[0]] <= 8'h0;
-//						end
+					rx_crc = 16'hFFFF;
+					for(k=0;k<(STATUS_FRAME_LENGTH-MAGIC_NUMBER_LENGTH-2);k=k+1) begin
+						rx_crc = nextCRC16_D8(data_in_frame[k],rx_crc);
+					end
+					crc_checksum[motor] = {rx_crc,
+									data_in_frame[STATUS_FRAME_LENGTH-MAGIC_NUMBER_LENGTH-2],
+									data_in_frame[STATUS_FRAME_LENGTH-MAGIC_NUMBER_LENGTH-1]};
+					if(rx_crc[15:8]==data_in_frame[STATUS_FRAME_LENGTH-MAGIC_NUMBER_LENGTH-2]
+						  && rx_crc[7:0]==data_in_frame[STATUS_FRAME_LENGTH-MAGIC_NUMBER_LENGTH-1]
+						  && (motor_id==motor)) begin // MATCH! and from the motor we requested
+						if(data_in_frame[1]!=control_mode[data_in_frame[0]]) begin
+							error_code[data_in_frame[0]] <= 8'h3; // control mode error
+						end else begin
+							error_code[data_in_frame[0]] <= 8'h0;
+						end
 						encoder0_position[motor_id][31:24] <= data_in_frame[2];
 						encoder0_position[motor_id][23:16] <= data_in_frame[3];
 						encoder0_position[motor_id][15:8] <= data_in_frame[4];
@@ -386,13 +411,12 @@ endfunction
 						current_phase2[motor_id][7:0] <= data_in_frame[21];
 						current_phase3[motor_id][15:8] <= data_in_frame[22];
 						current_phase3[motor_id][7:0] <= data_in_frame[23];
-						error_code[motor_id] <= {receive_byte_counter,rx_crc}; // crc error
+						status_received[motor_id] <= status_received[motor_id] + 1;
 						state = IDLE;
-						debug_signals[3] <= 1;
-//					end else begin
-//						error_code[motor] <= {16'hFFFF,data_in_frame[2],data_in_frame[3]}; // crc error
-//						state <= IDLE;
-//					end
+					end else begin
+						error_code[motor] <= {32'hBAADC0DE}; // crc error
+						state <= IDLE;
+					end
 				end
 			endcase
 		end

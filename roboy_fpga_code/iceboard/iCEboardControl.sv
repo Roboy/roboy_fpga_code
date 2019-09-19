@@ -9,9 +9,7 @@ module ICEboardControl (
 		output signed [31:0] readdata,
 		output waitrequest,
 		input rx,
-		output tx,
-		inout rx_receive,
-		output [3:0] debug_signals
+		output tx
 );
 	
 	parameter NUMBER_OF_MOTORS = 6;
@@ -39,6 +37,8 @@ module ICEboardControl (
 	reg signed [31:0] current_phase3[NUMBER_OF_MOTORS-1:0];
 	
 	reg [31:0] error_code[NUMBER_OF_MOTORS-1:0];
+	reg [31:0] crc_checksum[NUMBER_OF_MOTORS-1:0];
+	reg [31:0] communication_quality[NUMBER_OF_MOTORS-1:0];
 	reg [31:0] status_update_frequency_Hz;
 	reg [7:0] motor_to_update;
 	reg trigger_control_mode_update;
@@ -79,6 +79,8 @@ module ICEboardControl (
 					8'h12: returnvalue <= current_phase1[motor];
 					8'h13: returnvalue <= current_phase2[motor];
 					8'h14: returnvalue <= current_phase3[motor];
+					8'h15: returnvalue <= crc_checksum[motor];
+					8'h16: returnvalue <= communication_quality[motor];
 					default: returnvalue <= 32'hDEADBEEF;
 				endcase
 				if(waitFlag==1) begin // next clock cycle the returnvalue should be ready
@@ -150,8 +152,8 @@ module ICEboardControl (
 		.IntegralLimit(IntegralLimit),
 		.deadband(deadband),
 		.error_code(error_code),
-		.rx_receive(rx_receive),
-		.debug_signals(debug_signals)
+		.crc_checksum(crc_checksum),
+		.communication_quality(communication_quality)
 	);
 	
 endmodule
