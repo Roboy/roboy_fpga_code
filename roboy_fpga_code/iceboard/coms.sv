@@ -79,6 +79,8 @@ function [15:0] nextCRC16_D8;
 	end
 endfunction
 
+//	`define DEBUG
+
 	localparam  MAGIC_NUMBER_LENGTH = 4;
 	localparam  STATUS_REQUEST_FRAME_MAGICNUMBER = 32'h1CE1CEBB;
 	localparam	STATUS_REQUEST_FRAME_LENGTH = 7;
@@ -134,23 +136,26 @@ endfunction
 			tx_transmit <= 0;
 			timeout <= 0;
 			
-			if(trigger_control_mode_update)begin
+			// control_mode update has higher priority because it also sends a new setpoint
+			if(trigger_control_mode_update)begin 
 				state = PREPARE_CONTROL_MODE;
-			end
-			
-			if(trigger_setpoint_update)begin
-				state = PREPARE_SETPOINT;
+			end else begin			
+				if(trigger_setpoint_update)begin
+					state = PREPARE_SETPOINT;
+				end
 			end
 			
 			if(update_delay_counter!=0)begin
 				update_delay_counter <= update_delay_counter - 1;
 			end
 			
+			`ifdef DEBUG
 			if(status_byte_received)begin
 				byte_transmit_counter = receive_byte_counter-1;
 				data_out[receive_byte_counter-1] <= data_in_frame[receive_byte_counter-1];
 				tx_transmit <= 1;
 			end
+			`endif
 			
 			case(state)
 				IDLE: begin
@@ -376,7 +381,8 @@ endfunction
 					if(rx_crc[15:8]==data_in_frame[STATUS_FRAME_LENGTH-MAGIC_NUMBER_LENGTH-2]
 						  && rx_crc[7:0]==data_in_frame[STATUS_FRAME_LENGTH-MAGIC_NUMBER_LENGTH-1]
 						  && (motor_id==motor)) begin // MATCH! and from the motor we requested
-						if(data_in_frame[1]!=control_mode[data_in_frame[0]]) begin
+						// if the control_mode of the motor does not match the one we want or the motor lost connection we trigger an update
+						if(data_in_frame[1]!=control_mode[data_in_frame[0]] || status_received[motor_id]==0) begin
 							trigger_control_mode_update <= 1;
 						end else begin
 							error_code[data_in_frame[0]] <= 8'h0;
