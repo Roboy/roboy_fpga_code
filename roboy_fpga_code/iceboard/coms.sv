@@ -5,6 +5,7 @@ module coms #(parameter NUMBER_OF_MOTORS = 6, parameter CLK_FREQ_HZ = 50_000_000
 	output tx_enable,
 	input rx_i,
 	input wire [31:0] update_frequency_Hz,
+	output wire signed [31:0] pwm[NUMBER_OF_MOTORS-1:0],
 	output wire signed [31:0] encoder0_position[NUMBER_OF_MOTORS-1:0],
 	output wire signed [31:0] encoder1_position[NUMBER_OF_MOTORS-1:0],
 	output wire signed [31:0] encoder0_velocity[NUMBER_OF_MOTORS-1:0],
@@ -82,7 +83,7 @@ endfunction
 	localparam  STATUS_REQUEST_FRAME_MAGICNUMBER = 32'h1CE1CEBB;
 	localparam	STATUS_REQUEST_FRAME_LENGTH = 7;
 	localparam 	STATUS_FRAME_MAGICNUMBER = 32'h1CEB00DA;
-	localparam  STATUS_FRAME_LENGTH = 34;
+	localparam  STATUS_FRAME_LENGTH = 38;
 	localparam 	SETPOINT_FRAME_MAGICNUMBER = 32'hD0D0D0D0;
 	localparam  SETPOINT_FRAME_LENGTH = 11;
 	localparam 	CONTROL_MODE_FRAME_MAGICNUMBER = 32'hBAADA555;
@@ -272,7 +273,7 @@ endfunction
 					data_out[STATUS_REQUEST_FRAME_LENGTH-2] = tx_crc[15:8];
 					data_out[STATUS_REQUEST_FRAME_LENGTH-1] = tx_crc[7:0];
 					byte_transmit_counter = 0;
-					delay_counter = CLK_FREQ_HZ/BAUDRATE*(MAX_FRAME_LENGTH*8+MAX_FRAME_LENGTH*3);
+					delay_counter = CLK_FREQ_HZ/BAUDRATE*(MAX_FRAME_LENGTH*8+MAX_FRAME_LENGTH*4);
 					status_requests[motor] <= status_requests[motor] + 1;
 					state = SEND_STATUS_REQUEST;
 				end
@@ -406,6 +407,10 @@ endfunction
 						setpoint_actual[motor_id][23:16] <= data_in_frame[25];
 						setpoint_actual[motor_id][15:8] <= data_in_frame[26];
 						setpoint_actual[motor_id][7:0] <= data_in_frame[27];
+						pwm[motor_id][31:24] <= data_in_frame[28];
+						pwm[motor_id][23:16] <= data_in_frame[29];
+						pwm[motor_id][15:8] <= data_in_frame[30];
+						pwm[motor_id][7:0] <= data_in_frame[31];
 						status_received[motor_id] <= status_received[motor_id] + 1;
 						if(setpoint_actual[motor_id]!=setpoint[motor])begin
 							trigger_setpoint_update <= 1;

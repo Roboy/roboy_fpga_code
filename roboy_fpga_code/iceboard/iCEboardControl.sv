@@ -16,6 +16,7 @@ module ICEboardControl (
 	parameter CLOCK_FREQ_HZ = 50_000_000;
 	parameter BAUDRATE = 115200;
 		
+	reg signed [31:0] pwm[NUMBER_OF_MOTORS-1:0];
 	reg signed [31:0] Kp[NUMBER_OF_MOTORS-1:0];
 	reg signed [31:0] Ki[NUMBER_OF_MOTORS-1:0];
 	reg signed [31:0] Kd[NUMBER_OF_MOTORS-1:0];
@@ -78,6 +79,7 @@ module ICEboardControl (
 					8'h14: returnvalue <= current_phase3[motor];
 					8'h15: returnvalue <= crc_checksum[motor];
 					8'h16: returnvalue <= communication_quality[motor];
+					8'h17: returnvalue <= pwm[motor];
 					default: returnvalue <= 32'hDEADBEEF;
 				endcase
 				if(waitFlag==1) begin // next clock cycle the returnvalue should be ready
@@ -124,6 +126,7 @@ module ICEboardControl (
 		.tx_o(tx),
 		.rx_i(rx),
 		.update_frequency_Hz(update_frequency_Hz),
+		.pwm(pwm),
 		.encoder0_position(encoder0_position),
 		.encoder1_position(encoder1_position),
 		.encoder0_velocity(encoder0_velocity),
