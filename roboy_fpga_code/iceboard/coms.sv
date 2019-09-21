@@ -89,8 +89,8 @@ endfunction
 	localparam 	SETPOINT_FRAME_MAGICNUMBER = 32'hD0D0D0D0;
 	localparam  SETPOINT_FRAME_LENGTH = 11;
 	localparam 	CONTROL_MODE_FRAME_MAGICNUMBER = 32'hBAADA555;
-	localparam  CONTROL_MODE_FRAME_LENGTH = 34;
-	localparam  MAX_FRAME_LENGTH = CONTROL_MODE_FRAME_LENGTH;
+	localparam  CONTROL_MODE_FRAME_LENGTH = 36;
+	localparam  MAX_FRAME_LENGTH = STATUS_FRAME_LENGTH;
 
 	reg[7:0] byte_transmit_counter ;
 	reg [15:0] data ;
@@ -118,8 +118,11 @@ endfunction
 	reg signed [31:0] setpoint_actual[NUMBER_OF_MOTORS-1:0];
 	
 	always @(posedge clk, posedge reset) begin: UART_TRANSMITTER
-		localparam IDLE=8'h0, PREPARE_CONTROL_MODE = 8'h1, SEND_CONTROL_MODE = 8'h2, PREPARE_SETPOINT  = 8'h3, SEND_SETPOINT = 8'h4,
-				PREPARE_STATUS_REQUEST = 8'h5, SEND_STATUS_REQUEST = 8'h6, WAIT_UNTIL_BUS_FREE = 8'h7;
+		localparam IDLE=8'h0, 
+				PREPARE_CONTROL_MODE = 8'h1, GENERATE_CONTROL_MODE_CRC = 8'h2, SEND_CONTROL_MODE = 8'h3, 
+				PREPARE_SETPOINT  = 8'h4, GENERATE_SETPOINT_CRC = 8'h5, SEND_SETPOINT = 8'h6,
+				PREPARE_STATUS_REQUEST = 8'h7, GENERATE_STATUS_REQUEST_CRC = 8'h8, SEND_STATUS_REQUEST = 8'h9, 
+				WAIT_UNTIL_BUS_FREE = 8'hA;
 		reg [7:0] state;
 		reg done;
 		reg [31:0] update_delay_counter;
@@ -138,10 +141,10 @@ endfunction
 			
 			// control_mode update has higher priority because it also sends a new setpoint
 			if(trigger_control_mode_update)begin 
-				state = PREPARE_CONTROL_MODE;
+				state <= PREPARE_CONTROL_MODE;
 			end else begin			
 				if(trigger_setpoint_update)begin
-					state = PREPARE_SETPOINT;
+					state <= PREPARE_SETPOINT;
 				end
 			end
 			
@@ -169,7 +172,7 @@ endfunction
 					end else begin
 						if(update_delay_counter==0) begin
 							update_delay_counter <= (CLK_FREQ_HZ/update_frequency_Hz/NUMBER_OF_MOTORS);
-							state = PREPARE_STATUS_REQUEST;
+							state <= PREPARE_STATUS_REQUEST;
 							if(motor<NUMBER_OF_MOTORS-1) begin
 								motor <= motor + 1;
 							end else begin
@@ -179,40 +182,43 @@ endfunction
 					end
 				end
 				PREPARE_CONTROL_MODE: begin
-					data_out[0] = CONTROL_MODE_FRAME_MAGICNUMBER[31:24];
-					data_out[1] = CONTROL_MODE_FRAME_MAGICNUMBER[23:16];
-					data_out[2] = CONTROL_MODE_FRAME_MAGICNUMBER[15:8];
-					data_out[3] = CONTROL_MODE_FRAME_MAGICNUMBER[7:0];
-					data_out[4] = motor; // motor id
-					data_out[5] = control_mode[motor]; // control_mode
-					data_out[6] = Kp[motor][31:24];
-					data_out[7] = Kp[motor][23:16];
-					data_out[8] = Kp[motor][15:8];
-					data_out[9] = Kp[motor][7:0];
-					data_out[10] = Ki[motor][31:24];
-					data_out[11] = Ki[motor][23:16];
-					data_out[12] = Ki[motor][15:8];
-					data_out[13] = Ki[motor][7:0];
-					data_out[14] = Kd[motor][31:24];
-					data_out[15] = Kd[motor][23:16];
-					data_out[16] = Kd[motor][15:8];
-					data_out[17] = Kd[motor][7:0];
-					data_out[18] = PWMLimit[motor][31:24];
-					data_out[19] = PWMLimit[motor][23:16];
-					data_out[20] = PWMLimit[motor][15:8];
-					data_out[21] = PWMLimit[motor][7:0];
-					data_out[22] = IntegralLimit[motor][31:24];
-					data_out[23] = IntegralLimit[motor][23:16];
-					data_out[24] = IntegralLimit[motor][15:8];
-					data_out[25] = IntegralLimit[motor][7:0];
-					data_out[26] = deadband[motor][31:24];
-					data_out[27] = deadband[motor][23:16];
-					data_out[28] = deadband[motor][15:8];
-					data_out[29] = deadband[motor][7:0];
-					data_out[30] = setpoint[motor][31:24];
-					data_out[31] = setpoint[motor][23:16];
-					data_out[32] = setpoint[motor][15:8];
-					data_out[33] = setpoint[motor][7:0];
+					data_out[0] <= CONTROL_MODE_FRAME_MAGICNUMBER[31:24];
+					data_out[1] <= CONTROL_MODE_FRAME_MAGICNUMBER[23:16];
+					data_out[2] <= CONTROL_MODE_FRAME_MAGICNUMBER[15:8];
+					data_out[3] <= CONTROL_MODE_FRAME_MAGICNUMBER[7:0];
+					data_out[4] <= motor; // motor id
+					data_out[5] <= control_mode[motor]; // control_mode
+					data_out[6] <= Kp[motor][31:24];
+					data_out[7] <= Kp[motor][23:16];
+					data_out[8] <= Kp[motor][15:8];
+					data_out[9] <= Kp[motor][7:0];
+					data_out[10] <= Ki[motor][31:24];
+					data_out[11] <= Ki[motor][23:16];
+					data_out[12] <= Ki[motor][15:8];
+					data_out[13] <= Ki[motor][7:0];
+					data_out[14] <= Kd[motor][31:24];
+					data_out[15] <= Kd[motor][23:16];
+					data_out[16] <= Kd[motor][15:8];
+					data_out[17] <= Kd[motor][7:0];
+					data_out[18] <= PWMLimit[motor][31:24];
+					data_out[19] <= PWMLimit[motor][23:16];
+					data_out[20] <= PWMLimit[motor][15:8];
+					data_out[21] <= PWMLimit[motor][7:0];
+					data_out[22] <= IntegralLimit[motor][31:24];
+					data_out[23] <= IntegralLimit[motor][23:16];
+					data_out[24] <= IntegralLimit[motor][15:8];
+					data_out[25] <= IntegralLimit[motor][7:0];
+					data_out[26] <= deadband[motor][31:24];
+					data_out[27] <= deadband[motor][23:16];
+					data_out[28] <= deadband[motor][15:8];
+					data_out[29] <= deadband[motor][7:0];
+					data_out[30] <= setpoint[motor][31:24];
+					data_out[31] <= setpoint[motor][23:16];
+					data_out[32] <= setpoint[motor][15:8];
+					data_out[33] <= setpoint[motor][7:0];
+					state <= GENERATE_CONTROL_MODE_CRC;
+				end
+				GENERATE_CONTROL_MODE_CRC: begin
 					tx_crc = 16'hFFFF;
 					for(i=MAGIC_NUMBER_LENGTH;i<CONTROL_MODE_FRAME_LENGTH-2;i=i+1) begin
 						tx_crc = nextCRC16_D8(data_out[i],tx_crc);
@@ -220,7 +226,8 @@ endfunction
 					data_out[CONTROL_MODE_FRAME_LENGTH-2] = tx_crc[15:8];
 					data_out[CONTROL_MODE_FRAME_LENGTH-1] = tx_crc[7:0];
 					byte_transmit_counter = 0;
-					state = SEND_CONTROL_MODE;
+					state <= SEND_CONTROL_MODE;
+					tx_transmit <= 1;
 				end
 				SEND_CONTROL_MODE: begin
 					if(!tx_active && tx_active_prev)begin
@@ -230,20 +237,23 @@ endfunction
 						if(byte_transmit_counter<CONTROL_MODE_FRAME_LENGTH)begin
 							tx_transmit <= 1;
 						end else begin
-							state = IDLE;
+							state <= IDLE;
 						end
 					end
 				end
 				PREPARE_SETPOINT: begin
-					data_out[0] = SETPOINT_FRAME_MAGICNUMBER[31:24];
-					data_out[1] = SETPOINT_FRAME_MAGICNUMBER[23:16];
-					data_out[2] = SETPOINT_FRAME_MAGICNUMBER[15:8];
-					data_out[3] = SETPOINT_FRAME_MAGICNUMBER[7:0];
-					data_out[4] = motor; // motor id
-					data_out[5] = setpoint[motor][31:24];
-					data_out[6] = setpoint[motor][23:16];
-					data_out[7] = setpoint[motor][15:8];
-					data_out[8] = setpoint[motor][7:0];
+					data_out[0] <= SETPOINT_FRAME_MAGICNUMBER[31:24];
+					data_out[1] <= SETPOINT_FRAME_MAGICNUMBER[23:16];
+					data_out[2] <= SETPOINT_FRAME_MAGICNUMBER[15:8];
+					data_out[3] <= SETPOINT_FRAME_MAGICNUMBER[7:0];
+					data_out[4] <= motor; // motor id
+					data_out[5] <= setpoint[motor][31:24];
+					data_out[6] <= setpoint[motor][23:16];
+					data_out[7] <= setpoint[motor][15:8];
+					data_out[8] <= setpoint[motor][7:0];
+					state <= GENERATE_SETPOINT_CRC;
+				end
+				GENERATE_SETPOINT_CRC: begin
 					tx_crc = 16'hFFFF;
 					for(i=MAGIC_NUMBER_LENGTH;i<SETPOINT_FRAME_LENGTH-2;i=i+1) begin
 						tx_crc = nextCRC16_D8(data_out[i],tx_crc);
@@ -251,7 +261,8 @@ endfunction
 					data_out[SETPOINT_FRAME_LENGTH-2] = tx_crc[15:8];
 					data_out[SETPOINT_FRAME_LENGTH-1] = tx_crc[7:0];
 					byte_transmit_counter = 0;
-					state = SEND_SETPOINT;
+					tx_transmit <= 1;
+					state <= SEND_SETPOINT;
 				end
 				SEND_SETPOINT: begin
 					if(!tx_active && tx_active_prev)begin
@@ -261,16 +272,19 @@ endfunction
 						if(byte_transmit_counter<SETPOINT_FRAME_LENGTH)begin
 							tx_transmit <= 1;
 						end else begin
-							state = IDLE;
+							state <= IDLE;
 						end
 					end
 				end
 				PREPARE_STATUS_REQUEST: begin
-					data_out[0] = STATUS_REQUEST_FRAME_MAGICNUMBER[31:24];
-					data_out[1] = STATUS_REQUEST_FRAME_MAGICNUMBER[23:16];
-					data_out[2] = STATUS_REQUEST_FRAME_MAGICNUMBER[15:8];
-					data_out[3] = STATUS_REQUEST_FRAME_MAGICNUMBER[7:0];
-					data_out[4] = motor; // motor id
+					data_out[0] <= STATUS_REQUEST_FRAME_MAGICNUMBER[31:24];
+					data_out[1] <= STATUS_REQUEST_FRAME_MAGICNUMBER[23:16];
+					data_out[2] <= STATUS_REQUEST_FRAME_MAGICNUMBER[15:8];
+					data_out[3] <= STATUS_REQUEST_FRAME_MAGICNUMBER[7:0];
+					data_out[4] <= motor; // motor id
+					state <= GENERATE_STATUS_REQUEST_CRC;
+				end
+				GENERATE_STATUS_REQUEST_CRC: begin
 					tx_crc = 16'hFFFF;
 					for(i=MAGIC_NUMBER_LENGTH;i<STATUS_REQUEST_FRAME_LENGTH-2;i=i+1) begin
 						tx_crc = nextCRC16_D8(data_out[i],tx_crc);
@@ -280,7 +294,8 @@ endfunction
 					byte_transmit_counter = 0;
 					delay_counter = CLK_FREQ_HZ/BAUDRATE*(MAX_FRAME_LENGTH*8+MAX_FRAME_LENGTH*4);
 					status_requests[motor] <= status_requests[motor] + 1;
-					state = SEND_STATUS_REQUEST;
+					state <= SEND_STATUS_REQUEST;
+					tx_transmit <= 1;
 				end
 				SEND_STATUS_REQUEST: begin
 					if(!tx_active && tx_active_prev)begin
@@ -290,13 +305,13 @@ endfunction
 						if(byte_transmit_counter<STATUS_REQUEST_FRAME_LENGTH)begin
 							tx_transmit <= 1;
 						end else begin
-							state = WAIT_UNTIL_BUS_FREE;
+							state <= WAIT_UNTIL_BUS_FREE;
 						end
 					end
 				end
 				WAIT_UNTIL_BUS_FREE: begin
 					if(delay_counter==0) begin // we have to wait until the bus is free
-						state = IDLE;
+						state <= IDLE;
 						timeout <= 1;
 						if(status_requests[motor]>update_frequency_Hz)begin
 							status_requests[motor] <= 0;
