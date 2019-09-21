@@ -12,9 +12,9 @@ module ICEboardControl (
 		output tx
 );
 	
-	parameter NUMBER_OF_MOTORS = 6;
+	parameter NUMBER_OF_MOTORS = 8;
 	parameter CLOCK_FREQ_HZ = 50_000_000;
-	parameter BAUDRATE = 115200;
+	parameter BAUDRATE = 1_000_000;
 		
 	reg signed [31:0] pwm[NUMBER_OF_MOTORS-1:0];
 	reg signed [31:0] Kp[NUMBER_OF_MOTORS-1:0];
