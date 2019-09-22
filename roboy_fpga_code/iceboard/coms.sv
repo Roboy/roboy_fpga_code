@@ -1,83 +1,30 @@
-module coms #(parameter NUMBER_OF_MOTORS = 6, parameter CLK_FREQ_HZ = 50_000_000, parameter BAUDRATE = 115200)(
+module coms #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_000_000, parameter BAUDRATE = 2_000_000)(
 	input clk,
 	input reset,
 	output tx_o,
 	output tx_enable,
 	input rx_i,
 	input wire [31:0] update_frequency_Hz,
-	output wire signed [31:0] pwm[NUMBER_OF_MOTORS-1:0],
-	output wire signed [31:0] encoder0_position[NUMBER_OF_MOTORS-1:0],
-	output wire signed [31:0] encoder1_position[NUMBER_OF_MOTORS-1:0],
-	output wire signed [31:0] encoder0_velocity[NUMBER_OF_MOTORS-1:0],
-	output wire signed [31:0] encoder1_velocity[NUMBER_OF_MOTORS-1:0],
+	output wire signed [23:0] pwm[NUMBER_OF_MOTORS-1:0],
+	output wire signed [23:0] encoder0_position[NUMBER_OF_MOTORS-1:0],
+	output wire signed [23:0] encoder1_position[NUMBER_OF_MOTORS-1:0],
 	output wire [15:0] current_phase1[NUMBER_OF_MOTORS-1:0],
 	output wire [15:0] current_phase2[NUMBER_OF_MOTORS-1:0],
 	output wire [15:0] current_phase3[NUMBER_OF_MOTORS-1:0],
-	input wire signed [31:0] setpoint[NUMBER_OF_MOTORS-1:0],
+	output wire signed [23:0] displacement[NUMBER_OF_MOTORS-1:0],
+	input wire signed [23:0] gearboxRatio[NUMBER_OF_MOTORS-1:0],
+	input wire signed [23:0] setpoint[NUMBER_OF_MOTORS-1:0],
 	input wire [7:0] control_mode[NUMBER_OF_MOTORS-1:0],
-	input wire signed [31:0] Kp[NUMBER_OF_MOTORS-1:0],
-	input wire signed [31:0] Ki[NUMBER_OF_MOTORS-1:0],
-	input wire signed [31:0] Kd[NUMBER_OF_MOTORS-1:0],
-	input wire signed [31:0] PWMLimit[NUMBER_OF_MOTORS-1:0],
-	input wire signed [31:0] IntegralLimit[NUMBER_OF_MOTORS-1:0],
-	input wire signed [31:0] deadband[NUMBER_OF_MOTORS-1:0],
+	input wire signed [7:0] Kp[NUMBER_OF_MOTORS-1:0],
+	input wire signed [7:0] Ki[NUMBER_OF_MOTORS-1:0],
+	input wire signed [7:0] Kd[NUMBER_OF_MOTORS-1:0],
+	input wire signed [23:0] PWMLimit[NUMBER_OF_MOTORS-1:0],
+	input wire signed [23:0] IntegralLimit[NUMBER_OF_MOTORS-1:0],
+	input wire signed [23:0] deadband[NUMBER_OF_MOTORS-1:0],
 	output wire [31:0] error_code[NUMBER_OF_MOTORS-1:0],
 	output wire [31:0] crc_checksum[NUMBER_OF_MOTORS-1:0],
 	output wire [31:0] communication_quality[NUMBER_OF_MOTORS-1:0]
 );
-
-////////////////////////////////////////////////////////////////////////////////
-// Copyright (C) 1999-2008 Easics NV.
-// This source file may be used and distributed without restriction
-// provided that this copyright statement is not removed from the file
-// and that any derivative work contains the original copyright notice
-// and the associated disclaimer.
-//
-// THIS SOURCE FILE IS PROVIDED "AS IS" AND WITHOUT ANY EXPRESS
-// OR IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
-// WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
-//
-// Purpose : synthesizable CRC function
-//   * polynomial: x^16 + x^15 + x^2 + 1
-//   * data width: 8
-//
-// Info : tools@easics.be
-//        http://www.easics.com
-////////////////////////////////////////////////////////////////////////////////
-
-// polynomial: x^16 + x^15 + x^2 + 1
-// data width: 8
-// convention: the first serial bit is D[7]
-function [15:0] nextCRC16_D8;
-
-	input [7:0] Data;
-	input [15:0] crc;
-	reg [7:0] d;
-	reg [15:0] c;
-	reg [15:0] newcrc;
-	begin
-		d = Data;
-		c = crc;
-
-		newcrc[0] = d[7] ^ d[6] ^ d[5] ^ d[4] ^ d[3] ^ d[2] ^ d[1] ^ d[0] ^ c[8] ^ c[9] ^ c[10] ^ c[11] ^ c[12] ^ c[13] ^ c[14] ^ c[15];
-		newcrc[1] = d[7] ^ d[6] ^ d[5] ^ d[4] ^ d[3] ^ d[2] ^ d[1] ^ c[9] ^ c[10] ^ c[11] ^ c[12] ^ c[13] ^ c[14] ^ c[15];
-		newcrc[2] = d[1] ^ d[0] ^ c[8] ^ c[9];
-		newcrc[3] = d[2] ^ d[1] ^ c[9] ^ c[10];
-		newcrc[4] = d[3] ^ d[2] ^ c[10] ^ c[11];
-		newcrc[5] = d[4] ^ d[3] ^ c[11] ^ c[12];
-		newcrc[6] = d[5] ^ d[4] ^ c[12] ^ c[13];
-		newcrc[7] = d[6] ^ d[5] ^ c[13] ^ c[14];
-		newcrc[8] = d[7] ^ d[6] ^ c[0] ^ c[14] ^ c[15];
-		newcrc[9] = d[7] ^ c[1] ^ c[15];
-		newcrc[10] = c[2];
-		newcrc[11] = c[3];
-		newcrc[12] = c[4];
-		newcrc[13] = c[5];
-		newcrc[14] = c[6];
-		newcrc[15] = d[7] ^ d[6] ^ d[5] ^ d[4] ^ d[3] ^ d[2] ^ d[1] ^ d[0] ^ c[7] ^ c[8] ^ c[9] ^ c[10] ^ c[11] ^ c[12] ^ c[13] ^ c[14] ^ c[15];
-		nextCRC16_D8 = newcrc;
-	end
-endfunction
 
 //	`define DEBUG
 
@@ -85,12 +32,65 @@ endfunction
 	localparam  STATUS_REQUEST_FRAME_MAGICNUMBER = 32'h1CE1CEBB;
 	localparam	STATUS_REQUEST_FRAME_LENGTH = 7;
 	localparam 	STATUS_FRAME_MAGICNUMBER = 32'h1CEB00DA;
-	localparam  STATUS_FRAME_LENGTH = 38;
+	localparam  STATUS_FRAME_LENGTH = 23;
 	localparam 	SETPOINT_FRAME_MAGICNUMBER = 32'hD0D0D0D0;
-	localparam  SETPOINT_FRAME_LENGTH = 11;
+	localparam  SETPOINT_FRAME_LENGTH = 10;
 	localparam 	CONTROL_MODE_FRAME_MAGICNUMBER = 32'hBAADA555;
-	localparam  CONTROL_MODE_FRAME_LENGTH = 36;
-	localparam  MAX_FRAME_LENGTH = STATUS_FRAME_LENGTH;
+	localparam  CONTROL_MODE_FRAME_LENGTH = 26;
+	localparam  MAX_FRAME_LENGTH = CONTROL_MODE_FRAME_LENGTH;
+
+	////////////////////////////////////////////////////////////////////////////////
+	// Copyright (C) 1999-2008 Easics NV.
+	// This source file may be used and distributed without restriction
+	// provided that this copyright statement is not removed from the file
+	// and that any derivative work contains the original copyright notice
+	// and the associated disclaimer.
+	//
+	// THIS SOURCE FILE IS PROVIDED "AS IS" AND WITHOUT ANY EXPRESS
+	// OR IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
+	// WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
+	//
+	// Purpose : synthesizable CRC function
+	//   * polynomial: x^16 + x^15 + x^2 + 1
+	//   * data width: 8
+	//
+	// Info : tools@easics.be
+	//        http://www.easics.com
+	////////////////////////////////////////////////////////////////////////////////
+
+	// polynomial: x^16 + x^15 + x^2 + 1
+	// data width: 8
+	// convention: the first serial bit is D[7]
+	function [15:0] nextCRC16_D8;
+
+		input [7:0] Data;
+		input [15:0] crc;
+		reg [7:0] d;
+		reg [15:0] c;
+		reg [15:0] newcrc;
+		begin
+			d = Data;
+			c = crc;
+
+			newcrc[0] = d[7] ^ d[6] ^ d[5] ^ d[4] ^ d[3] ^ d[2] ^ d[1] ^ d[0] ^ c[8] ^ c[9] ^ c[10] ^ c[11] ^ c[12] ^ c[13] ^ c[14] ^ c[15];
+			newcrc[1] = d[7] ^ d[6] ^ d[5] ^ d[4] ^ d[3] ^ d[2] ^ d[1] ^ c[9] ^ c[10] ^ c[11] ^ c[12] ^ c[13] ^ c[14] ^ c[15];
+			newcrc[2] = d[1] ^ d[0] ^ c[8] ^ c[9];
+			newcrc[3] = d[2] ^ d[1] ^ c[9] ^ c[10];
+			newcrc[4] = d[3] ^ d[2] ^ c[10] ^ c[11];
+			newcrc[5] = d[4] ^ d[3] ^ c[11] ^ c[12];
+			newcrc[6] = d[5] ^ d[4] ^ c[12] ^ c[13];
+			newcrc[7] = d[6] ^ d[5] ^ c[13] ^ c[14];
+			newcrc[8] = d[7] ^ d[6] ^ c[0] ^ c[14] ^ c[15];
+			newcrc[9] = d[7] ^ c[1] ^ c[15];
+			newcrc[10] = c[2];
+			newcrc[11] = c[3];
+			newcrc[12] = c[4];
+			newcrc[13] = c[5];
+			newcrc[14] = c[6];
+			newcrc[15] = d[7] ^ d[6] ^ d[5] ^ d[4] ^ d[3] ^ d[2] ^ d[1] ^ d[0] ^ c[7] ^ c[8] ^ c[9] ^ c[10] ^ c[11] ^ c[12] ^ c[13] ^ c[14] ^ c[15];
+			nextCRC16_D8 = newcrc;
+		end
+	endfunction
 
 	reg[7:0] byte_transmit_counter ;
 	reg [15:0] data ;
@@ -188,34 +188,24 @@ endfunction
 					data_out[3] <= CONTROL_MODE_FRAME_MAGICNUMBER[7:0];
 					data_out[4] <= motor; // motor id
 					data_out[5] <= control_mode[motor]; // control_mode
-					data_out[6] <= Kp[motor][31:24];
-					data_out[7] <= Kp[motor][23:16];
-					data_out[8] <= Kp[motor][15:8];
-					data_out[9] <= Kp[motor][7:0];
-					data_out[10] <= Ki[motor][31:24];
-					data_out[11] <= Ki[motor][23:16];
-					data_out[12] <= Ki[motor][15:8];
-					data_out[13] <= Ki[motor][7:0];
-					data_out[14] <= Kd[motor][31:24];
-					data_out[15] <= Kd[motor][23:16];
-					data_out[16] <= Kd[motor][15:8];
-					data_out[17] <= Kd[motor][7:0];
-					data_out[18] <= PWMLimit[motor][31:24];
-					data_out[19] <= PWMLimit[motor][23:16];
-					data_out[20] <= PWMLimit[motor][15:8];
-					data_out[21] <= PWMLimit[motor][7:0];
-					data_out[22] <= IntegralLimit[motor][31:24];
-					data_out[23] <= IntegralLimit[motor][23:16];
-					data_out[24] <= IntegralLimit[motor][15:8];
-					data_out[25] <= IntegralLimit[motor][7:0];
-					data_out[26] <= deadband[motor][31:24];
-					data_out[27] <= deadband[motor][23:16];
-					data_out[28] <= deadband[motor][15:8];
-					data_out[29] <= deadband[motor][7:0];
-					data_out[30] <= setpoint[motor][31:24];
-					data_out[31] <= setpoint[motor][23:16];
-					data_out[32] <= setpoint[motor][15:8];
-					data_out[33] <= setpoint[motor][7:0];
+					data_out[6] <= Kp[motor][7:0];
+					data_out[7] <= Ki[motor][7:0];
+					data_out[8] <= Kd[motor][7:0];
+					data_out[9] <= PWMLimit[motor][23:16];
+					data_out[10] <= PWMLimit[motor][15:8];
+					data_out[11] <= PWMLimit[motor][7:0];
+					data_out[12] <= IntegralLimit[motor][23:16];
+					data_out[13] <= IntegralLimit[motor][15:8];
+					data_out[14] <= IntegralLimit[motor][7:0];
+					data_out[15] <= deadband[motor][23:16];
+					data_out[16] <= deadband[motor][15:8];
+					data_out[17] <= deadband[motor][7:0];
+					data_out[18] <= setpoint[motor][23:16];
+					data_out[19] <= setpoint[motor][15:8];
+					data_out[20] <= setpoint[motor][7:0];
+					data_out[21] <= gearboxRatio[motor][23:16];
+					data_out[22] <= gearboxRatio[motor][15:8];
+					data_out[23] <= gearboxRatio[motor][7:0];
 					state <= GENERATE_CONTROL_MODE_CRC;
 				end
 				GENERATE_CONTROL_MODE_CRC: begin
@@ -247,10 +237,9 @@ endfunction
 					data_out[2] <= SETPOINT_FRAME_MAGICNUMBER[15:8];
 					data_out[3] <= SETPOINT_FRAME_MAGICNUMBER[7:0];
 					data_out[4] <= motor; // motor id
-					data_out[5] <= setpoint[motor][31:24];
-					data_out[6] <= setpoint[motor][23:16];
-					data_out[7] <= setpoint[motor][15:8];
-					data_out[8] <= setpoint[motor][7:0];
+					data_out[5] <= setpoint[motor][23:16];
+					data_out[6] <= setpoint[motor][15:8];
+					data_out[7] <= setpoint[motor][7:0];
 					state <= GENERATE_SETPOINT_CRC;
 				end
 				GENERATE_SETPOINT_CRC: begin
@@ -402,36 +391,21 @@ endfunction
 						end else begin
 							error_code[data_in_frame[0]] <= 8'h0;
 						end
-						encoder0_position[motor_id][31:24] <= data_in_frame[2];
-						encoder0_position[motor_id][23:16] <= data_in_frame[3];
-						encoder0_position[motor_id][15:8] <= data_in_frame[4];
-						encoder0_position[motor_id][7:0] <= data_in_frame[5];
-						encoder1_position[motor_id][31:24] <= data_in_frame[6];
-						encoder1_position[motor_id][23:16] <= data_in_frame[7];
-						encoder1_position[motor_id][15:8] <= data_in_frame[8];
-						encoder1_position[motor_id][7:0] <= data_in_frame[9];
-						encoder0_velocity[motor_id][31:24] <= data_in_frame[10];
-						encoder0_velocity[motor_id][23:16] <= data_in_frame[11];
-						encoder0_velocity[motor_id][15:8] <= data_in_frame[12];
-						encoder0_velocity[motor_id][7:0] <= data_in_frame[13];
-						encoder1_velocity[motor_id][31:24] <= data_in_frame[14];
-						encoder1_velocity[motor_id][23:16] <= data_in_frame[15];
-						encoder1_velocity[motor_id][15:8] <= data_in_frame[16];
-						encoder1_velocity[motor_id][7:0] <= data_in_frame[17];
-						current_phase1[motor_id][15:8] <= data_in_frame[18];
-						current_phase1[motor_id][7:0] <= data_in_frame[19];
-						current_phase2[motor_id][15:8] <= data_in_frame[20];
-						current_phase2[motor_id][7:0] <= data_in_frame[21];
-						current_phase3[motor_id][15:8] <= data_in_frame[22];
-						current_phase3[motor_id][7:0] <= data_in_frame[23];
-						setpoint_actual[motor_id][31:24] <= data_in_frame[24];
-						setpoint_actual[motor_id][23:16] <= data_in_frame[25];
-						setpoint_actual[motor_id][15:8] <= data_in_frame[26];
-						setpoint_actual[motor_id][7:0] <= data_in_frame[27];
-						pwm[motor_id][31:24] <= data_in_frame[28];
-						pwm[motor_id][23:16] <= data_in_frame[29];
-						pwm[motor_id][15:8] <= data_in_frame[30];
-						pwm[motor_id][7:0] <= data_in_frame[31];
+						encoder0_position[motor_id][23:16] <= data_in_frame[2];
+						encoder0_position[motor_id][15:8] <= data_in_frame[3];
+						encoder0_position[motor_id][7:0] <= data_in_frame[4];
+						encoder1_position[motor_id][23:16] <= data_in_frame[5];
+						encoder1_position[motor_id][15:8] <= data_in_frame[6];
+						encoder1_position[motor_id][7:0] <= data_in_frame[7];
+						setpoint_actual[motor_id][23:16] <= data_in_frame[8];
+						setpoint_actual[motor_id][15:8] <= data_in_frame[9];
+						setpoint_actual[motor_id][7:0] <= data_in_frame[10];
+						pwm[motor_id][23:16] <= data_in_frame[11];
+						pwm[motor_id][15:8] <= data_in_frame[12];
+						pwm[motor_id][7:0] <= data_in_frame[13];
+						displacement[motor_id][23:16] <= data_in_frame[14];
+						displacement[motor_id][15:8] <= data_in_frame[15];
+						displacement[motor_id][7:0] <= data_in_frame[16];
 						status_received[motor_id] <= status_received[motor_id] + 1;
 						if(setpoint_actual[motor_id]!=setpoint[motor])begin
 							trigger_setpoint_update <= 1;

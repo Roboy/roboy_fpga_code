@@ -16,26 +16,21 @@ module ICEboardControl (
 	parameter CLOCK_FREQ_HZ = 50_000_000;
 	parameter BAUDRATE = 1_000_000;
 		
-	reg signed [31:0] pwm[NUMBER_OF_MOTORS-1:0];
-	reg signed [31:0] Kp[NUMBER_OF_MOTORS-1:0];
-	reg signed [31:0] Ki[NUMBER_OF_MOTORS-1:0];
-	reg signed [31:0] Kd[NUMBER_OF_MOTORS-1:0];
-	reg signed [31:0] sp[NUMBER_OF_MOTORS-1:0];
-	reg signed [31:0] PWMLimit[NUMBER_OF_MOTORS-1:0];
-	reg signed [31:0] IntegralLimit[NUMBER_OF_MOTORS-1:0];
-	reg signed [31:0] deadband[NUMBER_OF_MOTORS-1:0];
+	reg signed [23:0] pwm[NUMBER_OF_MOTORS-1:0];
+	reg signed [7:0] Kp[NUMBER_OF_MOTORS-1:0];
+	reg signed [7:0] Ki[NUMBER_OF_MOTORS-1:0];
+	reg signed [7:0] Kd[NUMBER_OF_MOTORS-1:0];
+	reg signed [23:0] sp[NUMBER_OF_MOTORS-1:0];
+	reg signed [23:0] PWMLimit[NUMBER_OF_MOTORS-1:0];
+	reg signed [23:0] IntegralLimit[NUMBER_OF_MOTORS-1:0];
+	reg signed [23:0] deadband[NUMBER_OF_MOTORS-1:0];
+	reg signed [23:0] gearboxRatio[NUMBER_OF_MOTORS-1:0];
 	reg [7:0] control_mode[NUMBER_OF_MOTORS-1:0];
 
 	// encoder 
-	reg signed [31:0] encoder0_position[NUMBER_OF_MOTORS-1:0];
-	reg signed [31:0] encoder1_position[NUMBER_OF_MOTORS-1:0];
-	reg signed [31:0] encoder0_velocity[NUMBER_OF_MOTORS-1:0];
-	reg signed [31:0] encoder1_velocity[NUMBER_OF_MOTORS-1:0];
-	
-	// current
-	reg signed [31:0] current_phase1[NUMBER_OF_MOTORS-1:0];
-	reg signed [31:0] current_phase2[NUMBER_OF_MOTORS-1:0];
-	reg signed [31:0] current_phase3[NUMBER_OF_MOTORS-1:0];
+	reg signed [23:0] encoder0_position[NUMBER_OF_MOTORS-1:0];
+	reg signed [23:0] encoder1_position[NUMBER_OF_MOTORS-1:0];
+	reg signed [23:0] displacement[NUMBER_OF_MOTORS-1:0];
 	
 	reg [31:0] error_code[NUMBER_OF_MOTORS-1:0];
 	reg [31:0] crc_checksum[NUMBER_OF_MOTORS-1:0];
@@ -65,8 +60,6 @@ module ICEboardControl (
 					8'h03: returnvalue <= Kd[motor];
 					8'h04: returnvalue <= encoder0_position[motor];
 					8'h05: returnvalue <= encoder1_position[motor];
-					8'h06: returnvalue <= encoder0_velocity[motor];
-					8'h07: returnvalue <= encoder1_velocity[motor];
 					8'h08: returnvalue <= PWMLimit[motor];
 					8'h09: returnvalue <= IntegralLimit[motor];
 					8'h0A: returnvalue <= deadband[motor];
@@ -74,12 +67,11 @@ module ICEboardControl (
 					8'h0C: returnvalue <= sp[motor];
 					8'h0D: returnvalue <= error_code[motor];
 					8'h11: returnvalue <= update_frequency_Hz;
-					8'h12: returnvalue <= current_phase1[motor];
-					8'h13: returnvalue <= current_phase2[motor];
-					8'h14: returnvalue <= current_phase3[motor];
 					8'h15: returnvalue <= crc_checksum[motor];
 					8'h16: returnvalue <= communication_quality[motor];
 					8'h17: returnvalue <= pwm[motor];
+					8'h18: returnvalue <= displacement[motor];
+					8'h19: returnvalue <= gearboxRatio[motor];
 					default: returnvalue <= 32'hDEADBEEF;
 				endcase
 				if(waitFlag==1) begin // next clock cycle the returnvalue should be ready
@@ -101,6 +93,7 @@ module ICEboardControl (
 				control_mode[i] <= 0;
 				PWMLimit[i] <= 127;
 				IntegralLimit[i] <= 50;
+				gearboxRatio[i] <= 53;
 			end
 			update_frequency_Hz <= 100;
 		end else begin
@@ -115,6 +108,7 @@ module ICEboardControl (
 					8'h0B: control_mode[motor] <= writedata;
 					8'h0C: sp[motor] <= writedata;
 					8'h11: update_frequency_Hz <= writedata;
+					8'h12: gearboxRatio[motor] <= writedata;
 				endcase
 			end
 		end 
@@ -129,11 +123,8 @@ module ICEboardControl (
 		.pwm(pwm),
 		.encoder0_position(encoder0_position),
 		.encoder1_position(encoder1_position),
-		.encoder0_velocity(encoder0_velocity),
-		.encoder1_velocity(encoder1_velocity),
-		.current_phase1(current_phase1),
-		.current_phase2(current_phase2),
-		.current_phase3(current_phase3),
+		.displacement(displacement),
+		.gearboxRatio(gearboxRatio),
 		.setpoint(sp),
 		.control_mode(control_mode),
 		.Kp(Kp),
