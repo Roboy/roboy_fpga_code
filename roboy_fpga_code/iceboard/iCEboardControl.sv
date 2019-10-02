@@ -9,40 +9,33 @@ module ICEboardControl (
 		output signed [31:0] readdata,
 		output waitrequest,
 		input rx,
-		output tx,
-		inout rx_receive,
-		output [3:0] debug_signals
+		output tx
 );
 	
-	parameter NUMBER_OF_MOTORS = 6;
+	parameter NUMBER_OF_MOTORS = 8;
 	parameter CLOCK_FREQ_HZ = 50_000_000;
-	parameter BAUDRATE = 115200;
+	parameter BAUDRATE = 1_000_000;
 		
-	reg signed [31:0] Kp[NUMBER_OF_MOTORS-1:0];
-	reg signed [31:0] Ki[NUMBER_OF_MOTORS-1:0];
-	reg signed [31:0] Kd[NUMBER_OF_MOTORS-1:0];
-	reg signed [31:0] sp[NUMBER_OF_MOTORS-1:0];
-	reg signed [31:0] PWMLimit[NUMBER_OF_MOTORS-1:0];
-	reg signed [31:0] IntegralLimit[NUMBER_OF_MOTORS-1:0];
-	reg signed [31:0] deadband[NUMBER_OF_MOTORS-1:0];
+	reg signed [23:0] pwm[NUMBER_OF_MOTORS-1:0];
+	reg signed [7:0] Kp[NUMBER_OF_MOTORS-1:0];
+	reg signed [7:0] Ki[NUMBER_OF_MOTORS-1:0];
+	reg signed [7:0] Kd[NUMBER_OF_MOTORS-1:0];
+	reg signed [23:0] sp[NUMBER_OF_MOTORS-1:0];
+	reg signed [23:0] PWMLimit[NUMBER_OF_MOTORS-1:0];
+	reg signed [23:0] IntegralLimit[NUMBER_OF_MOTORS-1:0];
+	reg signed [23:0] deadband[NUMBER_OF_MOTORS-1:0];
+	reg signed [23:0] gearboxRatio[NUMBER_OF_MOTORS-1:0];
 	reg [7:0] control_mode[NUMBER_OF_MOTORS-1:0];
 
 	// encoder 
-	reg signed [31:0] encoder0_position[NUMBER_OF_MOTORS-1:0];
-	reg signed [31:0] encoder1_position[NUMBER_OF_MOTORS-1:0];
-	reg signed [31:0] encoder0_velocity[NUMBER_OF_MOTORS-1:0];
-	reg signed [31:0] encoder1_velocity[NUMBER_OF_MOTORS-1:0];
-	
-	// current
-	reg signed [31:0] current_phase1[NUMBER_OF_MOTORS-1:0];
-	reg signed [31:0] current_phase2[NUMBER_OF_MOTORS-1:0];
-	reg signed [31:0] current_phase3[NUMBER_OF_MOTORS-1:0];
+	reg signed [23:0] encoder0_position[NUMBER_OF_MOTORS-1:0];
+	reg signed [23:0] encoder1_position[NUMBER_OF_MOTORS-1:0];
+	reg signed [23:0] displacement[NUMBER_OF_MOTORS-1:0];
 	
 	reg [31:0] error_code[NUMBER_OF_MOTORS-1:0];
-	reg [31:0] status_update_frequency_Hz;
-	reg [7:0] motor_to_update;
-	reg trigger_control_mode_update;
-	reg trigger_setpoint_update;
+	reg [31:0] crc_checksum[NUMBER_OF_MOTORS-1:0];
+	reg [31:0] communication_quality[NUMBER_OF_MOTORS-1:0];
+	reg [31:0] update_frequency_Hz;
 
 	assign readdata = returnvalue;
 	assign waitrequest = (waitFlag && read);
@@ -67,18 +60,18 @@ module ICEboardControl (
 					8'h03: returnvalue <= Kd[motor];
 					8'h04: returnvalue <= encoder0_position[motor];
 					8'h05: returnvalue <= encoder1_position[motor];
-					8'h06: returnvalue <= encoder0_velocity[motor];
-					8'h07: returnvalue <= encoder1_velocity[motor];
 					8'h08: returnvalue <= PWMLimit[motor];
 					8'h09: returnvalue <= IntegralLimit[motor];
 					8'h0A: returnvalue <= deadband[motor];
 					8'h0B: returnvalue <= control_mode[motor];
 					8'h0C: returnvalue <= sp[motor];
 					8'h0D: returnvalue <= error_code[motor];
-					8'h11: returnvalue <= status_update_frequency_Hz;
-					8'h12: returnvalue <= current_phase1[motor];
-					8'h13: returnvalue <= current_phase2[motor];
-					8'h14: returnvalue <= current_phase3[motor];
+					8'h11: returnvalue <= update_frequency_Hz;
+					8'h15: returnvalue <= crc_checksum[motor];
+					8'h16: returnvalue <= communication_quality[motor];
+					8'h17: returnvalue <= pwm[motor];
+					8'h18: returnvalue <= displacement[motor];
+					8'h19: returnvalue <= gearboxRatio[motor];
 					default: returnvalue <= 32'hDEADBEEF;
 				endcase
 				if(waitFlag==1) begin // next clock cycle the returnvalue should be ready
@@ -100,12 +93,10 @@ module ICEboardControl (
 				control_mode[i] <= 0;
 				PWMLimit[i] <= 127;
 				IntegralLimit[i] <= 50;
+				gearboxRatio[i] <= 53;
 			end
-			status_update_frequency_Hz <= 100;
+			update_frequency_Hz <= 100;
 		end else begin
-			trigger_control_mode_update <= 0;
-			trigger_setpoint_update <= 0;
-			
 			if(write && ~waitrequest) begin
 				case(addr)
 					8'h01: Kp[motor] <= writedata;
@@ -116,10 +107,8 @@ module ICEboardControl (
 					8'h0A: deadband[motor] <= writedata;
 					8'h0B: control_mode[motor] <= writedata;
 					8'h0C: sp[motor] <= writedata;
-					8'h0E: trigger_control_mode_update <= (writedata!=0);
-					8'h0F: trigger_setpoint_update <= (writedata!=0);
-					8'h10: motor_to_update <= writedata;
-					8'h11: status_update_frequency_Hz <= writedata;
+					8'h11: update_frequency_Hz <= writedata;
+					8'h12: gearboxRatio[motor] <= writedata;
 				endcase
 			end
 		end 
@@ -130,17 +119,12 @@ module ICEboardControl (
 		.reset(reset),
 		.tx_o(tx),
 		.rx_i(rx),
-		.status_update_frequency_Hz(status_update_frequency_Hz),
-		.trigger_control_mode_update(trigger_control_mode_update),
-		.trigger_setpoint_update(trigger_setpoint_update),
-		.motor_to_update(motor_to_update),
+		.update_frequency_Hz(update_frequency_Hz),
+		.pwm(pwm),
 		.encoder0_position(encoder0_position),
 		.encoder1_position(encoder1_position),
-		.encoder0_velocity(encoder0_velocity),
-		.encoder1_velocity(encoder1_velocity),
-		.current_phase1(current_phase1),
-		.current_phase2(current_phase2),
-		.current_phase3(current_phase3),
+		.displacement(displacement),
+		.gearboxRatio(gearboxRatio),
 		.setpoint(sp),
 		.control_mode(control_mode),
 		.Kp(Kp),
@@ -150,8 +134,8 @@ module ICEboardControl (
 		.IntegralLimit(IntegralLimit),
 		.deadband(deadband),
 		.error_code(error_code),
-		.rx_receive(rx_receive),
-		.debug_signals(debug_signals)
+		.crc_checksum(crc_checksum),
+		.communication_quality(communication_quality)
 	);
 	
 endmodule
