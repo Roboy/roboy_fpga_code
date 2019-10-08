@@ -412,8 +412,8 @@ SpiControl spi_control(
 	.ss_n(ss_n)
 );
 
-// SPI specs: 2MHz, 16bit MSB, clock phase of 1
-spi_master #(16, 1'b0, 1'b1, 2, 25) spi(
+// SPI specs: 1MHz, 16bit MSB, clock phase of 1
+spi_master #(16, 1'b0, 1'b1, 2, 50) spi(
 	.sclk_i(clock),
 	.pclk_i(clock),
 	.rst_i(reset_myo_control),
