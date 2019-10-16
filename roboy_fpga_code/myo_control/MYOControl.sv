@@ -289,8 +289,8 @@ always @(posedge clock, posedge reset) begin: MYO_CONTROL_LOGIC
 					displacements[motor][31:0] <= $signed(displacement[0:14]);
 				end
 			end else begin
-				displacements[motor][31:0] <= $signed(displacement[0:14]);
-				motor_angle[motor] <= (positions[motor]<<<8) - (myo_brick_gear_box_ratio[motor]*myo_brick_encoder_multiplier[motor]*displacements[motor]);
+				displacements[motor][31:0] <= (positions[motor]/myo_brick_gear_box_ratio[motor])-($signed(displacement[0:14])>>>3);
+				motor_angle[motor] <= displacements[motor][31:0];
 			end
 			if(motor==0) begin // lazy update (we are updating the controller following the current spi transmission)
 				pid_update <= NUMBER_OF_MOTORS-1; 
@@ -413,7 +413,7 @@ SpiControl spi_control(
 );
 
 // SPI specs: 1MHz, 16bit MSB, clock phase of 1
-spi_master #(16, 1'b0, 1'b1, 2, 5) spi(
+spi_master #(16, 1'b0, 1'b1, 2, 25) spi(
 	.sclk_i(clock),
 	.pclk_i(clock),
 	.rst_i(reset_myo_control),
