@@ -16,7 +16,7 @@ module ICEboardControl (
 	parameter CLOCK_FREQ_HZ = 50_000_000;
 	parameter BAUDRATE = 1_000_000;
 		
-	reg signed [23:0] pwm[NUMBER_OF_MOTORS-1:0];
+	reg signed [23:0] duty[NUMBER_OF_MOTORS-1:0];
 	reg signed [7:0] Kp[NUMBER_OF_MOTORS-1:0];
 	reg signed [7:0] Ki[NUMBER_OF_MOTORS-1:0];
 	reg signed [7:0] Kd[NUMBER_OF_MOTORS-1:0];
@@ -69,7 +69,7 @@ module ICEboardControl (
 					8'h11: returnvalue <= update_frequency_Hz;
 					8'h15: returnvalue <= crc_checksum[motor];
 					8'h16: returnvalue <= communication_quality[motor];
-					8'h17: returnvalue <= pwm[motor];
+					8'h17: returnvalue <= duty[motor];
 					8'h18: returnvalue <= displacement[motor];
 					8'h19: returnvalue <= gearboxRatio[motor];
 					default: returnvalue <= 32'hDEADBEEF;
@@ -118,9 +118,9 @@ module ICEboardControl (
 		.clk(clk),
 		.reset(reset),
 		.tx_o(tx),
-		.rx_i(rx),
+		.rx_i(~rx),
 		.update_frequency_Hz(update_frequency_Hz),
-		.pwm(pwm),
+		.duty(duty),
 		.encoder0_position(encoder0_position),
 		.encoder1_position(encoder1_position),
 		.displacement(displacement),

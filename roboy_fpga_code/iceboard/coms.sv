@@ -5,7 +5,7 @@ module coms #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_000_000
 	output tx_enable,
 	input rx_i,
 	input wire [31:0] update_frequency_Hz,
-	output wire signed [23:0] pwm[NUMBER_OF_MOTORS-1:0],
+	output wire signed [23:0] duty[NUMBER_OF_MOTORS-1:0],
 	output wire signed [23:0] encoder0_position[NUMBER_OF_MOTORS-1:0],
 	output wire signed [23:0] encoder1_position[NUMBER_OF_MOTORS-1:0],
 	output wire [15:0] current_phase1[NUMBER_OF_MOTORS-1:0],
@@ -400,9 +400,9 @@ module coms #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_000_000
 						setpoint_actual[motor_id][23:16] <= data_in_frame[8];
 						setpoint_actual[motor_id][15:8] <= data_in_frame[9];
 						setpoint_actual[motor_id][7:0] <= data_in_frame[10];
-						pwm[motor_id][23:16] <= data_in_frame[11];
-						pwm[motor_id][15:8] <= data_in_frame[12];
-						pwm[motor_id][7:0] <= data_in_frame[13];
+						duty[motor_id][23:16] <= data_in_frame[11];
+						duty[motor_id][15:8] <= data_in_frame[12];
+						duty[motor_id][7:0] <= data_in_frame[13];
 						displacement[motor_id][23:16] <= data_in_frame[14];
 						displacement[motor_id][15:8] <= data_in_frame[15];
 						displacement[motor_id][7:0] <= data_in_frame[16];
