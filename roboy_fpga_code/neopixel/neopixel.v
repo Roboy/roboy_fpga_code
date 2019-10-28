@@ -21,7 +21,7 @@ assign readdata =
 
 parameter CLOCK_SPEED_HZ = 50_000_000;
 parameter NUMBER_OF_NEOPIXEL = 35;
-parameter RGBW = 1;
+localparam RGBW = 0;
 
 reg send_to_neopixels;
 
