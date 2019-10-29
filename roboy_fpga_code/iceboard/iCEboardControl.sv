@@ -90,9 +90,9 @@ module ICEboardControl (
 				Kd[i] <= 0;
 				sp[i] <= 0;
 				deadband[i] <= 0;
-				control_mode[i] <= 0;
-				PWMLimit[i] <= 127;
-				IntegralLimit[i] <= 50;
+				control_mode[i] <= 3;
+				PWMLimit[i] <= 8388607;
+				IntegralLimit[i] <= 500000;
 				gearboxRatio[i] <= 53;
 			end
 			update_frequency_Hz <= 100;
