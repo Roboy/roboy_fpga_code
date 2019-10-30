@@ -104,10 +104,9 @@ always @(posedge clock, posedge reset) begin: PID_CONTROLLER_PID_CONTROLLERLOGIC
 							end
 						end
 					end
-				5: err = (sp - current);
 				default: err = 0;
 			endcase;
-			if(control_mode!=6) begin
+			if(control_mode!=3) begin
 				if (((err >= deadBand) || (err <= ((-1) * deadBand)))) begin
 					pterm = (Kp * err);
 					if ((pterm < outputPosMax) || (pterm > outputNegMax)) begin  //if the proportional term is not maxed
