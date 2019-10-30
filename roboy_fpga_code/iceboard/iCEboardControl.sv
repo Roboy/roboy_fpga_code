@@ -17,9 +17,9 @@ module ICEboardControl (
 	parameter BAUDRATE = 1_000_000;
 		
 	reg signed [23:0] duty[NUMBER_OF_MOTORS-1:0];
-	reg signed [7:0] Kp[NUMBER_OF_MOTORS-1:0];
-	reg signed [7:0] Ki[NUMBER_OF_MOTORS-1:0];
-	reg signed [7:0] Kd[NUMBER_OF_MOTORS-1:0];
+	reg signed [15:0] Kp[NUMBER_OF_MOTORS-1:0];
+	reg signed [15:0] Ki[NUMBER_OF_MOTORS-1:0];
+	reg signed [15:0] Kd[NUMBER_OF_MOTORS-1:0];
 	reg signed [23:0] sp[NUMBER_OF_MOTORS-1:0];
 	reg signed [23:0] PWMLimit[NUMBER_OF_MOTORS-1:0];
 	reg signed [23:0] IntegralLimit[NUMBER_OF_MOTORS-1:0];

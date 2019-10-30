@@ -15,9 +15,9 @@ module coms #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_000_000
 	input wire signed [23:0] gearboxRatio[NUMBER_OF_MOTORS-1:0],
 	input wire signed [23:0] setpoint[NUMBER_OF_MOTORS-1:0],
 	input wire [7:0] control_mode[NUMBER_OF_MOTORS-1:0],
-	input wire signed [7:0] Kp[NUMBER_OF_MOTORS-1:0],
-	input wire signed [7:0] Ki[NUMBER_OF_MOTORS-1:0],
-	input wire signed [7:0] Kd[NUMBER_OF_MOTORS-1:0],
+	input wire signed [15:0] Kp[NUMBER_OF_MOTORS-1:0],
+	input wire signed [15:0] Ki[NUMBER_OF_MOTORS-1:0],
+	input wire signed [15:0] Kd[NUMBER_OF_MOTORS-1:0],
 	input wire signed [23:0] PWMLimit[NUMBER_OF_MOTORS-1:0],
 	input wire signed [23:0] IntegralLimit[NUMBER_OF_MOTORS-1:0],
 	input wire signed [23:0] deadband[NUMBER_OF_MOTORS-1:0],
@@ -36,7 +36,7 @@ module coms #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_000_000
 	localparam 	SETPOINT_FRAME_MAGICNUMBER = 32'hD0D0D0D0;
 	localparam  SETPOINT_FRAME_LENGTH = 10;
 	localparam 	CONTROL_MODE_FRAME_MAGICNUMBER = 32'hBAADA555;
-	localparam  CONTROL_MODE_FRAME_LENGTH = 26;
+	localparam  CONTROL_MODE_FRAME_LENGTH = 29;
 	localparam  MAX_FRAME_LENGTH = CONTROL_MODE_FRAME_LENGTH;
 
 	////////////////////////////////////////////////////////////////////////////////
@@ -188,24 +188,27 @@ module coms #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_000_000
 					data_out[3] <= CONTROL_MODE_FRAME_MAGICNUMBER[7:0];
 					data_out[4] <= motor; // motor id
 					data_out[5] <= control_mode[motor]; // control_mode
-					data_out[6] <= Kp[motor][7:0];
-					data_out[7] <= Ki[motor][7:0];
-					data_out[8] <= Kd[motor][7:0];
-					data_out[9] <= PWMLimit[motor][23:16];
-					data_out[10] <= PWMLimit[motor][15:8];
-					data_out[11] <= PWMLimit[motor][7:0];
-					data_out[12] <= IntegralLimit[motor][23:16];
-					data_out[13] <= IntegralLimit[motor][15:8];
-					data_out[14] <= IntegralLimit[motor][7:0];
-					data_out[15] <= deadband[motor][23:16];
-					data_out[16] <= deadband[motor][15:8];
-					data_out[17] <= deadband[motor][7:0];
-					data_out[18] <= setpoint[motor][23:16];
-					data_out[19] <= setpoint[motor][15:8];
-					data_out[20] <= setpoint[motor][7:0];
-					data_out[21] <= gearboxRatio[motor][23:16];
-					data_out[22] <= gearboxRatio[motor][15:8];
-					data_out[23] <= gearboxRatio[motor][7:0];
+					data_out[6] <= Kp[motor][15:8];
+					data_out[7] <= Kp[motor][7:0];
+					data_out[8] <= Ki[motor][15:8];
+					data_out[9] <= Ki[motor][7:0];
+					data_out[10] <= Kd[motor][15:8];
+					data_out[11] <= Kd[motor][7:0];
+					data_out[12] <= PWMLimit[motor][23:16];
+					data_out[13] <= PWMLimit[motor][15:8];
+					data_out[14] <= PWMLimit[motor][7:0];
+					data_out[15] <= IntegralLimit[motor][23:16];
+					data_out[16] <= IntegralLimit[motor][15:8];
+					data_out[17] <= IntegralLimit[motor][7:0];
+					data_out[18] <= deadband[motor][23:16];
+					data_out[19] <= deadband[motor][15:8];
+					data_out[20] <= deadband[motor][7:0];
+					data_out[21] <= setpoint[motor][23:16];
+					data_out[22] <= setpoint[motor][15:8];
+					data_out[23] <= setpoint[motor][7:0];
+					data_out[24] <= gearboxRatio[motor][23:16];
+					data_out[25] <= gearboxRatio[motor][15:8];
+					data_out[26] <= gearboxRatio[motor][7:0];
 					state <= GENERATE_CONTROL_MODE_CRC;
 				end
 				GENERATE_CONTROL_MODE_CRC: begin
