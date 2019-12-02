@@ -36,7 +36,7 @@ module TLI4970 (
 	input clock,
 	input reset,
 	// this is for the avalon interface
-	input [15:0] address,
+	input [7:0] address,
 	input write,
 	input signed [31:0] writedata,
 	input read,
@@ -50,10 +50,10 @@ module TLI4970 (
 
 parameter NUMBER_OF_SENSORS = 2;
 parameter CLOCK_SPEED_HZ = 50_000_000;
-parameter UPDATE_FREQUENCY = 50_000;
+parameter UPDATE_FREQUENCY = 1_000;
 
 assign readdata = returnvalue;
-assign waitrequest = (waitFlag && read) || update_controller;
+assign waitrequest = (waitFlag && read);
 reg [31:0] returnvalue;
 reg waitFlag;
 
@@ -86,13 +86,26 @@ integer current_sensor;
 	
 always @(posedge clock, posedge reset) begin: TLI4970_READOUT_LOGIC
 	if(reset)begin
-		current_sensor=0;
+		current_sensor<=0;
+		delay_counter<=0;
 	end else begin
-		if(ss_n)begin
-			if(data_out[15]==0)begin
-				current[current_sensor] <= data_out[12:0];
-			end
-		end 
+		wren <= 0;
+		if(delay_counter==0)begin
+			if(ss_n)begin
+				if(data_out[15]==0)begin
+					current[current_sensor] <= data_out[12:0];
+				end
+				if(current_sensor<NUMBER_OF_SENSORS-1)begin
+					current_sensor <= current_sensor+1;
+				end else begin
+					current_sensor <= 0;
+				end
+				delay_counter <= CLOCK_SPEED_HZ/UPDATE_FREQUENCY/NUMBER_OF_SENSORS/2;
+				wren <= 1;
+			end 
+		end else begin
+			delay_counter <= delay_counter-1;
+		end
 	end
 end
 
@@ -116,5 +129,12 @@ spi_master #(16, 1'b0, 1'b1, 2, 25) spi(
 	.do_valid_o(do_valid),
 	.do_o(data_out)
 );
+
+genvar j;
+generate 
+	for(j=0; j<NUMBER_OF_SENSORS; j = j+1) begin : connect_ss_n
+		assign ss_n_o[j] = (current_sensor==j?ss_n:1);
+	end
+endgenerate 
 
 endmodule
