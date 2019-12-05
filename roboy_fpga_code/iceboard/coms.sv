@@ -415,7 +415,7 @@ module coms #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_000_000
 						end
 						state = IDLE;
 					end else begin
-						error_code[motor] <= {32'hBAADC0DE}; // crc error
+						error_code[motor] <= 32'hBAADC0DE; // crc error
 						state <= IDLE;
 					end
 				end
