@@ -53,7 +53,7 @@ parameter CLOCK_SPEED_HZ = 50_000_000;
 parameter UPDATE_FREQUENCY = 1_000;
 
 assign readdata = returnvalue;
-assign waitrequest = (waitFlag && read);
+assign waitrequest = (waitFlag && read) || (ss_n==0 && address==current_sensor);
 reg [31:0] returnvalue;
 reg waitFlag;
 
@@ -61,7 +61,7 @@ reg [31:0] update_frequency;
 reg [31:0] actual_update_frequency;
 reg [31:0] delay_counter;
 
-reg signed [31:0] current[NUMBER_OF_SENSORS-1:0];
+reg signed [31:0] current_raw[NUMBER_OF_SENSORS-1:0];
 
 always @(posedge clock, posedge reset) begin: AVALON_READ_INTERFACE
 	if (reset == 1) begin
@@ -70,7 +70,7 @@ always @(posedge clock, posedge reset) begin: AVALON_READ_INTERFACE
 		waitFlag <= 1;
 		if(read) begin
 			if(address<NUMBER_OF_SENSORS) begin
-				returnvalue <= current[address];
+				returnvalue <= current_raw[address];
 			end else begin
 				returnvalue <= 32'hdeadbeef;
 			end
@@ -93,7 +93,7 @@ always @(posedge clock, posedge reset) begin: TLI4970_READOUT_LOGIC
 		if(delay_counter==0)begin
 			if(ss_n)begin
 				if(data_out[15]==0)begin
-					current[current_sensor] <= data_out[12:0];
+					current_raw[current_sensor] <= data_out[12:0];
 				end
 				if(current_sensor<NUMBER_OF_SENSORS-1)begin
 					current_sensor <= current_sensor+1;
