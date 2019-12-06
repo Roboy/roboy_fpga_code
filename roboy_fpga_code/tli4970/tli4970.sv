@@ -61,7 +61,7 @@ reg [31:0] update_frequency;
 reg [31:0] actual_update_frequency;
 reg [31:0] delay_counter;
 
-reg signed [12:0] current[NUMBER_OF_SENSORS-1:0];
+reg signed [31:0] current[NUMBER_OF_SENSORS-1:0];
 
 always @(posedge clock, posedge reset) begin: AVALON_READ_INTERFACE
 	if (reset == 1) begin
@@ -113,7 +113,7 @@ wire di_req, wr_ack, do_valid, wren, ss_n;
 wire [15:0] Word;
 wire [15:0] data_out;
 
-// SPI specs: 1MHz, 16bit MSB, clock phase of 1
+// SPI specs: 1MHz, 16bit MSB, pol 0 phase 0
 spi_master #(16, 1'b0, 1'b1, 2, 25) spi(
 	.sclk_i(clock),
 	.pclk_i(clock),
