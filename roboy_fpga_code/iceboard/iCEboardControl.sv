@@ -24,7 +24,7 @@ module ICEboardControl (
 	reg signed [23:0] PWMLimit[NUMBER_OF_MOTORS-1:0];
 	reg signed [23:0] IntegralLimit[NUMBER_OF_MOTORS-1:0];
 	reg signed [23:0] deadband[NUMBER_OF_MOTORS-1:0];
-	reg signed [23:0] gearboxRatio[NUMBER_OF_MOTORS-1:0];
+	reg signed [12:0] current[NUMBER_OF_MOTORS-1:0];
 	reg [7:0] control_mode[NUMBER_OF_MOTORS-1:0];
 
 	// encoder 
@@ -71,7 +71,7 @@ module ICEboardControl (
 					8'h16: returnvalue <= communication_quality[motor];
 					8'h17: returnvalue <= duty[motor];
 					8'h18: returnvalue <= displacement[motor];
-					8'h19: returnvalue <= gearboxRatio[motor];
+					8'h19: returnvalue <= current[motor];
 					default: returnvalue <= 32'hDEADBEEF;
 				endcase
 				if(waitFlag==1) begin // next clock cycle the returnvalue should be ready
@@ -93,7 +93,6 @@ module ICEboardControl (
 				control_mode[i] <= 3;
 				PWMLimit[i] <= 8388607;
 				IntegralLimit[i] <= 500000;
-				gearboxRatio[i] <= 53;
 			end
 			update_frequency_Hz <= 100;
 		end else begin
@@ -108,7 +107,6 @@ module ICEboardControl (
 					8'h0B: control_mode[motor] <= writedata;
 					8'h0C: sp[motor] <= writedata;
 					8'h11: update_frequency_Hz <= writedata;
-					8'h12: gearboxRatio[motor] <= writedata;
 				endcase
 			end
 		end 
@@ -124,7 +122,7 @@ module ICEboardControl (
 		.encoder0_position(encoder0_position),
 		.encoder1_position(encoder1_position),
 		.displacement(displacement),
-		.gearboxRatio(gearboxRatio),
+		.current(current),
 		.setpoint(sp),
 		.control_mode(control_mode),
 		.Kp(Kp),

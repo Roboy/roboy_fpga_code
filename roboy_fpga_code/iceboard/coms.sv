@@ -8,11 +8,8 @@ module coms #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_000_000
 	output wire signed [23:0] duty[NUMBER_OF_MOTORS-1:0],
 	output wire signed [23:0] encoder0_position[NUMBER_OF_MOTORS-1:0],
 	output wire signed [23:0] encoder1_position[NUMBER_OF_MOTORS-1:0],
-	output wire [15:0] current_phase1[NUMBER_OF_MOTORS-1:0],
-	output wire [15:0] current_phase2[NUMBER_OF_MOTORS-1:0],
-	output wire [15:0] current_phase3[NUMBER_OF_MOTORS-1:0],
+	output wire signed [12:0] current[NUMBER_OF_MOTORS-1:0],
 	output wire signed [23:0] displacement[NUMBER_OF_MOTORS-1:0],
-	input wire signed [23:0] gearboxRatio[NUMBER_OF_MOTORS-1:0],
 	input wire signed [23:0] setpoint[NUMBER_OF_MOTORS-1:0],
 	input wire [7:0] control_mode[NUMBER_OF_MOTORS-1:0],
 	input wire signed [15:0] Kp[NUMBER_OF_MOTORS-1:0],
@@ -32,11 +29,11 @@ module coms #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_000_000
 	localparam  STATUS_REQUEST_FRAME_MAGICNUMBER = 32'h1CE1CEBB;
 	localparam	STATUS_REQUEST_FRAME_LENGTH = 7;
 	localparam 	STATUS_FRAME_MAGICNUMBER = 32'h1CEB00DA;
-	localparam  STATUS_FRAME_LENGTH = 23;
+	localparam  STATUS_FRAME_LENGTH = 25;
 	localparam 	SETPOINT_FRAME_MAGICNUMBER = 32'hD0D0D0D0;
 	localparam  SETPOINT_FRAME_LENGTH = 10;
 	localparam 	CONTROL_MODE_FRAME_MAGICNUMBER = 32'hBAADA555;
-	localparam  CONTROL_MODE_FRAME_LENGTH = 29;
+	localparam  CONTROL_MODE_FRAME_LENGTH = 26;
 	localparam  MAX_FRAME_LENGTH = CONTROL_MODE_FRAME_LENGTH;
 
 	////////////////////////////////////////////////////////////////////////////////
@@ -206,9 +203,6 @@ module coms #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_000_000
 					data_out[21] <= setpoint[motor][23:16];
 					data_out[22] <= setpoint[motor][15:8];
 					data_out[23] <= setpoint[motor][7:0];
-					data_out[24] <= gearboxRatio[motor][23:16];
-					data_out[25] <= gearboxRatio[motor][15:8];
-					data_out[26] <= gearboxRatio[motor][7:0];
 					state <= GENERATE_CONTROL_MODE_CRC;
 				end
 				GENERATE_CONTROL_MODE_CRC: begin
@@ -409,6 +403,8 @@ module coms #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_000_000
 						displacement[motor_id][23:16] <= data_in_frame[14];
 						displacement[motor_id][15:8] <= data_in_frame[15];
 						displacement[motor_id][7:0] <= data_in_frame[16];
+						current[motor_id][12:8] <= data_in_frame[17];
+						current[motor_id][7:0] <= data_in_frame[18];
 						status_received[motor_id] <= status_received[motor_id] + 1;
 						if(setpoint_actual[motor_id]!=setpoint[motor])begin
 							trigger_setpoint_update <= 1;
