@@ -21,6 +21,7 @@ module ICEboardControl (
 	reg signed [15:0] Ki[NUMBER_OF_MOTORS-1:0];
 	reg signed [15:0] Kd[NUMBER_OF_MOTORS-1:0];
 	reg signed [23:0] sp[NUMBER_OF_MOTORS-1:0];
+	reg [23:0] neopxl_color[NUMBER_OF_MOTORS-1:0];
 	reg signed [23:0] PWMLimit[NUMBER_OF_MOTORS-1:0];
 	reg signed [23:0] IntegralLimit[NUMBER_OF_MOTORS-1:0];
 	reg signed [23:0] deadband[NUMBER_OF_MOTORS-1:0];
@@ -72,6 +73,7 @@ module ICEboardControl (
 					8'h17: returnvalue <= duty[motor];
 					8'h18: returnvalue <= displacement[motor];
 					8'h19: returnvalue <= current[motor];
+					8'h1A: returnvalue <= neopxl_color[motor];
 					default: returnvalue <= 32'hDEADBEEF;
 				endcase
 				if(waitFlag==1) begin // next clock cycle the returnvalue should be ready
@@ -107,6 +109,7 @@ module ICEboardControl (
 					8'h0B: control_mode[motor] <= writedata;
 					8'h0C: sp[motor] <= writedata;
 					8'h11: update_frequency_Hz <= writedata;
+					8'h12: neopxl_color[motor] <= writedata;
 				endcase
 			end
 		end 
@@ -124,6 +127,7 @@ module ICEboardControl (
 		.displacement(displacement),
 		.current(current),
 		.setpoint(sp),
+		.neopxl_color(neopxl_color),
 		.control_mode(control_mode),
 		.Kp(Kp),
 		.Ki(Ki),

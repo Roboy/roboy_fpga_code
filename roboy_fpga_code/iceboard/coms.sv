@@ -11,6 +11,7 @@ module coms #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_000_000
 	output wire signed [12:0] current[NUMBER_OF_MOTORS-1:0],
 	output wire signed [23:0] displacement[NUMBER_OF_MOTORS-1:0],
 	input wire signed [23:0] setpoint[NUMBER_OF_MOTORS-1:0],
+	input wire [23:0] neopxl_color[NUMBER_OF_MOTORS-1:0],
 	input wire [7:0] control_mode[NUMBER_OF_MOTORS-1:0],
 	input wire signed [15:0] Kp[NUMBER_OF_MOTORS-1:0],
 	input wire signed [15:0] Ki[NUMBER_OF_MOTORS-1:0],
@@ -29,12 +30,12 @@ module coms #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_000_000
 	localparam  STATUS_REQUEST_FRAME_MAGICNUMBER = 32'h1CE1CEBB;
 	localparam	STATUS_REQUEST_FRAME_LENGTH = 7;
 	localparam 	STATUS_FRAME_MAGICNUMBER = 32'h1CEB00DA;
-	localparam  STATUS_FRAME_LENGTH = 25;
+	localparam  STATUS_FRAME_LENGTH = 28;
 	localparam 	SETPOINT_FRAME_MAGICNUMBER = 32'hD0D0D0D0;
-	localparam  SETPOINT_FRAME_LENGTH = 10;
+	localparam  SETPOINT_FRAME_LENGTH = 13;
 	localparam 	CONTROL_MODE_FRAME_MAGICNUMBER = 32'hBAADA555;
 	localparam  CONTROL_MODE_FRAME_LENGTH = 26;
-	localparam  MAX_FRAME_LENGTH = CONTROL_MODE_FRAME_LENGTH;
+	localparam  MAX_FRAME_LENGTH = STATUS_FRAME_LENGTH;
 
 	////////////////////////////////////////////////////////////////////////////////
 	// Copyright (C) 1999-2008 Easics NV.
@@ -113,6 +114,7 @@ module coms #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_000_000
 	reg trigger_control_mode_update;
 	reg trigger_setpoint_update;
 	reg signed [31:0] setpoint_actual[NUMBER_OF_MOTORS-1:0];
+	reg signed [31:0] neopxl_color_actual[NUMBER_OF_MOTORS-1:0];
 	
 	always @(posedge clk, posedge reset) begin: UART_TRANSMITTER
 		localparam IDLE=8'h0, 
@@ -237,6 +239,9 @@ module coms #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_000_000
 					data_out[5] <= setpoint[motor][23:16];
 					data_out[6] <= setpoint[motor][15:8];
 					data_out[7] <= setpoint[motor][7:0];
+					data_out[8] <= neopxl_color[motor][23:16];
+					data_out[9] <= neopxl_color[motor][15:8];
+					data_out[10] <= neopxl_color[motor][7:0];
 					state <= GENERATE_SETPOINT_CRC;
 				end
 				GENERATE_SETPOINT_CRC: begin
@@ -405,8 +410,12 @@ module coms #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_000_000
 						displacement[motor_id][7:0] <= data_in_frame[16];
 						current[motor_id][12:8] <= data_in_frame[17];
 						current[motor_id][7:0] <= data_in_frame[18];
+						neopxl_color_actual[motor_id][23:16] <= data_in_frame[19];
+						neopxl_color_actual[motor_id][15:8] <= data_in_frame[20];
+						neopxl_color_actual[motor_id][7:0] <= data_in_frame[21];
 						status_received[motor_id] <= status_received[motor_id] + 1;
-						if(setpoint_actual[motor_id]!=setpoint[motor])begin
+						if(setpoint_actual[motor_id]!=setpoint[motor] || 
+							neopxl_color_actual[motor_id]!=neopxl_color[motor] )begin
 							trigger_setpoint_update <= 1;
 						end
 						state = IDLE;
