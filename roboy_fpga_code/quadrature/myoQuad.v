@@ -29,9 +29,9 @@ module MyoQuad (
 		quad1_B <= quad1_Bneg && !quad1_Bpos;
 	end
 	
-	reg signed [31:0] pos_0;
+	wire signed [31:0] pos_0;
 	reg signed [31:0] pos_0_offset;
-	reg signed [31:0] pos_1;
+	wire signed [31:0] pos_1;
 	reg signed [31:0] pos_1_offset;
 	reg signed [31:0] displacement;
 	
