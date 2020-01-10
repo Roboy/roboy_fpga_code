@@ -19,6 +19,7 @@ module MyoQuad (
 );
 	
 	parameter CLOCK_FREQ_HZ = 50_000_000;
+	parameter DEBOUNCE_TICKS = 5;
 	
 	reg quad0_A, quad0_B, quad1_A, quad1_B;
 	
@@ -36,7 +37,7 @@ module MyoQuad (
 	reg signed [31:0] displacement;
 	
 	// encoder0
-	quad #(5) quad_counter0 (
+	quad #(DEBOUNCE_TICKS,CLOCK_FREQ_HZ) quad_counter0 (
 		.clk(clk),
 		.quadA(quad0_A),
 		.quadB(quad0_B),
@@ -44,7 +45,7 @@ module MyoQuad (
 	);
 
 	// encoder1
-	quad #(5) quad_counter1 (
+	quad #(DEBOUNCE_TICKS,CLOCK_FREQ_HZ) quad_counter1 (
 		.clk(clk),
 		.quadA(quad1_A),
 		.quadB(quad1_B),
@@ -72,6 +73,8 @@ module MyoQuad (
 					4'h2: returnvalue <= displacement;
 					4'h3: returnvalue <= pos_0_offset;
 					4'h4: returnvalue <= pos_1_offset;
+					4'h5: returnvalue <= {quad0_Aneg,quad0_Apos,quad0_Bneg,quad0_Bpos,quad1_Aneg,quad1_Apos, quad1_Bneg, quad1_Bpos};
+					4'h6: returnvalue <= {quad0_A,quad0_B,quad1_A,quad1_B};
 					default: returnvalue <= 32'hDEADBEEF;
 				endcase
 				if(waitFlag==1) begin // next clock cycle the returnvalue should be ready
