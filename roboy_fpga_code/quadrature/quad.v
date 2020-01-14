@@ -8,6 +8,10 @@ module quad #(parameter DEBOUNCE_TICKS = 5, parameter CLK_FREQ_HZ = 32_000_000)(
   );
 
   wire quadA_debounced, quadB_debounced;
+  
+//  // by-passing debounce
+//  assign quadA_debounced = quadA;
+//  assign quadB_debounced = quadB;
 
   grp_debouncer #(2,DEBOUNCE_TICKS) debounce(
     .clk_i(clk),
