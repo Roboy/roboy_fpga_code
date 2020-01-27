@@ -5,6 +5,7 @@ module coms #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_000_000
 	output tx_enable,
 	input rx_i,
 	input wire [31:0] update_frequency_Hz,
+	input wire [7:0] id[NUMBER_OF_MOTORS-1:0],
 	output wire signed [23:0] duty[NUMBER_OF_MOTORS-1:0],
 	output wire signed [23:0] encoder0_position[NUMBER_OF_MOTORS-1:0],
 	output wire signed [23:0] encoder1_position[NUMBER_OF_MOTORS-1:0],
@@ -185,7 +186,7 @@ module coms #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_000_000
 					data_out[1] <= CONTROL_MODE_FRAME_MAGICNUMBER[23:16];
 					data_out[2] <= CONTROL_MODE_FRAME_MAGICNUMBER[15:8];
 					data_out[3] <= CONTROL_MODE_FRAME_MAGICNUMBER[7:0];
-					data_out[4] <= motor; // motor id
+					data_out[4] <= id[motor]; // motor id
 					data_out[5] <= control_mode[motor]; // control_mode
 					data_out[6] <= Kp[motor][15:8];
 					data_out[7] <= Kp[motor][7:0];
@@ -235,7 +236,7 @@ module coms #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_000_000
 					data_out[1] <= SETPOINT_FRAME_MAGICNUMBER[23:16];
 					data_out[2] <= SETPOINT_FRAME_MAGICNUMBER[15:8];
 					data_out[3] <= SETPOINT_FRAME_MAGICNUMBER[7:0];
-					data_out[4] <= motor; // motor id
+					data_out[4] <= id[motor]; // motor id
 					data_out[5] <= setpoint[motor][23:16];
 					data_out[6] <= setpoint[motor][15:8];
 					data_out[7] <= setpoint[motor][7:0];
@@ -272,7 +273,7 @@ module coms #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_000_000
 					data_out[1] <= STATUS_REQUEST_FRAME_MAGICNUMBER[23:16];
 					data_out[2] <= STATUS_REQUEST_FRAME_MAGICNUMBER[15:8];
 					data_out[3] <= STATUS_REQUEST_FRAME_MAGICNUMBER[7:0];
-					data_out[4] <= motor; // motor id
+					data_out[4] <= id[motor]; // motor id
 					state <= GENERATE_STATUS_REQUEST_CRC;
 				end
 				GENERATE_STATUS_REQUEST_CRC: begin
@@ -386,36 +387,36 @@ module coms #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_000_000
 									data_in_frame[STATUS_FRAME_LENGTH-MAGIC_NUMBER_LENGTH-1]};
 					if(rx_crc[15:8]==data_in_frame[STATUS_FRAME_LENGTH-MAGIC_NUMBER_LENGTH-2]
 						  && rx_crc[7:0]==data_in_frame[STATUS_FRAME_LENGTH-MAGIC_NUMBER_LENGTH-1]
-						  && (motor_id==motor)) begin // MATCH! and from the motor we requested
+						  && (motor_id==id[motor])) begin // MATCH! and from the motor we requested
 						// if the control_mode of the motor does not match the one we want or the motor lost connection we trigger an update
 						if(data_in_frame[1]!=control_mode[data_in_frame[0]] || status_received[motor_id]==0) begin
 							trigger_control_mode_update <= 1;
 						end else begin
 							error_code[data_in_frame[0]] <= 8'h0;
 						end
-						encoder0_position[motor_id][23:16] <= data_in_frame[2];
-						encoder0_position[motor_id][15:8] <= data_in_frame[3];
-						encoder0_position[motor_id][7:0] <= data_in_frame[4];
-						encoder1_position[motor_id][23:16] <= data_in_frame[5];
-						encoder1_position[motor_id][15:8] <= data_in_frame[6];
-						encoder1_position[motor_id][7:0] <= data_in_frame[7];
-						setpoint_actual[motor_id][23:16] <= data_in_frame[8];
-						setpoint_actual[motor_id][15:8] <= data_in_frame[9];
-						setpoint_actual[motor_id][7:0] <= data_in_frame[10];
-						duty[motor_id][23:16] <= data_in_frame[11];
-						duty[motor_id][15:8] <= data_in_frame[12];
-						duty[motor_id][7:0] <= data_in_frame[13];
-						displacement[motor_id][23:16] <= data_in_frame[14];
-						displacement[motor_id][15:8] <= data_in_frame[15];
-						displacement[motor_id][7:0] <= data_in_frame[16];
-						current[motor_id][12:8] <= data_in_frame[17];
-						current[motor_id][7:0] <= data_in_frame[18];
-						neopxl_color_actual[motor_id][23:16] <= data_in_frame[19];
-						neopxl_color_actual[motor_id][15:8] <= data_in_frame[20];
-						neopxl_color_actual[motor_id][7:0] <= data_in_frame[21];
-						status_received[motor_id] <= status_received[motor_id] + 1;
-						if(setpoint_actual[motor_id]!=setpoint[motor] || 
-							neopxl_color_actual[motor_id]!=neopxl_color[motor] )begin
+						encoder0_position[motor][23:16] <= data_in_frame[2];
+						encoder0_position[motor][15:8] <= data_in_frame[3];
+						encoder0_position[motor][7:0] <= data_in_frame[4];
+						encoder1_position[motor][23:16] <= data_in_frame[5];
+						encoder1_position[motor][15:8] <= data_in_frame[6];
+						encoder1_position[motor][7:0] <= data_in_frame[7];
+						setpoint_actual[motor][23:16] <= data_in_frame[8];
+						setpoint_actual[motor][15:8] <= data_in_frame[9];
+						setpoint_actual[motor][7:0] <= data_in_frame[10];
+						duty[motor][23:16] <= data_in_frame[11];
+						duty[motor][15:8] <= data_in_frame[12];
+						duty[motor][7:0] <= data_in_frame[13];
+						displacement[motor][23:16] <= data_in_frame[14];
+						displacement[motor][15:8] <= data_in_frame[15];
+						displacement[motor][7:0] <= data_in_frame[16];
+						current[motor][12:8] <= data_in_frame[17];
+						current[motor][7:0] <= data_in_frame[18];
+						neopxl_color_actual[motor][23:16] <= data_in_frame[19];
+						neopxl_color_actual[motor][15:8] <= data_in_frame[20];
+						neopxl_color_actual[motor][7:0] <= data_in_frame[21];
+						status_received[motor] <= status_received[motor_id] + 1;
+						if(setpoint_actual[motor]!=setpoint[motor] || 
+							neopxl_color_actual[motor]!=neopxl_color[motor] )begin
 							trigger_setpoint_update <= 1;
 						end
 						state = IDLE;

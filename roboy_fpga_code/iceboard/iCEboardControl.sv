@@ -15,7 +15,8 @@ module ICEboardControl (
 	parameter NUMBER_OF_MOTORS = 8;
 	parameter CLOCK_FREQ_HZ = 50_000_000;
 	parameter BAUDRATE = 1_000_000;
-		
+	
+	reg [7:0] id[NUMBER_OF_MOTORS-1:0];	
 	reg signed [23:0] duty[NUMBER_OF_MOTORS-1:0];
 	reg signed [15:0] Kp[NUMBER_OF_MOTORS-1:0];
 	reg signed [15:0] Ki[NUMBER_OF_MOTORS-1:0];
@@ -55,7 +56,7 @@ module ICEboardControl (
 			waitFlag <= 1;
 			if(read) begin
 				case(addr)
-					8'h00: returnvalue <= 32'hB15B00B5;
+					8'h00: returnvalue <= id[motor];
 					8'h01: returnvalue <= Kp[motor];
 					8'h02: returnvalue <= Ki[motor];
 					8'h03: returnvalue <= Kd[motor];
@@ -95,11 +96,13 @@ module ICEboardControl (
 				control_mode[i] <= 3;
 				PWMLimit[i] <= 8388607;
 				IntegralLimit[i] <= 500000;
+				id[i] <= i+1;
 			end
 			update_frequency_Hz <= 100;
 		end else begin
 			if(write && ~waitrequest) begin
 				case(addr)
+					8'h00: id[motor] <= writedata;
 					8'h01: Kp[motor] <= writedata;
 					8'h02: Ki[motor] <= writedata;
 					8'h03: Kd[motor] <= writedata;
@@ -121,6 +124,7 @@ module ICEboardControl (
 		.tx_o(tx),
 		.rx_i(~rx),
 		.update_frequency_Hz(update_frequency_Hz),
+		.id(id),
 		.duty(duty),
 		.encoder0_position(encoder0_position),
 		.encoder1_position(encoder1_position),
