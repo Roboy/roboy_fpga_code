@@ -53,7 +53,7 @@ module MyoQuad (
 	);
 	
 	always @(posedge clk) begin: DISPLACEMENT_CALCULATION
-		displacement <= 75 * (pos_0-pos_0_offset) - 106 * (pos_1-pos_1_offset);
+		displacement <= 225 * (pos_0-pos_0_offset) - 424 * (pos_1-pos_1_offset);
 	end
 
 	assign readdata = returnvalue;
