@@ -94,9 +94,9 @@ module ICEboardControl (
 				sp[i] <= 0;
 				deadband[i] <= 0;
 				control_mode[i] <= 3;
-				PWMLimit[i] <= 8388607;
-				IntegralLimit[i] <= 500000;
-				id[i] <= i+1;
+				PWMLimit[i] <= 500;
+				IntegralLimit[i] <= 100;
+				id[i] <= i+128;
 			end
 			update_frequency_Hz <= 100;
 		end else begin
