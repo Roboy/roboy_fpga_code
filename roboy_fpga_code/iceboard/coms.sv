@@ -22,7 +22,8 @@ module coms #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_000_000
 	input wire signed [23:0] deadband[NUMBER_OF_MOTORS-1:0],
 	output wire [31:0] error_code[NUMBER_OF_MOTORS-1:0],
 	output wire [31:0] crc_checksum[NUMBER_OF_MOTORS-1:0],
-	output wire [31:0] communication_quality[NUMBER_OF_MOTORS-1:0]
+	output wire [31:0] communication_quality[NUMBER_OF_MOTORS-1:0],
+	output wire [7:0] current_motor
 );
 
 //	`define DEBUG
@@ -109,11 +110,12 @@ module coms #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_000_000
 	reg [31:0]delay_counter;
 	reg tx_active_prev;
 	reg [7:0] motor;
+	assign current_motor = motor;
 	reg timeout;
 	reg [31:0] status_requests[NUMBER_OF_MOTORS-1:0];
 	reg [31:0] status_received[NUMBER_OF_MOTORS-1:0];
-	reg trigger_control_mode_update;
-	reg trigger_setpoint_update;
+	reg trigger_control_mode_update[NUMBER_OF_MOTORS-1:0];
+	reg trigger_setpoint_update[NUMBER_OF_MOTORS-1:0];
 	reg signed [31:0] setpoint_actual[NUMBER_OF_MOTORS-1:0];
 	reg signed [31:0] neopxl_color_actual[NUMBER_OF_MOTORS-1:0];
 	
@@ -139,15 +141,6 @@ module coms #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_000_000
 			tx_transmit <= 0;
 			timeout <= 0;
 			
-			// control_mode update has higher priority because it also sends a new setpoint
-			if(trigger_control_mode_update)begin 
-				state <= PREPARE_CONTROL_MODE;
-			end else begin			
-				if(trigger_setpoint_update)begin
-					state <= PREPARE_SETPOINT;
-				end
-			end
-			
 			if(update_delay_counter!=0)begin
 				update_delay_counter <= update_delay_counter - 1;
 			end
@@ -162,24 +155,15 @@ module coms #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_000_000
 			
 			case(state)
 				IDLE: begin
-					if(!done)begin // if we are not done and all motors should be updated
+					if(update_delay_counter==0) begin
+						update_delay_counter <= (CLK_FREQ_HZ/update_frequency_Hz/NUMBER_OF_MOTORS);
+						state <= PREPARE_STATUS_REQUEST;
 						if(motor<NUMBER_OF_MOTORS-1) begin
 							motor <= motor + 1;
 						end else begin
-							done <= 1;
-							motor <= 0; 
+							motor <= 0;
 						end
-					end else begin
-						if(update_delay_counter==0) begin
-							update_delay_counter <= (CLK_FREQ_HZ/update_frequency_Hz/NUMBER_OF_MOTORS);
-							state <= PREPARE_STATUS_REQUEST;
-							if(motor<NUMBER_OF_MOTORS-1) begin
-								motor <= motor + 1;
-							end else begin
-								motor <= 0;
-							end
-						end
-					end
+					end 
 				end
 				PREPARE_CONTROL_MODE: begin
 					data_out[0] <= CONTROL_MODE_FRAME_MAGICNUMBER[31:24];
@@ -302,8 +286,16 @@ module coms #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_000_000
 					end
 				end
 				WAIT_UNTIL_BUS_FREE: begin
-					if(delay_counter==0) begin // we have to wait until the bus is free
-						state <= IDLE;
+					// either timeout or we know the bus is free now
+					if(delay_counter==0 || trigger_control_mode_update[motor] || trigger_setpoint_update[motor]) begin 
+						// control_mode update has higher priority because it also sends a new setpoint
+						if(trigger_control_mode_update[motor])begin 
+							state <= PREPARE_CONTROL_MODE;
+						end else if (trigger_setpoint_update[motor]) begin
+							state <= PREPARE_SETPOINT;
+						end else begin
+							state <= IDLE;
+						end
 						timeout <= 1;
 						if(status_requests[motor]>update_frequency_Hz)begin
 							status_requests[motor] <= 0;
@@ -340,8 +332,10 @@ module coms #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_000_000
 		end else begin
 			rx_data_ready_prev <= rx_data_ready;
 			status_byte_received <= 0;
-			trigger_control_mode_update <= 0;
-			trigger_setpoint_update <= 0;
+			for(j=0;j<NUMBER_OF_MOTORS;j=j+1)begin
+				trigger_control_mode_update[motor] <= 0;
+				trigger_setpoint_update[motor] <= 0;
+			end
 			if(status_requests[motor]==0)begin // reset for communication_quality measurement
 				status_received[motor] <= 0;
 			end
@@ -390,7 +384,7 @@ module coms #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_000_000
 						  && (motor_id==id[motor])) begin // MATCH! and from the motor we requested
 						// if the control_mode of the motor does not match the one we want or the motor lost connection we trigger an update
 						if(data_in_frame[1]!=control_mode[data_in_frame[0]] || status_received[motor_id]==0) begin
-							trigger_control_mode_update <= 1;
+							trigger_control_mode_update[motor] <= 1;
 						end else begin
 							error_code[data_in_frame[0]] <= 8'h0;
 						end
@@ -417,7 +411,7 @@ module coms #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_000_000
 						status_received[motor] <= status_received[motor_id] + 1;
 						if(setpoint_actual[motor]!=setpoint[motor] || 
 							neopxl_color_actual[motor]!=neopxl_color[motor] )begin
-							trigger_setpoint_update <= 1;
+							trigger_setpoint_update[motor] <= 1;
 						end
 						state = IDLE;
 					end else begin

@@ -44,6 +44,7 @@ module ICEboardControl (
 	reg [31:0] returnvalue;
 	reg waitFlag;
 	
+	wire [7:0] current_motor;
 	wire [7:0] motor;
 	wire [7:0] addr;
 	assign addr = (address>>8);
@@ -141,7 +142,8 @@ module ICEboardControl (
 		.deadband(deadband),
 		.error_code(error_code),
 		.crc_checksum(crc_checksum),
-		.communication_quality(communication_quality)
+		.communication_quality(communication_quality),
+		.current_motor(current_motor)
 	);
 	
 endmodule
