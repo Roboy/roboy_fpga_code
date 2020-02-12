@@ -71,8 +71,6 @@ module I2C_avalon_bridge (
 	input read,
 	output signed [31:0] readdata,
 	output waitrequest,
-	output [2:0] gpio,
-	output [6:0] LED,
 	// these are the i2c ports
 	inout scl,
 	inout sda
@@ -96,11 +94,6 @@ reg [31:0] data_wd;
 reg [4:0] gpio_set;
 reg read_only;
 
-//assign gpio[2:0] = gpio_set[2:0];
-assign gpio[2] = gpio_set[2];
-assign gpio[1] = gpio_set[1];
-assign gpio[0] = gpio_set[0];
-
 reg [7:0] read_counter;
 
 assign readdata = 
@@ -111,9 +104,6 @@ assign readdata =
 	((address == 4))? busy :
 	((address == 5))? ack_error :
 	((address == 6))? usedw :
-	((address == 7))? tlv_reset_sequence :
-	((address == 8))? tlv_reset_sda :
-	((address == 9))? tlv_reset_scl :
 	32'hDEAD_BEEF;
 	
 always @(posedge clock, posedge reset) begin: I2C_CONTROL_LOGIC
@@ -128,9 +118,6 @@ always @(posedge clock, posedge reset) begin: I2C_CONTROL_LOGIC
 		read_only <= 0;
 		number_of_bytes<= 0;
 		i<=0;
-		tlv_reset_sequence <= 0;
-		tlv_reset_sda <= 1;
-		tlv_reset_scl <= 1;
 	end else begin
 		ena_prev <= ena;
 		// if we are writing via avalon bus and waitrequest is deasserted, write the respective register
@@ -143,12 +130,6 @@ always @(posedge clock, posedge reset) begin: I2C_CONTROL_LOGIC
 				4: number_of_bytes <= writedata;
 				5: gpio_set <= writedata[4:0];
 				6: read_only <= (writedata!=0); 
-				7: begin
-						tlv_reset_sequence <= (writedata!=0); 
-						i <= 0;
-					end
-				8: tlv_reset_sda <=  (writedata!=0); 
-				9: tlv_reset_scl <=  (writedata!=0); 
 			endcase 
 		end
 		if(read && ~waitrequest && address==1 && ~fifo_empty) begin
@@ -170,228 +151,6 @@ always @(posedge clock, posedge reset) begin: I2C_CONTROL_LOGIC
 		if(fifo_clear == 1) begin
 			fifo_clear <= 0;
 		end
-		
-		if(tlv_reset_sequence) begin
-			case(i)
-				0: begin 
-					tlv_reset_sda <= 1;
-					tlv_reset_scl <= 1;
-					delay_counter <= 5000;
-					i <= i+1;
-				end
-				1: begin
-					if(delay_counter==0) begin
-						tlv_reset_sda <= 0;
-						delay_counter <= 500;
-						i <= i+1;
-					end else begin
-						delay_counter <= delay_counter-1;
-					end
-				end
-				2: begin
-					if(delay_counter==0) begin
-						tlv_reset_scl <= 0;
-						i <= i+1;
-						delay_counter <= 250;
-					end else begin
-						delay_counter <= delay_counter-1;
-					end
-				end
-				3: begin //1
-					if(delay_counter==0) begin
-						tlv_reset_scl <= 1;
-						i <= i+1;
-						delay_counter <= 250;
-					end else begin
-						delay_counter <= delay_counter-1;
-					end
-				end
-				4: begin
-					if(delay_counter==0) begin
-						tlv_reset_scl <= 0;
-						i <= i+1;
-						delay_counter <= 250;
-					end else begin
-						delay_counter <= delay_counter-1;
-					end
-				end
-				5: begin //2
-					if(delay_counter==0) begin
-						tlv_reset_scl <= 1;
-						i <= i+1;
-						delay_counter <= 250;
-					end else begin
-						delay_counter <= delay_counter-1;
-					end
-				end
-				6: begin
-					if(delay_counter==0) begin
-						tlv_reset_scl <= 0;
-						i <= i+1;
-						delay_counter <= 250;
-					end else begin
-						delay_counter <= delay_counter-1;
-					end
-				end
-				7: begin //3
-					if(delay_counter==0) begin
-						tlv_reset_scl <= 1;
-						i <= i+1;
-						delay_counter <= 250;
-					end else begin
-						delay_counter <= delay_counter-1;
-					end
-				end
-				8: begin
-					if(delay_counter==0) begin
-						tlv_reset_scl <= 0;
-						i <= i+1;
-						delay_counter <= 250;
-					end else begin
-						delay_counter <= delay_counter-1;
-					end
-				end
-				9: begin //4
-					if(delay_counter==0) begin
-						tlv_reset_scl <= 1;
-						i <= i+1;
-						delay_counter <= 250;
-					end else begin
-						delay_counter <= delay_counter-1;
-					end
-				end
-				10: begin
-					if(delay_counter==0) begin
-						tlv_reset_scl <= 0;
-						i <= i+1;
-						delay_counter <= 250;
-					end else begin
-						delay_counter <= delay_counter-1;
-					end
-				end
-				11: begin //5
-					if(delay_counter==0) begin
-						tlv_reset_scl <= 1;
-						i <= i+1;
-						delay_counter <= 250;
-					end else begin
-						delay_counter <= delay_counter-1;
-					end
-				end
-				12: begin
-					if(delay_counter==0) begin
-						tlv_reset_scl <= 0;
-						i <= i+1;
-						delay_counter <= 250;
-					end else begin
-						delay_counter <= delay_counter-1;
-					end
-				end
-				13: begin //6
-					if(delay_counter==0) begin
-						tlv_reset_scl <= 1;
-						i <= i+1;
-						delay_counter <= 250;
-					end else begin
-						delay_counter <= delay_counter-1;
-					end
-				end
-				14: begin
-					if(delay_counter==0) begin
-						tlv_reset_scl <= 0;
-						i <= i+1;
-						delay_counter <= 250;
-					end else begin
-						delay_counter <= delay_counter-1;
-					end
-				end
-				15: begin //7
-					if(delay_counter==0) begin
-						tlv_reset_scl <= 1;
-						i <= i+1;
-						delay_counter <= 250;
-					end else begin
-						delay_counter <= delay_counter-1;
-					end
-				end
-				16: begin
-					if(delay_counter==0) begin
-						tlv_reset_scl <= 0;
-						i <= i+1;
-						delay_counter <= 250;
-					end else begin
-						delay_counter <= delay_counter-1;
-					end
-				end
-				17: begin // 8
-					if(delay_counter==0) begin
-						tlv_reset_scl <= 1;
-						i <= i+1;
-						delay_counter <= 250;
-					end else begin
-						delay_counter <= delay_counter-1;
-					end
-				end
-				18: begin
-					if(delay_counter==0) begin
-						tlv_reset_scl <= 0;
-						i <= i+1;
-						delay_counter <= 250;
-					end else begin
-						delay_counter <= delay_counter-1;
-					end
-				end
-				19: begin // 9
-					if(delay_counter==0) begin
-						tlv_reset_scl <= 1;
-						i <= i+1;
-						delay_counter <= 250;
-					end else begin
-						delay_counter <= delay_counter-1;
-					end
-				end
-				20: begin
-					if(delay_counter==0) begin
-						tlv_reset_scl <= 0;
-						tlv_reset_sda <= 1'bz; // floating
-						i <= i+1;
-						delay_counter <= 150;
-					end else begin
-						delay_counter <= delay_counter-1;
-					end
-				end
-				21: begin
-					if(delay_counter==0) begin
-						tlv_reset_scl <= 1; //will set the tlv i2c address to 0x5e
-						tlv_reset_sda <= 1; 
-						i <= i+1;
-						delay_counter <= 1000;
-					end else begin
-						delay_counter <= delay_counter-1;
-					end
-				end
-				22: begin 
-					if(delay_counter==0) begin
-						tlv_reset_scl <= 1;
-						i <= i+1;
-						delay_counter <= 250;
-					end else begin
-						delay_counter <= delay_counter-1;
-					end
-				end
-				23: begin 
-					if(delay_counter==0) begin
-						tlv_reset_scl <= 1;
-						tlv_reset_sda <= 1;
-						tlv_reset_sequence <= 0;
-						i<=0;
-					end else begin
-						delay_counter <= delay_counter-1;
-					end
-				end
-			endcase
-		end
-		
 	end 
 end
 
@@ -400,7 +159,7 @@ end
 //				 1'bz;					// else we leave it the fuck alone
 
 // if i2c node is busy we have to wait
-assign waitrequest = ena|fifo_read_ack|tlv_reset_sequence ;
+assign waitrequest = ena|fifo_read_ack ;
 
 wire fifo_write;
 reg read_fifo;
@@ -411,17 +170,6 @@ reg fifo_clear;
 wire fifo_empty;
 wire fifo_full;
 reg [7:0] usedw;
-
-assign LED[0] = fifo_empty;
-assign LED[1] = fifo_full;
-assign LED[2] = ena;
-assign LED[3] = gpio_set[0];
-assign LED[4] = gpio_set[1];
-assign LED[5] = gpio_set[2];
-
-reg tlv_reset_sda;
-reg tlv_reset_scl;
-reg tlv_reset_sequence;
 
 fifo fifo(
 	.clock(clock),
@@ -456,9 +204,7 @@ i2c_master #(CLOCK_SPEED_HZ, BUS_SPEED_HZ) i2c(
 	.byte_counter(byte_counter),
 	.read_only(read_only),
 	.number_of_bytes(number_of_bytes),
-	.fifo_write_ack(fifo_write_ack),
-	.tlv_sda(tlv_reset_sda),
-	.tlv_scl(tlv_reset_scl)
+	.fifo_write_ack(fifo_write_ack)
 );
 
 endmodule
