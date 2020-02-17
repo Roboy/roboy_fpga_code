@@ -20,6 +20,7 @@ module coms #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_000_000
 	input wire signed [23:0] PWMLimit[NUMBER_OF_MOTORS-1:0],
 	input wire signed [23:0] IntegralLimit[NUMBER_OF_MOTORS-1:0],
 	input wire signed [23:0] deadband[NUMBER_OF_MOTORS-1:0],
+	input wire signed [15:0] current_limit[NUMBER_OF_MOTORS-1:0],
 	output wire [31:0] error_code[NUMBER_OF_MOTORS-1:0],
 	output wire [31:0] crc_checksum[NUMBER_OF_MOTORS-1:0],
 	output wire [31:0] communication_quality[NUMBER_OF_MOTORS-1:0],
@@ -36,7 +37,7 @@ module coms #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_000_000
 	localparam 	SETPOINT_FRAME_MAGICNUMBER = 32'hD0D0D0D0;
 	localparam  SETPOINT_FRAME_LENGTH = 13;
 	localparam 	CONTROL_MODE_FRAME_MAGICNUMBER = 32'hBAADA555;
-	localparam  CONTROL_MODE_FRAME_LENGTH = 26;
+	localparam  CONTROL_MODE_FRAME_LENGTH = 28;
 	localparam  MAX_FRAME_LENGTH = STATUS_FRAME_LENGTH;
 
 	////////////////////////////////////////////////////////////////////////////////
@@ -190,6 +191,8 @@ module coms #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_000_000
 					data_out[21] <= setpoint[motor][23:16];
 					data_out[22] <= setpoint[motor][15:8];
 					data_out[23] <= setpoint[motor][7:0];
+					data_out[24] <= current_limit[motor][15:8];
+					data_out[25] <= current_limit[motor][7:0];
 					state <= GENERATE_CONTROL_MODE_CRC;
 				end
 				GENERATE_CONTROL_MODE_CRC: begin
