@@ -9,7 +9,7 @@ module coms #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_000_000
 	output wire signed [23:0] duty[NUMBER_OF_MOTORS-1:0],
 	output wire signed [23:0] encoder0_position[NUMBER_OF_MOTORS-1:0],
 	output wire signed [23:0] encoder1_position[NUMBER_OF_MOTORS-1:0],
-	output wire signed [12:0] current[NUMBER_OF_MOTORS-1:0],
+	output wire signed [15:0] current[NUMBER_OF_MOTORS-1:0],
 	output wire signed [23:0] displacement[NUMBER_OF_MOTORS-1:0],
 	input wire signed [23:0] setpoint[NUMBER_OF_MOTORS-1:0],
 	input wire [23:0] neopxl_color[NUMBER_OF_MOTORS-1:0],
@@ -403,7 +403,7 @@ module coms #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_000_000
 						displacement[motor][23:16] <= data_in_frame[14];
 						displacement[motor][15:8] <= data_in_frame[15];
 						displacement[motor][7:0] <= data_in_frame[16];
-						current[motor][12:8] <= data_in_frame[17];
+						current[motor][15:8] <= data_in_frame[17];
 						current[motor][7:0] <= data_in_frame[18];
 						neopxl_color_actual[motor][23:16] <= data_in_frame[19];
 						neopxl_color_actual[motor][15:8] <= data_in_frame[20];

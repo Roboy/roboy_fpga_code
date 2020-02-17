@@ -26,7 +26,7 @@ module ICEboardControl (
 	reg signed [23:0] PWMLimit[NUMBER_OF_MOTORS-1:0];
 	reg signed [23:0] IntegralLimit[NUMBER_OF_MOTORS-1:0];
 	reg signed [23:0] deadband[NUMBER_OF_MOTORS-1:0];
-	reg signed [12:0] current[NUMBER_OF_MOTORS-1:0];
+	reg signed [15:0] current[NUMBER_OF_MOTORS-1:0];
 	reg [7:0] control_mode[NUMBER_OF_MOTORS-1:0];
 
 	// encoder 
