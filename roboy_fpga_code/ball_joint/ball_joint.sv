@@ -18,7 +18,7 @@ module BallJoint (
   parameter NUMBER_OF_SENSORS = 4;
 
   localparam  RESET = 0, CONTINUOUS_READOUT = 1, READOUT = 2, POSTPROCESS = 3,
-    SWITCH_SENSOR = 4, CHANGE_PROTOCOL = 5, WAIT_FOR_TRANSMISSION = 6, READOUT2 = 7;
+    SWITCH_SENSOR = 4, CHANGE_PROTOCOL = 5, WAIT_FOR_TRANSMISSION = 6, READOUT2 = 7, BUS_DELAY = 8, NEXT_SENSOR = 9;
   reg i2c_reset;
   reg [7:0] state;
   reg [7:0] state_next;
@@ -34,13 +34,14 @@ module BallJoint (
 
   wire [7:0] sensor;
 	wire [7:0] register;
+  assign readdata = returnvalue;
 	assign register = (address>>8);
 	assign sensor = (address&8'hFF);
 
   always @(posedge clk, posedge reset) begin: I2C_CONTROL_LOGIC
   	reg ena_prev;
   	reg [7:0] i;
-  	reg [15:0] delay_counter;
+  	integer delay_counter, timeout_counter, bus_delay_counter;
   	if (reset == 1) begin
   		data_wd <= 0;
   		ena <= 0;
@@ -55,8 +56,8 @@ module BallJoint (
           8'h00: update_frequency <= writedata;
           8'h01: begin
             current_sensor <= 0;
-            state <= SWITCH_SENSOR;
-            state_next <= CHANGE_PROTOCOL;
+            state <= RESET;
+            i2c_reset <= 1;
           end
         endcase
       end
@@ -68,6 +69,7 @@ module BallJoint (
 					8'h01: returnvalue <= mag_y[sensor];
 					8'h02: returnvalue <= mag_z[sensor];
 					8'h03: returnvalue <= temperature[sensor];
+          8'h04: returnvalue <= update_frequency;
 					default: returnvalue <= 32'hDEADBEEF;
 				endcase
 				if(waitFlag==1) begin // next clock cycle the returnvalue should be ready
@@ -92,20 +94,23 @@ module BallJoint (
       if(i2c_reset)begin
         i2c_reset <= 0;
       end
+      if(state==NEXT_SENSOR||state==CONTINUOUS_READOUT||state==READOUT||state==READOUT2||
+        state==POSTPROCESS||state_next==CONTINUOUS_READOUT||state_next==READOUT)begin
+        delay_counter<=delay_counter+1;
+      end
 
       case(state)
         RESET: begin
           if(current_sensor<NUMBER_OF_SENSORS)begin
-            current_sensor <= current_sensor +1;
             state <= SWITCH_SENSOR;
             state_next <= CHANGE_PROTOCOL;
           end else begin
             current_sensor <= 0;
-            state <= SWITCH_SENSOR;
-            state_next <= CONTINUOUS_READOUT;
+            state <= NEXT_SENSOR;
           end
         end
         CHANGE_PROTOCOL: begin
+          current_sensor <= current_sensor +1;
           addr <= 7'h35;
           data_wd[31:24] <= 8'h11;
           data_wd[23:16] <= 8'h10;
@@ -113,26 +118,33 @@ module BallJoint (
           read_only <= 0;
           rw <= 0;
           ena <= 1;
+          timeout_counter <= -1;//(CLOCK_SPEED_HZ/BUS_SPEED_HZ*(5*8));
           state <= WAIT_FOR_TRANSMISSION;
           state_next <= RESET;
         end
-        CONTINUOUS_READOUT: begin
-          delay_counter<=delay_counter+1;
-          if(delay_counter>(CLOCK_SPEED_HZ/update_frequency/NUMBER_OF_SENSORS))begin
-            if(~fifo_empty)begin
-              fifo_clear <= 1;
-            end
-            if(current_sensor>NUMBER_OF_SENSORS)begin
+        NEXT_SENSOR: begin
+          if(current_sensor>=NUMBER_OF_SENSORS)begin
+            if(delay_counter>(CLOCK_SPEED_HZ/update_frequency))begin // respect the update_frequency
+              delay_counter <= 0;
               current_sensor <= 0;
             end
-            number_of_bytes <= 7;
-            read_only <= 1;
-            rw <= 1;
-            addr <= 7'h35;
-            ena <= 1;
-            state <= WAIT_FOR_TRANSMISSION;
-            state_next <= READOUT;
+          end else begin
+            state <= SWITCH_SENSOR;
+            state_next <= CONTINUOUS_READOUT;
           end
+        end
+        CONTINUOUS_READOUT: begin
+          if(~fifo_empty)begin
+            fifo_clear <= 1;
+          end
+          number_of_bytes <= 7;
+          read_only <= 1;
+          rw <= 1;
+          addr <= 7'h35;
+          ena <= 1;
+          timeout_counter <= -1;//(CLOCK_SPEED_HZ/BUS_SPEED_HZ*(10*8));
+          state <= WAIT_FOR_TRANSMISSION;
+          state_next <= READOUT;
         end
         READOUT: begin
           mag_x[current_sensor][11:4] <= data_rd[31:24];
@@ -152,22 +164,34 @@ module BallJoint (
         end
         POSTPROCESS: begin
           current_sensor <= current_sensor + 1;
-          state <= CONTINUOUS_READOUT;
+          state <= NEXT_SENSOR;
         end
         SWITCH_SENSOR: begin
-          if(ena==0)begin
-            addr <= 7'b1110000;
-            data_wd <= 0;
-            data_wd[24+current_sensor] <= 1;
-            read_only <= 0;
-            rw <= 0;
-            ena <= 1;
-            number_of_bytes <= 1;
-            state <= state_next;
-          end
+          addr <= 7'b1110000;
+          data_wd <= 0;
+          data_wd[24+current_sensor] <= 1;
+          read_only <= 0;
+          rw <= 0;
+          ena <= 1;
+          number_of_bytes <= 1;
+          timeout_counter <= -1;//(CLOCK_SPEED_HZ/BUS_SPEED_HZ*(4*8));
+          state <= WAIT_FOR_TRANSMISSION;
         end
         WAIT_FOR_TRANSMISSION: begin
-          if(ena==0)begin
+          timeout_counter <= timeout_counter - 1;
+          if(timeout_counter==0)begin
+            i2c_reset <= 1;
+            state <= state_next;
+          end else begin
+            if(ena==0)begin
+              bus_delay_counter <= 0;
+              state <= BUS_DELAY;
+            end
+          end
+        end
+        BUS_DELAY: begin
+          bus_delay_counter<=bus_delay_counter+1;
+          if(bus_delay_counter>CLOCK_SPEED_HZ/100_000)begin // 10uS delay after transmission
             state <= state_next;
           end
         end
