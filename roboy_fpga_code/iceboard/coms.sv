@@ -271,7 +271,7 @@ module coms #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_000_000
 					data_out[STATUS_REQUEST_FRAME_LENGTH-2] = tx_crc[15:8];
 					data_out[STATUS_REQUEST_FRAME_LENGTH-1] = tx_crc[7:0];
 					byte_transmit_counter = 0;
-					delay_counter = CLK_FREQ_HZ/BAUDRATE*(MAX_FRAME_LENGTH*8+MAX_FRAME_LENGTH*20);
+					delay_counter = CLK_FREQ_HZ/BAUDRATE*(MAX_FRAME_LENGTH*8+1);
 					status_requests[motor] <= status_requests[motor] + 1;
 					state <= SEND_STATUS_REQUEST;
 					tx_transmit <= 1;
