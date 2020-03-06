@@ -11,15 +11,16 @@
 // Example: 10 MHz Clock, 115200 baud UART
 // (10000000)/(115200) = 87
   
-module uart_rx #(parameter CLK_FREQ_HZ = 48_000_000, parameter BAUDRATE = 115200)
+module uart_rx #(parameter CLK_FREQ_HZ = 48_000_000)
   (
    input        i_Clock,
+   input [31:0] baudrate,
    input        i_Rx_Serial,
    output       o_Rx_DV,
    output [7:0] o_Rx_Byte
    );
     
-  localparam CLKS_PER_BIT   = CLK_FREQ_HZ/BAUDRATE; // 139 at 16MHz this is 115200 baudrate, 64 at 16MHz is 250000 
+//  localparam CLKS_PER_BIT   = CLK_FREQ_HZ/BAUDRATE; // 139 at 16MHz this is 115200 baudrate, 64 at 16MHz is 250000 
   localparam s_IDLE         = 3'b000;
   localparam s_RX_START_BIT = 3'b001;
   localparam s_RX_DATA_BITS = 3'b010;
@@ -65,7 +66,7 @@ module uart_rx #(parameter CLK_FREQ_HZ = 48_000_000, parameter BAUDRATE = 115200
         // Check middle of start bit to make sure it's still low
         s_RX_START_BIT :
           begin
-            if (r_Clock_Count == (CLKS_PER_BIT-1)/2)
+            if (r_Clock_Count == ((CLK_FREQ_HZ/baudrate)-1)/2)
               begin
                 if (r_Rx_Data == 1'b0)
                   begin
@@ -86,7 +87,7 @@ module uart_rx #(parameter CLK_FREQ_HZ = 48_000_000, parameter BAUDRATE = 115200
         // Wait CLKS_PER_BIT-1 clock cycles to sample serial data
         s_RX_DATA_BITS :
           begin
-            if (r_Clock_Count < CLKS_PER_BIT-1)
+            if (r_Clock_Count < (CLK_FREQ_HZ/baudrate)-1)
               begin
                 r_Clock_Count <= r_Clock_Count + 1;
                 r_SM_Main     <= s_RX_DATA_BITS;
@@ -115,7 +116,7 @@ module uart_rx #(parameter CLK_FREQ_HZ = 48_000_000, parameter BAUDRATE = 115200
         s_RX_STOP_BIT :
           begin
             // Wait CLKS_PER_BIT-1 clock cycles for Stop bit to finish
-            if (r_Clock_Count < CLKS_PER_BIT-1)
+            if (r_Clock_Count < (CLK_FREQ_HZ/baudrate)-1)
               begin
                 r_Clock_Count <= r_Clock_Count + 1;
                 r_SM_Main     <= s_RX_STOP_BIT;

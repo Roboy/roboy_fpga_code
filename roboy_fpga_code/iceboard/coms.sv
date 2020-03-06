@@ -1,10 +1,11 @@
-module coms #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_000_000, parameter BAUDRATE = 2_000_000)(
+module coms #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_000_000)(
 	input clk,
 	input reset,
 	output tx_o,
 	output tx_enable,
 	input rx_i,
 	input wire [31:0] update_frequency_Hz,
+	input wire [31:0] baudrate,
 	input wire [7:0] id[NUMBER_OF_MOTORS-1:0],
 	output wire signed [23:0] duty[NUMBER_OF_MOTORS-1:0],
 	output wire signed [23:0] encoder0_position[NUMBER_OF_MOTORS-1:0],
@@ -24,7 +25,8 @@ module coms #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_000_000
 	output wire [31:0] error_code[NUMBER_OF_MOTORS-1:0],
 	output wire [31:0] crc_checksum[NUMBER_OF_MOTORS-1:0],
 	output wire [31:0] communication_quality[NUMBER_OF_MOTORS-1:0],
-	output wire [7:0] current_motor
+	output wire [7:0] current_motor,
+	output reg signed [31:0] current_average
 );
 
 //	`define DEBUG
@@ -104,7 +106,7 @@ module coms #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_000_000
 	
 	assign tx_data = data_out[byte_transmit_counter];
 
-	uart_tx #(CLK_FREQ_HZ,BAUDRATE) tx(clk,tx_transmit,tx_data,tx_active,tx_o,tx_enable,tx_done);
+	uart_tx #(CLK_FREQ_HZ) tx(clk,baudrate,tx_transmit,tx_data,tx_active,tx_o,tx_enable,tx_done);
 
 	reg [15:0] tx_crc ;
 	integer receive_byte_counter;
@@ -119,6 +121,7 @@ module coms #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_000_000
 	reg trigger_setpoint_update[NUMBER_OF_MOTORS-1:0];
 	reg signed [31:0] setpoint_actual[NUMBER_OF_MOTORS-1:0];
 	reg signed [31:0] neopxl_color_actual[NUMBER_OF_MOTORS-1:0];
+	reg signed [31:0] current_sum;
 	
 	always @(posedge clk, posedge reset) begin: UART_TRANSMITTER
 		localparam IDLE=8'h0, 
@@ -162,6 +165,8 @@ module coms #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_000_000
 						if(motor<NUMBER_OF_MOTORS-1) begin
 							motor <= motor + 1;
 						end else begin
+							current_average <= current_sum/NUMBER_OF_MOTORS;
+							current_sum <= 0;
 							motor <= 0;
 						end
 					end 
@@ -272,7 +277,7 @@ module coms #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_000_000
 					data_out[STATUS_REQUEST_FRAME_LENGTH-1] = tx_crc[7:0];
 					byte_transmit_counter = 0;
 					// timeout counter: 8bit + 1 start-bit + 1 stop-bit
-					delay_counter = CLK_FREQ_HZ/BAUDRATE*((MAX_FRAME_LENGTH+1)*8+2*(MAX_FRAME_LENGTH+1));
+					delay_counter = CLK_FREQ_HZ/baudrate*((MAX_FRAME_LENGTH+1)*8+2*(MAX_FRAME_LENGTH+1));
 					status_requests[motor] <= status_requests[motor] + 1;
 					state <= SEND_STATUS_REQUEST;
 					tx_transmit <= 1;
@@ -300,6 +305,7 @@ module coms #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_000_000
 						end else begin
 							state <= IDLE;
 						end
+						current_sum <= current_sum + current[motor];
 						timeout <= 1;
 						if(status_requests[motor]>update_frequency_Hz)begin
 							status_requests[motor] <= 0;
@@ -316,7 +322,7 @@ module coms #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_000_000
 	
 	wire [7:0] rx_data ;
 
-	uart_rx #(CLK_FREQ_HZ,BAUDRATE) rx(clk,rx_i,rx_data_ready,rx_data);
+	uart_rx #(CLK_FREQ_HZ) rx(clk,baudrate,rx_i,rx_data_ready,rx_data);
 
 	reg [7:0] data_in[MAGIC_NUMBER_LENGTH-1:0];
 	reg [7:0] data_in_frame[MAX_FRAME_LENGTH-1:0];

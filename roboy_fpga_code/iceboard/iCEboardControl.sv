@@ -11,13 +11,13 @@ module ICEboardControl (
 		input rx,
 		output tx,
 		// power out for fans
-		output integer current_average
+		output signed [31:0] current_average
 );
 
 	parameter NUMBER_OF_MOTORS = 8;
 	parameter CLOCK_FREQ_HZ = 50_000_000;
-	parameter BAUDRATE = 1_000_000;
 
+	reg [31:0] baudrate;
 	reg [7:0] id[NUMBER_OF_MOTORS-1:0];
 	reg signed [23:0] duty[NUMBER_OF_MOTORS-1:0];
 	reg signed [15:0] Kp[NUMBER_OF_MOTORS-1:0];
@@ -81,6 +81,7 @@ module ICEboardControl (
 					8'h1A: returnvalue <= neopxl_color[motor];
 					8'h1B: returnvalue <= current_limit[motor];
 					8'h1C: returnvalue <= current_average;
+					8'h1D: returnvalue <= baudrate;
 					default: returnvalue <= 32'hDEADBEEF;
 				endcase
 				if(waitFlag==1) begin // next clock cycle the returnvalue should be ready
@@ -104,6 +105,7 @@ module ICEboardControl (
 				IntegralLimit[i] <= 100;
 				id[i] <= i+128;
 			end
+			baudrate <= 1_000_000;
 			update_frequency_Hz <= 100;
 		end else begin
 			if(write && ~waitrequest) begin
@@ -120,33 +122,19 @@ module ICEboardControl (
 					8'h11: update_frequency_Hz <= writedata;
 					8'h12: neopxl_color[motor] <= writedata;
 					8'h13: current_limit[motor] <= writedata;
+					8'h14: baudrate <= writedata;
 				endcase
 			end
 		end
 	end
 
-	always @ ( posedge clk, posedge reset ) begin: CURRENT_AVERAGE
-		integer current_sum_all, counter, i;
-		if(reset)begin
-			current_average <= 0;
-		end else begin
-			counter <= counter+1;
-			for(i=0;i<NUMBER_OF_MOTORS;i=i+1)begin
-				current_sum_all <= current_sum_all+current[i];
-			end
-			if(counter>CLOCK_FREQ_HZ)begin// every second
-				counter <= 0;
-				current_average <= current_sum_all/counter/NUMBER_OF_MOTORS;
-			end
-		end
-	end
-
-	coms #(NUMBER_OF_MOTORS,CLOCK_FREQ_HZ,BAUDRATE)com(
+	coms #(NUMBER_OF_MOTORS,CLOCK_FREQ_HZ)com(
 		.clk(clk),
 		.reset(reset),
 		.tx_o(tx),
 		.rx_i(~rx),
 		.update_frequency_Hz(update_frequency_Hz),
+		.baudrate(baudrate),
 		.id(id),
 		.duty(duty),
 		.encoder0_position(encoder0_position),
@@ -166,7 +154,8 @@ module ICEboardControl (
 		.error_code(error_code),
 		.crc_checksum(crc_checksum),
 		.communication_quality(communication_quality),
-		.current_motor(current_motor)
+		.current_motor(current_motor),
+		.current_average(current_average)
 	);
 
 endmodule

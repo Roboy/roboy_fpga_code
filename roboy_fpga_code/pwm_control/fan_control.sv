@@ -26,6 +26,7 @@ module FanControl (
     if(reset)begin
       pwm_freq <= 1000;
       duty_ticks <= 0;
+	  sensitivity <= 1;
     end else begin
       waitflag <= 1;
 
@@ -58,7 +59,7 @@ module FanControl (
           pwm <= 0;
         end
         if(auto_fan)begin
-          duty_ticks <= current_average/sensitivity;
+          duty_ticks <= current_average*sensitivity;
         end
 
     end
