@@ -22,7 +22,7 @@ module uart_tx #(parameter CLK_FREQ_HZ = 48_000_000)
    output      o_Tx_Enable,
    output      o_Tx_Done
    );
-//  localparam CLKS_PER_BIT   = CLK_FREQ_HZ/BAUDRATE; // 139 at 16MHz this is 115200 baudrate, 64 at 16MHz is 250000 
+//  localparam CLKS_PER_BIT   = CLK_FREQ_HZ/BAUDRATE; // 139 at 16MHz this is 115200 baudrate, 64 at 16MHz is 250000
   localparam s_IDLE         = 3'b000;
   localparam s_TX_START_BIT = 3'b001;
   localparam s_TX_DATA_BITS = 3'b010;
@@ -30,7 +30,7 @@ module uart_tx #(parameter CLK_FREQ_HZ = 48_000_000)
   localparam s_CLEANUP      = 3'b100;
 
   reg [2:0]    r_SM_Main     = 0;
-  reg [8:0]    r_Clock_Count = 0;
+  reg [15:0]    r_Clock_Count = 0;
   reg [2:0]    r_Bit_Index   = 0;
   reg [7:0]    r_Tx_Data     = 0;
   reg          r_Tx_Done     = 0;
