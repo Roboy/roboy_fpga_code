@@ -343,13 +343,13 @@ module ArmBusComs #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_0
 					end
 					crc_checksum[motor] = {rx_crc,hand_status_response.crc};
 					if(rx_crc==hand_status_response.crc && (hand_status_response.id==id[motor])) begin // MATCH! and from the motor we requested
-						if(status_received[motor_id]==0) begin
+						if(status_received[hand_status_response.id]==0) begin
 							trigger_control_mode_update[motor] <= 1;
 						end else begin
 							error_code[data_in_frame[0]] <= 8'h0;
 						end
 
-						status_received[motor] <= status_received[motor_id] + 1;
+						status_received[motor] <= status_received[hand_status_response.id] + 1;
 						if(setpoint_actual[motor]!=setpoint[motor])begin
 							trigger_hand_command_update[motor] <= 1;
 						end
