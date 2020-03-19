@@ -5,7 +5,7 @@ module ArmBusComs #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_0
 	output tx_enable,
 	input rx_i,
 	input wire [31:0] update_frequency_Hz,
-	input wire [31:0] baudrate,
+	input wire [31:0] baudrate[NUMBER_OF_MOTORS-1:0],
 	input wire [7:0] id[NUMBER_OF_MOTORS-1:0],
 	output wire signed [23:0] duty[NUMBER_OF_MOTORS-1:0],
 	output wire signed [23:0] encoder0_position[NUMBER_OF_MOTORS-1:0],
@@ -24,9 +24,7 @@ module ArmBusComs #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_0
 	input wire signed [15:0] current_limit[NUMBER_OF_MOTORS-1:0],
 	output wire [31:0] error_code[NUMBER_OF_MOTORS-1:0],
 	output wire [31:0] crc_checksum[NUMBER_OF_MOTORS-1:0],
-	output wire [31:0] communication_quality[NUMBER_OF_MOTORS-1:0],
-	output wire [7:0] current_motor,
-	output reg signed [31:0] current_average
+	output wire [31:0] communication_quality[NUMBER_OF_MOTORS-1:0]
 );
 
 //	`define DEBUG
@@ -97,14 +95,13 @@ module ArmBusComs #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_0
 
 	assign tx_data = data_out[byte_transmit_counter];
 
-	uart_tx #(CLK_FREQ_HZ) tx(clk,baudrate,tx_transmit,tx_data,tx_active,tx_o,tx_enable,tx_done);
+	uart_tx #(CLK_FREQ_HZ) tx(clk,baudrate[motor],tx_transmit,tx_data,tx_active,tx_o,tx_enable,tx_done);
 
 	reg [15:0] tx_crc ;
 	integer receive_byte_counter;
 	reg [31:0]delay_counter;
 	reg tx_active_prev;
 	reg [7:0] motor;
-	assign current_motor = motor;
 	reg timeout;
 	reg [31:0] status_requests[NUMBER_OF_MOTORS-1:0];
 	reg [31:0] status_received[NUMBER_OF_MOTORS-1:0];
@@ -112,8 +109,6 @@ module ArmBusComs #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_0
 	reg trigger_hand_command_update[NUMBER_OF_MOTORS-1:0];
 	reg signed [31:0] setpoint_actual[NUMBER_OF_MOTORS-1:0];
 	reg signed [31:0] neopxl_color_actual[NUMBER_OF_MOTORS-1:0];
-	reg signed [31:0] current_sum;
-
 
 	localparam IDLE=8'h0,
 			PREPARE_HAND_CONTROL_MODE = 8'h1, GENERATE_HAND_CONTROL_MODE_CRC = 8'h2, SEND_HAND_CONTROL_MODE = 8'h3,
@@ -129,7 +124,7 @@ module ArmBusComs #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_0
 
 	always @(posedge clk, posedge reset) begin: UART_TRANSMITTER
 		reg done;
-		reg [31:0] update_delay_counter;
+		integer update_delay_counter;
 		integer i;
 		if(reset) begin
 			state = IDLE;
@@ -143,7 +138,7 @@ module ArmBusComs #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_0
 			tx_transmit <= 0;
 			timeout <= 0;
 
-			if(update_delay_counter!=0)begin
+			if(update_delay_counter>0)begin
 				update_delay_counter <= update_delay_counter - 1;
 			end
 
@@ -163,14 +158,20 @@ module ArmBusComs #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_0
 						if(motor<NUMBER_OF_MOTORS-1) begin
 							motor <= motor + 1;
 						end else begin
-							current_average <= current_sum/NUMBER_OF_MOTORS;
-							current_sum <= 0;
 							motor <= 0;
 						end
 					end
 				end
 				PREPARE_HAND_CONTROL_MODE: begin
-
+					hand_control_mode.id <= motor;
+					hand_control_mode.control_mode <= control_mode[motor];
+					hand_control_mode.setpoint <= setpoint[motor];
+					hand_control_mode.Kp <= Kp[motor];
+					hand_control_mode.Ki <= Ki[motor];
+					hand_control_mode.Kd <= Kd[motor];
+					hand_control_mode.deadband <= deadband[motor];
+					hand_control_mode.IntegralLimit <= IntegralLimit[motor];
+					hand_control_mode.PWMLimit <= PWMLimit[motor];
 					state <= GENERATE_HAND_CONTROL_MODE_CRC;
 				end
 				GENERATE_HAND_CONTROL_MODE_CRC: begin
@@ -196,7 +197,11 @@ module ArmBusComs #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_0
 					end
 				end
 				PREPARE_HAND_COMMAND: begin
-
+					hand_command.id <= motor;
+					hand_command.setpoint0 <= setpoint[6];
+					hand_command.setpoint1 <= setpoint[7];
+					hand_command.setpoint2 <= setpoint[8];
+					hand_command.setpoint3 <= setpoint[9];
 					state <= GENERATE_HAND_COMMAND_CRC;
 				end
 				GENERATE_HAND_COMMAND_CRC: begin
@@ -232,8 +237,8 @@ module ArmBusComs #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_0
 					end
 					status_request.crc = tx_crc;
 					byte_transmit_counter = 0;
-					// timeout counter: 8bit + 1 start-bit + 1 stop-bit
-					delay_counter = CLK_FREQ_HZ/baudrate*((MAX_FRAME_LENGTH+1)*8+2*(MAX_FRAME_LENGTH+1));
+					// timeout counter: (8bit + 1 start-bit + 1 stop-bit) * 2 because we are not talking to fpgas here
+					delay_counter = CLK_FREQ_HZ/baudrate[motor]*((MAX_FRAME_LENGTH+1)*8+2*(MAX_FRAME_LENGTH+1))*2;
 					status_requests[motor] <= status_requests[motor] + 1;
 					state <= SEND_STATUS_REQUEST;
 					tx_transmit <= 1;
@@ -277,7 +282,7 @@ module ArmBusComs #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_0
 
 	wire [7:0] rx_data ;
 
-	uart_rx #(CLK_FREQ_HZ) rx(clk,baudrate,rx_i,rx_data_ready,rx_data);
+	uart_rx #(CLK_FREQ_HZ) rx(clk,baudrate[motor],rx_i,rx_data_ready,rx_data);
 
 	reg [7:0] data_in[MAGIC_NUMBER_LENGTH-1:0];
 	reg [7:0] data_in_frame[MAX_FRAME_LENGTH-1:0];
@@ -315,8 +320,9 @@ module ArmBusComs #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_0
 				IDLE: begin
 					if({data_in[0],data_in[1],data_in[2],data_in[3]}==hand_status_response.header)begin
 						receive_byte_counter <= 4;
-						error_code[motor] <= 32'h1;
 						state = RECEIVE_HAND_STATUS;
+					end else begin
+						error_code[motor] <= 32'h3;
 					end
 				end
 				RECEIVE_HAND_STATUS: begin
@@ -325,33 +331,48 @@ module ArmBusComs #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_0
 							status_byte_received <= 1;
 							data_in_frame[receive_byte_counter] <= rx_data;
 							receive_byte_counter <= receive_byte_counter + 1;
+							error_code[motor] <= receive_byte_counter;
 						end
-						if(receive_byte_counter>(HAND_STATUS_RESPONSE_FRAME_LENGTH-MAGIC_NUMBER_LENGTH-1)) begin
+						if(receive_byte_counter>=(HAND_STATUS_RESPONSE_FRAME_LENGTH-1)) begin
 							state = CHECK_CRC_HAND_STATUS;
 							error_code[motor] <= 32'h2;
 						end
 					end else begin
 						state <= IDLE;
-						error_code[motor] <= 32'hDEADBEAF;
+						// error_code[motor] <= 32'hDEADBEAF;
 						crc_checksum[motor] = 0;
 					end
 				end
 				CHECK_CRC_HAND_STATUS: begin
 					rx_crc = 16'hFFFF;
-					for(k=0;k<(HAND_STATUS_RESPONSE_FRAME_LENGTH-MAGIC_NUMBER_LENGTH-2);k=k+1) begin
+					for(k=4;k<(HAND_STATUS_RESPONSE_FRAME_LENGTH-2);k=k+1) begin
 						rx_crc = nextCRC16_D8(data_in_frame[k],rx_crc);
 					end
 					crc_checksum[motor] = {rx_crc,hand_status_response.crc};
-					if(rx_crc==hand_status_response.crc && (hand_status_response.id==id[motor])) begin // MATCH! and from the motor we requested
-						if(status_received[hand_status_response.id]==0) begin
-							trigger_control_mode_update[motor] <= 1;
+					if(rx_crc==hand_status_response.crc) begin // MATCH!
+						if(hand_status_response.id==id[motor])begin // and from the motor we requested
+							// if(status_received[hand_status_response.id]==0) begin
+							// 	trigger_control_mode_update[motor] <= 1;
+							// end else begin
+							// 	error_code[data_in_frame[0]] <= 8'h0;
+							// end
+							encoder0_position[6] <= hand_status_response.position0;
+							encoder0_position[7] <= hand_status_response.position1;
+							encoder0_position[8] <= hand_status_response.position2;
+							encoder0_position[9] <= hand_status_response.position3;
+							current[6] <= hand_status_response.current0;
+							current[7] <= hand_status_response.current1;
+							current[8] <= hand_status_response.current2;
+							current[9] <= hand_status_response.current3;
+							status_received[motor] <= status_received[hand_status_response.id] + 1;
+							if(hand_status_response.setpoint0!=setpoint[6] ||
+								hand_status_response.setpoint1!=setpoint[7] ||
+								hand_status_response.setpoint2!=setpoint[8] ||
+								hand_status_response.setpoint3!=setpoint[9] )begin
+								trigger_hand_command_update[motor] <= 1;
+							end
 						end else begin
-							error_code[data_in_frame[0]] <= 8'h0;
-						end
-
-						status_received[motor] <= status_received[hand_status_response.id] + 1;
-						if(setpoint_actual[motor]!=setpoint[motor])begin
-							trigger_hand_command_update[motor] <= 1;
+							error_code[motor] <= 32'h4;
 						end
 						state = IDLE;
 					end else begin

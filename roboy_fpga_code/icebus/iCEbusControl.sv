@@ -1,4 +1,4 @@
-module ICEboardControl (
+module iCEbusControl (
 		input clk,
 		input reset,
 		// this is for the avalon interface
@@ -14,10 +14,12 @@ module ICEboardControl (
 		output signed [31:0] current_average
 );
 
-	parameter NUMBER_OF_MOTORS = 8;
+	parameter iceboard_coms = 0;
+	parameter arm_coms = 0;
+	parameter NUMBER_OF_MOTORS = 10;
 	parameter CLOCK_FREQ_HZ = 50_000_000;
 
-	reg [31:0] baudrate;
+	reg [31:0] baudrate[NUMBER_OF_MOTORS-1:0];
 	reg [7:0] id[NUMBER_OF_MOTORS-1:0];
 	reg signed [23:0] duty[NUMBER_OF_MOTORS-1:0];
 	reg signed [15:0] Kp[NUMBER_OF_MOTORS-1:0];
@@ -47,7 +49,6 @@ module ICEboardControl (
 	reg [31:0] returnvalue;
 	reg waitFlag;
 
-	wire [7:0] current_motor;
 	wire [7:0] motor;
 	wire [7:0] addr;
 	assign addr = (address>>8);
@@ -81,7 +82,7 @@ module ICEboardControl (
 					8'h1A: returnvalue <= neopxl_color[motor];
 					8'h1B: returnvalue <= current_limit[motor];
 					8'h1C: returnvalue <= current_average;
-					8'h1D: returnvalue <= baudrate;
+					8'h1D: returnvalue <= baudrate[motor];
 					default: returnvalue <= 32'hDEADBEEF;
 				endcase
 				if(waitFlag==1) begin // next clock cycle the returnvalue should be ready
@@ -104,8 +105,13 @@ module ICEboardControl (
 				PWMLimit[i] <= 500;
 				IntegralLimit[i] <= 100;
 				id[i] <= i+128;
+				if(iceboard_coms)begin
+					baudrate[i] <= 2_000_000;
+				end else if(arm_coms)begin
+					baudrate[i] <= 9600;
+				end
 			end
-			baudrate <= 1_000_000;
+
 			update_frequency_Hz <= 100;
 		end else begin
 			if(write && ~waitrequest) begin
@@ -122,40 +128,70 @@ module ICEboardControl (
 					8'h11: update_frequency_Hz <= writedata;
 					8'h12: neopxl_color[motor] <= writedata;
 					8'h13: current_limit[motor] <= writedata;
-					8'h14: baudrate <= writedata;
+					8'h14: baudrate[motor] <= writedata;
 				endcase
 			end
 		end
 	end
 
-	coms #(NUMBER_OF_MOTORS,CLOCK_FREQ_HZ)com(
-		.clk(clk),
-		.reset(reset),
-		.tx_o(tx),
-		.rx_i(~rx),
-		.update_frequency_Hz(update_frequency_Hz),
-		.baudrate(baudrate),
-		.id(id),
-		.duty(duty),
-		.encoder0_position(encoder0_position),
-		.encoder1_position(encoder1_position),
-		.displacement(displacement),
-		.current(current),
-		.current_limit(current_limit),
-		.setpoint(sp),
-		.neopxl_color(neopxl_color),
-		.control_mode(control_mode),
-		.Kp(Kp),
-		.Ki(Ki),
-		.Kd(Kd),
-		.PWMLimit(PWMLimit),
-		.IntegralLimit(IntegralLimit),
-		.deadband(deadband),
-		.error_code(error_code),
-		.crc_checksum(crc_checksum),
-		.communication_quality(communication_quality),
-		.current_motor(current_motor),
-		.current_average(current_average)
-	);
+generate
+	if(iceboard_coms)begin
+		iCEboardComs #(NUMBER_OF_MOTORS,CLOCK_FREQ_HZ)com(
+			.clk(clk),
+			.reset(reset),
+			.tx_o(tx),
+			.rx_i(~rx),
+			.update_frequency_Hz(update_frequency_Hz),
+			.baudrate(baudrate),
+			.id(id),
+			.duty(duty),
+			.encoder0_position(encoder0_position),
+			.encoder1_position(encoder1_position),
+			.displacement(displacement),
+			.current(current),
+			.current_limit(current_limit),
+			.setpoint(sp),
+			.neopxl_color(neopxl_color),
+			.control_mode(control_mode),
+			.Kp(Kp),
+			.Ki(Ki),
+			.Kd(Kd),
+			.PWMLimit(PWMLimit),
+			.IntegralLimit(IntegralLimit),
+			.deadband(deadband),
+			.error_code(error_code),
+			.crc_checksum(crc_checksum),
+			.communication_quality(communication_quality),
+			.current_average(current_average)
+		);
+	end else if(arm_coms) begin
+		ArmBusComs #(NUMBER_OF_MOTORS,CLOCK_FREQ_HZ)com(
+			.clk(clk),
+			.reset(reset),
+			.tx_o(tx),
+			.rx_i(~rx),
+			.update_frequency_Hz(update_frequency_Hz),
+			.baudrate(baudrate),
+			.id(id),
+			.duty(duty),
+			.encoder0_position(encoder0_position),
+			.encoder1_position(encoder1_position),
+			.displacement(displacement),
+			.current(current),
+			.current_limit(current_limit),
+			.setpoint(sp),
+			.control_mode(control_mode),
+			.Kp(Kp),
+			.Ki(Ki),
+			.Kd(Kd),
+			.PWMLimit(PWMLimit),
+			.IntegralLimit(IntegralLimit),
+			.deadband(deadband),
+			.error_code(error_code),
+			.crc_checksum(crc_checksum),
+			.communication_quality(communication_quality)
+		);
+	end
+endgenerate
 
 endmodule

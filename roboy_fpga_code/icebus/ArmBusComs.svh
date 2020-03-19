@@ -42,10 +42,15 @@ typedef struct packed{
 typedef struct packed{
   uint32_t header;
   uint8_t id;
-  uint8_t control_mode0;
-  uint8_t control_mode1;
-  uint8_t control_mode2;
-  uint8_t control_mode3;
+  uint8_t motor;
+  uint8_t control_mode;
+  uint16_t setpoint;
+  uint32_t Kp;
+  uint32_t Ki;
+  uint32_t Kd;
+  uint32_t deadband;
+  uint32_t IntegralLimit;
+  uint32_t PWMLimit;
   uint16_t crc;
 }hand_control_mode_t;
 
@@ -59,7 +64,7 @@ localparam  MAX_FRAME_LENGTH = HAND_STATUS_RESPONSE_FRAME_LENGTH;
 status_request_t status_request = '{32'hABADBABE,0,0};
 hand_status_response_t hand_status_response = '{32'hB000B135,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 hand_command_t hand_command = '{32'hB105F00D,0,0,0,0,0,0};
-hand_control_mode_t hand_control_mode = '{32'hB15B00B5,0,0,0,0,0,0};
+hand_control_mode_t hand_control_mode = '{32'hB15B00B5,0,0,0,0,0,0,0,0,0,0,0};
 
 // arrrggghhh, just because quartus doesn't support unions...
 wire [7:0] status_request_data [MAX_FRAME_LENGTH-1:0];
