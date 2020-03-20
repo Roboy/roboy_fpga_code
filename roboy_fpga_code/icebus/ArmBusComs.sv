@@ -27,64 +27,116 @@ module ArmBusComs #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_0
 	output wire [31:0] communication_quality[NUMBER_OF_MOTORS-1:0]
 );
 
-//	`define DEBUG
+// `define DEBUG
 
-`include "ArmBusComs.svh"
+typedef reg [31:0] uint32_t;
+typedef reg [15:0] uint16_t;
+typedef reg [7:0] uint8_t;
 
-	////////////////////////////////////////////////////////////////////////////////
-	// Copyright (C) 1999-2008 Easics NV.
-	// This source file may be used and distributed without restriction
-	// provided that this copyright statement is not removed from the file
-	// and that any derivative work contains the original copyright notice
-	// and the associated disclaimer.
-	//
-	// THIS SOURCE FILE IS PROVIDED "AS IS" AND WITHOUT ANY EXPRESS
-	// OR IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
-	// WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
-	//
-	// Purpose : synthesizable CRC function
-	//   * polynomial: x^16 + x^15 + x^2 + 1
-	//   * data width: 8
-	//
-	// Info : tools@easics.be
-	//        http://www.easics.com
-	////////////////////////////////////////////////////////////////////////////////
+typedef struct packed{
+  uint32_t header;
+  uint8_t id;
+  uint16_t crc;
+}status_request_t;
 
-	// polynomial: x^16 + x^15 + x^2 + 1
-	// data width: 8
-	// convention: the first serial bit is D[7]
-	function [15:0] nextCRC16_D8;
+typedef struct packed{
+  uint32_t header;
+  uint8_t id;
+  uint8_t control_mode;
+  uint16_t setpoint0;
+  uint16_t setpoint1;
+  uint16_t setpoint2;
+  uint16_t setpoint3;
+  uint16_t position0;
+  uint16_t position1;
+  uint16_t position2;
+  uint16_t position3;
+  uint16_t current0;
+  uint16_t current1;
+  uint16_t current2;
+  uint16_t current3;
+  uint16_t crc;
+}hand_status_response_t;
 
-		input [7:0] Data;
-		input [15:0] crc;
-		reg [7:0] d;
-		reg [15:0] c;
-		reg [15:0] newcrc;
-		begin
-			d = Data;
-			c = crc;
+typedef struct packed{
+  uint32_t header;
+  uint8_t id;
+  uint16_t setpoint0;
+  uint16_t setpoint1;
+  uint16_t setpoint2;
+  uint16_t setpoint3;
+  uint16_t crc;
+}hand_command_t;
 
-			newcrc[0] = d[7] ^ d[6] ^ d[5] ^ d[4] ^ d[3] ^ d[2] ^ d[1] ^ d[0] ^ c[8] ^ c[9] ^ c[10] ^ c[11] ^ c[12] ^ c[13] ^ c[14] ^ c[15];
-			newcrc[1] = d[7] ^ d[6] ^ d[5] ^ d[4] ^ d[3] ^ d[2] ^ d[1] ^ c[9] ^ c[10] ^ c[11] ^ c[12] ^ c[13] ^ c[14] ^ c[15];
-			newcrc[2] = d[1] ^ d[0] ^ c[8] ^ c[9];
-			newcrc[3] = d[2] ^ d[1] ^ c[9] ^ c[10];
-			newcrc[4] = d[3] ^ d[2] ^ c[10] ^ c[11];
-			newcrc[5] = d[4] ^ d[3] ^ c[11] ^ c[12];
-			newcrc[6] = d[5] ^ d[4] ^ c[12] ^ c[13];
-			newcrc[7] = d[6] ^ d[5] ^ c[13] ^ c[14];
-			newcrc[8] = d[7] ^ d[6] ^ c[0] ^ c[14] ^ c[15];
-			newcrc[9] = d[7] ^ c[1] ^ c[15];
-			newcrc[10] = c[2];
-			newcrc[11] = c[3];
-			newcrc[12] = c[4];
-			newcrc[13] = c[5];
-			newcrc[14] = c[6];
-			newcrc[15] = d[7] ^ d[6] ^ d[5] ^ d[4] ^ d[3] ^ d[2] ^ d[1] ^ d[0] ^ c[7] ^ c[8] ^ c[9] ^ c[10] ^ c[11] ^ c[12] ^ c[13] ^ c[14] ^ c[15];
-			nextCRC16_D8 = newcrc;
-		end
-	endfunction
+typedef struct packed{
+  uint32_t header;
+  uint8_t id;
+  uint8_t motor;
+  uint8_t control_mode;
+  uint16_t setpoint;
+  uint32_t Kp;
+  uint32_t Ki;
+  uint32_t Kd;
+  uint32_t deadband;
+  uint32_t IntegralLimit;
+  uint32_t PWMLimit;
+  uint16_t crc;
+}hand_control_mode_t;
 
-	reg[7:0] byte_transmit_counter ;
+localparam  MAGIC_NUMBER_LENGTH = 4;
+localparam	STATUS_REQUEST_FRAME_LENGTH = $bits(status_request_t)/8;
+localparam	HAND_STATUS_RESPONSE_FRAME_LENGTH = $bits(hand_status_response_t)/8;
+localparam	HAND_COMMAND_FRAME_LENGTH = $bits(hand_command_t)/8;
+localparam	HAND_CONTROL_MODE_FRAME_LENGTH = $bits(hand_control_mode_t)/8;
+
+localparam  MAX_FRAME_LENGTH = HAND_CONTROL_MODE_FRAME_LENGTH;
+
+status_request_t status_request = '{32'hABADBABE,0,0};
+hand_status_response_t hand_status_response = '{32'hB000B135,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+hand_command_t hand_command = '{32'hB105F00D,0,0,0,0,0,0};
+hand_control_mode_t hand_control_mode = '{32'hB15B00B5,0,0,0,0,0,0,0,0,0,0,0};
+
+// arrrggghhh, just because quartus doesn't support unions...
+wire [7:0] status_request_data [MAX_FRAME_LENGTH-1:0];
+reg [7:0] hand_status_response_data [MAX_FRAME_LENGTH-1:0];
+wire [7:0] hand_command_data [MAX_FRAME_LENGTH-1:0];
+wire [7:0] hand_control_mode_data [MAX_FRAME_LENGTH-1:0];
+
+assign status_request_data[0] = status_request.header[31:24];
+assign status_request_data[1] = status_request.header[23:16];
+assign status_request_data[2] = status_request.header[15:8];
+assign status_request_data[3] = status_request.header[7:0];
+assign status_request_data[4] = status_request.id;
+assign status_request_data[5] = status_request.crc[15:8];
+assign status_request_data[6] = status_request.crc[7:0];
+
+assign hand_command_data[0] = hand_command.header[31:24];
+assign hand_command_data[1] = hand_command.header[23:16];
+assign hand_command_data[2] = hand_command.header[15:8];
+assign hand_command_data[3] = hand_command.header[7:0];
+assign hand_command_data[4] = hand_command.id;
+assign hand_command_data[5] = hand_command.setpoint0[15:8];
+assign hand_command_data[6] = hand_command.setpoint0[7:0];
+assign hand_command_data[7] = hand_command.setpoint1[15:8];
+assign hand_command_data[8] = hand_command.setpoint1[7:0];
+assign hand_command_data[9] = hand_command.setpoint2[15:8];
+assign hand_command_data[10] = hand_command.setpoint2[7:0];
+assign hand_command_data[11] = hand_command.setpoint3[15:8];
+assign hand_command_data[12] = hand_command.setpoint3[7:0];
+assign hand_command_data[13] = hand_command.crc[15:8];
+assign hand_command_data[14] = hand_command.crc[7:0];
+
+assign hand_control_mode_data[0] = hand_control_mode.header[31:24];
+assign hand_control_mode_data[1] = hand_control_mode.header[23:16];
+assign hand_control_mode_data[2] = hand_control_mode.header[15:8];
+assign hand_control_mode_data[3] = hand_control_mode.header[7:0];
+assign hand_control_mode_data[4] = hand_control_mode.id;
+assign hand_control_mode_data[5] = hand_control_mode.crc[15:8];
+assign hand_control_mode_data[6] = hand_control_mode.crc[7:0];
+
+`include "crc16.sv"
+
+	reg [7:0]byte_transmit_counter ;
 	reg [15:0] data ;
 	wire[7:0] data_out[MAX_FRAME_LENGTH-1:0];
 	wire [7:0] tx_data ;
@@ -142,10 +194,9 @@ module ArmBusComs #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_0
 				update_delay_counter <= update_delay_counter - 1;
 			end
 
-			`ifdef DEBUG
+			`ifdef DEBUG // echo the received bytes
 			if(status_byte_received)begin
 				byte_transmit_counter = receive_byte_counter-1;
-				data_out[receive_byte_counter-1] <= data_in_frame[receive_byte_counter-1];
 				tx_transmit <= 1;
 			end
 			`endif
@@ -163,7 +214,7 @@ module ArmBusComs #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_0
 					end
 				end
 				PREPARE_HAND_CONTROL_MODE: begin
-					hand_control_mode.id <= motor;
+					hand_control_mode.id <= id[motor]; // motor id
 					hand_control_mode.control_mode <= control_mode[motor];
 					hand_control_mode.setpoint <= setpoint[motor];
 					hand_control_mode.Kp <= Kp[motor];
@@ -197,7 +248,7 @@ module ArmBusComs #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_0
 					end
 				end
 				PREPARE_HAND_COMMAND: begin
-					hand_command.id <= motor;
+					hand_command.id <= id[motor]; // motor id
 					hand_command.setpoint0 <= setpoint[6];
 					hand_command.setpoint1 <= setpoint[7];
 					hand_command.setpoint2 <= setpoint[8];
@@ -287,13 +338,11 @@ module ArmBusComs #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_0
 	reg [7:0] data_in[MAGIC_NUMBER_LENGTH-1:0];
 	reg [7:0] data_in_frame[MAX_FRAME_LENGTH-1:0];
 
-	assign hand_status_response_data = data_in_frame;
-
 	reg [15:0] rx_crc;
 	reg status_byte_received;
 
 	always @(posedge clk, posedge reset) begin: FRAME_MATCHER
-		localparam IDLE = 8'h0, RECEIVE_HAND_STATUS = 8'h1, CHECK_CRC_HAND_STATUS = 8'h2;
+		localparam IDLE = 8'h0, RECEIVE_HAND_STATUS = 8'h1, GENERATE_CRC_HAND_STATUS = 8'h2, CHECK_CRC_HAND_STATUS = 8'h3;
 		reg [7:0] state;
 		reg rx_data_ready_prev;
 		integer j, k;
@@ -321,8 +370,7 @@ module ArmBusComs #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_0
 					if({data_in[0],data_in[1],data_in[2],data_in[3]}==hand_status_response.header)begin
 						receive_byte_counter <= 4;
 						state = RECEIVE_HAND_STATUS;
-					end else begin
-						error_code[motor] <= 32'h3;
+						error_code[motor] <= 1;
 					end
 				end
 				RECEIVE_HAND_STATUS: begin
@@ -331,50 +379,49 @@ module ArmBusComs #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50_0
 							status_byte_received <= 1;
 							data_in_frame[receive_byte_counter] <= rx_data;
 							receive_byte_counter <= receive_byte_counter + 1;
-							error_code[motor] <= receive_byte_counter;
+							error_code[motor] <= receive_byte_counter+1;
 						end
-						if(receive_byte_counter>=(HAND_STATUS_RESPONSE_FRAME_LENGTH-1)) begin
-							state = CHECK_CRC_HAND_STATUS;
-							error_code[motor] <= 32'h2;
+						if(receive_byte_counter>=HAND_STATUS_RESPONSE_FRAME_LENGTH) begin
+							state = GENERATE_CRC_HAND_STATUS;
+							error_code[motor] <= 2;
 						end
 					end else begin
 						state <= IDLE;
-						// error_code[motor] <= 32'hDEADBEAF;
+						error_code[motor] <= 32'hDEADBEAF;
 						crc_checksum[motor] = 0;
 					end
 				end
-				CHECK_CRC_HAND_STATUS: begin
+				GENERATE_CRC_HAND_STATUS: begin
 					rx_crc = 16'hFFFF;
-					for(k=4;k<(HAND_STATUS_RESPONSE_FRAME_LENGTH-2);k=k+1) begin
+					for(k=MAGIC_NUMBER_LENGTH;k<(HAND_STATUS_RESPONSE_FRAME_LENGTH-2);k=k+1) begin
 						rx_crc = nextCRC16_D8(data_in_frame[k],rx_crc);
 					end
-					crc_checksum[motor] = {rx_crc,hand_status_response.crc};
-					if(rx_crc==hand_status_response.crc) begin // MATCH!
-						if(hand_status_response.id==id[motor])begin // and from the motor we requested
-							// if(status_received[hand_status_response.id]==0) begin
-							// 	trigger_control_mode_update[motor] <= 1;
-							// end else begin
-							// 	error_code[data_in_frame[0]] <= 8'h0;
-							// end
-							encoder0_position[6] <= hand_status_response.position0;
-							encoder0_position[7] <= hand_status_response.position1;
-							encoder0_position[8] <= hand_status_response.position2;
-							encoder0_position[9] <= hand_status_response.position3;
-							current[6] <= hand_status_response.current0;
-							current[7] <= hand_status_response.current1;
-							current[8] <= hand_status_response.current2;
-							current[9] <= hand_status_response.current3;
+					crc_checksum[motor] = {rx_crc,data_in_frame[30],data_in_frame[31]};
+					state = CHECK_CRC_HAND_STATUS;
+				end
+				CHECK_CRC_HAND_STATUS: begin
+					if(rx_crc=={data_in_frame[30],data_in_frame[31]}) begin // MATCH!
+						if(data_in_frame[4]==id[motor])begin // and from the motor we requested
+							encoder0_position[6] <= {data_in_frame[14],data_in_frame[15]};
+							encoder0_position[7] <= {data_in_frame[16],data_in_frame[17]};
+							encoder0_position[8] <= {data_in_frame[18],data_in_frame[19]};
+							encoder0_position[9] <= {data_in_frame[20],data_in_frame[21]};
+							current[6] <= {data_in_frame[22],data_in_frame[23]};
+							current[7] <= {data_in_frame[24],data_in_frame[25]};
+							current[8] <= {data_in_frame[26],data_in_frame[27]};
+							current[9] <= {data_in_frame[28],data_in_frame[29]};
 							status_received[motor] <= status_received[hand_status_response.id] + 1;
-							if(hand_status_response.setpoint0!=setpoint[6] ||
-								hand_status_response.setpoint1!=setpoint[7] ||
-								hand_status_response.setpoint2!=setpoint[8] ||
-								hand_status_response.setpoint3!=setpoint[9] )begin
+							if({data_in_frame[6],data_in_frame[7]}!=setpoint[6] ||
+								{data_in_frame[8],data_in_frame[9]}!=setpoint[7] ||
+								{data_in_frame[10],data_in_frame[11]}!=setpoint[8] ||
+								{data_in_frame[12],data_in_frame[13]}!=setpoint[9] )begin
 								trigger_hand_command_update[motor] <= 1;
 							end
+							error_code[motor] <= 0;
 						end else begin
-							error_code[motor] <= 32'h4;
+							error_code[motor] <= 3;
 						end
-						state = IDLE;
+						state <= IDLE;
 					end else begin
 						error_code[motor] <= 32'hBAADC0DE; // crc error
 						state <= IDLE;
