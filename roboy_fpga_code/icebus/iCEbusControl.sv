@@ -108,7 +108,7 @@ module iCEbusControl (
 				if(iceboard_coms)begin
 					baudrate[i] <= 2_000_000;
 				end else if(arm_coms)begin
-					baudrate[i] <= 9600;
+					baudrate[i] <= 19200;
 				end
 			end
 
