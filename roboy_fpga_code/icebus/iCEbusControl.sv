@@ -2,7 +2,7 @@ module iCEbusControl (
 		input clk,
 		input reset,
 		// this is for the avalon interface
-		input [15:0] address,
+		input [11:0] address,
 		input write,
 		input signed [31:0] writedata,
 		input read,
@@ -51,8 +51,8 @@ module iCEbusControl (
 
 	wire [7:0] motor;
 	wire [7:0] addr;
-	assign addr = (address>>8);
-	assign motor = (address&8'hFF);
+	assign addr = (address>>4);
+	assign motor = (address&4'hF);
 
 	always @(posedge clk, posedge reset) begin: AVALON_READ_INTERFACE
 		if (reset == 1) begin

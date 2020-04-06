@@ -2,7 +2,7 @@ module BallJoint (
     input clk,
     input reset,
     // this is for the avalon interface
-    input [15:0] address,
+    input [3:0] address,
     input write,
     input signed [31:0] writedata,
     input read,
@@ -10,7 +10,8 @@ module BallJoint (
     output waitrequest,
     // i2c
     inout scl,
-    output sda
+    output sda,
+	output reset_n
   );
 
   parameter CLOCK_SPEED_HZ = 50_000_000;
@@ -20,6 +21,7 @@ module BallJoint (
   localparam  RESET = 0, CONTINUOUS_READOUT = 1, READOUT = 2, POSTPROCESS = 3,
     SWITCH_SENSOR = 4, CHANGE_PROTOCOL = 5, WAIT_FOR_TRANSMISSION = 6, READOUT2 = 7, BUS_DELAY = 8, NEXT_SENSOR = 9;
   reg i2c_reset;
+  assign reset_n = ~i2c_reset;
   reg [7:0] state;
   reg [7:0] state_next;
   reg [7:0] current_sensor;
@@ -35,8 +37,8 @@ module BallJoint (
   wire [7:0] sensor;
 	wire [7:0] register;
   assign readdata = returnvalue;
-	assign register = (address>>8);
-	assign sensor = (address&8'hFF);
+	assign register = (address>>2);
+	assign sensor = (address&2'h3);
 
   always @(posedge clk, posedge reset) begin: I2C_CONTROL_LOGIC
   	reg ena_prev;
@@ -48,8 +50,8 @@ module BallJoint (
   		read_only <= 0;
   		number_of_bytes<= 0;
   		i<=0;
-      update_frequency <= 100;
-      waitFlag <= 1;
+		  update_frequency <= 100;
+		  waitFlag <= 1;
   	end else begin
       if(write && ~waitrequest) begin
         case(register)
@@ -69,7 +71,7 @@ module BallJoint (
 					8'h01: returnvalue <= mag_y[sensor];
 					8'h02: returnvalue <= mag_z[sensor];
 					8'h03: returnvalue <= temperature[sensor];
-          8'h04: returnvalue <= update_frequency;
+					8'h04: returnvalue <= update_frequency;
 					default: returnvalue <= 32'hDEADBEEF;
 				endcase
 				if(waitFlag==1) begin // next clock cycle the returnvalue should be ready
