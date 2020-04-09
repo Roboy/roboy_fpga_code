@@ -96,7 +96,6 @@ typedef struct packed{
 typedef struct packed{
   uint32_t header;
   uint8_t id;
-  uint8_t motor;
   uint8_t control_mode;
   uint32_t setpoint;
   uint32_t Kp;
@@ -126,7 +125,7 @@ hand_command_t hand_command = '{32'hB105F00D,0,0,0,0,0,0};
 hand_control_mode_t hand_control_mode = '{32'hB16B00B5,0,0,0};
 m3_status_response_t m3_status_response = '{32'hDABAD000,0,0,0,0,0,0,0,0};
 m3_command_t m3_command = '{32'hCAFEBABE,0,0,0};
-m3_control_mode_t m3_control_mode = '{32'hCAFED00D,0,0,0,0,0,0,0,0,0,0,0};
+m3_control_mode_t m3_control_mode = '{32'hCAFED00D,0,0,0,0,0,0,0,0,0,0};
 
 // arrrggghhh, just because quartus doesn't support unions...
 wire [7:0] status_request_data [MAX_FRAME_LENGTH-1:0];
@@ -379,7 +378,7 @@ assign m3_control_mode_data[35] = m3_control_mode.crc[7:0];
 				end
 				GENERATE_M3_CONTROL_MODE_CRC: begin
 					tx_crc = 16'hFFFF;
-					for(i=MAGIC_NUMBER_LENGTH;i<HAND_CONTROL_MODE_FRAME_LENGTH-2;i=i+1) begin
+					for(i=MAGIC_NUMBER_LENGTH;i<M3_CONTROL_MODE_FRAME_LENGTH-2;i=i+1) begin
 						tx_crc = nextCRC16_D8(data_out[i],tx_crc);
 					end
 					m3_control_mode.crc = tx_crc;
@@ -479,7 +478,9 @@ assign m3_control_mode_data[35] = m3_control_mode.crc[7:0];
 						if(status_requests[motor]>update_frequency_Hz)begin
 							status_requests[motor] <= 0;
 						end else begin
-							communication_quality[motor] <= (status_received[motor]*100)/status_requests[motor];
+							if(status_requests[motor]>0)begin
+								communication_quality[motor] <= (status_received[motor]*100)/status_requests[motor];
+							end
 						end
 					end else begin
 						delay_counter = delay_counter - 1;
