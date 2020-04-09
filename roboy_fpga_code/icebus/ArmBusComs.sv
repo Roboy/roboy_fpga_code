@@ -477,10 +477,7 @@ assign m3_control_mode_data[35] = m3_control_mode.crc[7:0];
 						timeout <= 1;
 						if(status_requests[motor]>update_frequency_Hz)begin
 							status_requests[motor] <= 0;
-						end else begin
-							if(status_requests[motor]>0)begin
-								communication_quality[motor] <= (status_received[motor]*100)/status_requests[motor];
-							end
+							communication_quality[motor] <= (status_received[motor]*100)/status_requests[motor];
 						end
 					end else begin
 						delay_counter = delay_counter - 1;
@@ -638,7 +635,7 @@ assign m3_control_mode_data[35] = m3_control_mode.crc[7:0];
 							end
 							encoder0_position[motor] <= {data_in_frame[10],data_in_frame[11],data_in_frame[12],data_in_frame[13]};
 							encoder1_position[motor] <= {data_in_frame[14],data_in_frame[15],data_in_frame[16],data_in_frame[17]};
-							displacement[motor] <= {data_in_frame[18],data_in_frame[19],data_in_frame[20],data_in_frame[21]};
+							displacement[motor] <= {data_in_frame[21],data_in_frame[20],data_in_frame[19],data_in_frame[18]};
 							duty[motor] <= {data_in_frame[22],data_in_frame[23],data_in_frame[24],data_in_frame[25]};
 							status_received[motor] <= status_received[motor] + 1;
 							if({data_in_frame[6],data_in_frame[7],data_in_frame[8],data_in_frame[9]}!=setpoint[motor])begin
