@@ -174,10 +174,10 @@ assign m3_command_data[1] = m3_command.header[23:16];
 assign m3_command_data[2] = m3_command.header[15:8];
 assign m3_command_data[3] = m3_command.header[7:0];
 assign m3_command_data[4] = m3_command.id;
-assign m3_command_data[5] = m3_command.setpoint[31:24];
-assign m3_command_data[6] = m3_command.setpoint[23:16];
-assign m3_command_data[7] = m3_command.setpoint[15:8];
-assign m3_command_data[8] = m3_command.setpoint[7:0];
+assign m3_command_data[8] = m3_command.setpoint[31:24];
+assign m3_command_data[7] = m3_command.setpoint[23:16];
+assign m3_command_data[6] = m3_command.setpoint[15:8];
+assign m3_command_data[5] = m3_command.setpoint[7:0];
 assign m3_command_data[9] = m3_command.crc[15:8];
 assign m3_command_data[10] = m3_command.crc[7:0];
 
@@ -187,40 +187,40 @@ assign m3_control_mode_data[2] = m3_control_mode.header[15:8];
 assign m3_control_mode_data[3] = m3_control_mode.header[7:0];
 assign m3_control_mode_data[4] = m3_control_mode.id;
 assign m3_control_mode_data[5] = m3_control_mode.control_mode;
-assign m3_control_mode_data[6] = m3_control_mode.setpoint[31:24];
-assign m3_control_mode_data[7] = m3_control_mode.setpoint[23:16];
-assign m3_control_mode_data[8] = m3_control_mode.setpoint[15:8];
-assign m3_control_mode_data[9] = m3_control_mode.setpoint[7:0];
+assign m3_control_mode_data[9] = m3_control_mode.setpoint[31:24];
+assign m3_control_mode_data[8] = m3_control_mode.setpoint[23:16];
+assign m3_control_mode_data[7] = m3_control_mode.setpoint[15:8];
+assign m3_control_mode_data[6] = m3_control_mode.setpoint[7:0];
 // Kp
-assign m3_control_mode_data[10] = m3_control_mode.Kp[31:24];
-assign m3_control_mode_data[11] = m3_control_mode.Kp[23:16];
-assign m3_control_mode_data[12] = m3_control_mode.Kp[15:8];
-assign m3_control_mode_data[13] = m3_control_mode.Kp[7:0];
+assign m3_control_mode_data[13] = m3_control_mode.Kp[31:24];
+assign m3_control_mode_data[12] = m3_control_mode.Kp[23:16];
+assign m3_control_mode_data[11] = m3_control_mode.Kp[15:8];
+assign m3_control_mode_data[10] = m3_control_mode.Kp[7:0];
 // Ki
-assign m3_control_mode_data[14] = m3_control_mode.Ki[31:24];
-assign m3_control_mode_data[15] = m3_control_mode.Ki[23:16];
-assign m3_control_mode_data[16] = m3_control_mode.Ki[15:8];
-assign m3_control_mode_data[17] = m3_control_mode.Ki[7:0];
+assign m3_control_mode_data[17] = m3_control_mode.Ki[31:24];
+assign m3_control_mode_data[16] = m3_control_mode.Ki[23:16];
+assign m3_control_mode_data[15] = m3_control_mode.Ki[15:8];
+assign m3_control_mode_data[14] = m3_control_mode.Ki[7:0];
 // Kd
-assign m3_control_mode_data[18] = m3_control_mode.Kd[31:24];
-assign m3_control_mode_data[19] = m3_control_mode.Kd[23:16];
-assign m3_control_mode_data[20] = m3_control_mode.Kd[15:8];
-assign m3_control_mode_data[21] = m3_control_mode.Kd[7:0];
+assign m3_control_mode_data[21] = m3_control_mode.Kd[31:24];
+assign m3_control_mode_data[20] = m3_control_mode.Kd[23:16];
+assign m3_control_mode_data[19] = m3_control_mode.Kd[15:8];
+assign m3_control_mode_data[18] = m3_control_mode.Kd[7:0];
 // deadband
-assign m3_control_mode_data[22] = m3_control_mode.deadband[31:24];
-assign m3_control_mode_data[23] = m3_control_mode.deadband[23:16];
-assign m3_control_mode_data[24] = m3_control_mode.deadband[15:8];
-assign m3_control_mode_data[25] = m3_control_mode.deadband[7:0];
+assign m3_control_mode_data[25] = m3_control_mode.deadband[31:24];
+assign m3_control_mode_data[24] = m3_control_mode.deadband[23:16];
+assign m3_control_mode_data[23] = m3_control_mode.deadband[15:8];
+assign m3_control_mode_data[22] = m3_control_mode.deadband[7:0];
 // IntegralLimit
-assign m3_control_mode_data[26] = m3_control_mode.IntegralLimit[31:24];
-assign m3_control_mode_data[27] = m3_control_mode.IntegralLimit[23:16];
-assign m3_control_mode_data[28] = m3_control_mode.IntegralLimit[15:8];
-assign m3_control_mode_data[29] = m3_control_mode.IntegralLimit[7:0];
+assign m3_control_mode_data[29] = m3_control_mode.IntegralLimit[31:24];
+assign m3_control_mode_data[28] = m3_control_mode.IntegralLimit[23:16];
+assign m3_control_mode_data[27] = m3_control_mode.IntegralLimit[15:8];
+assign m3_control_mode_data[26] = m3_control_mode.IntegralLimit[7:0];
 // PWMLimit
-assign m3_control_mode_data[30] = m3_control_mode.PWMLimit[31:24];
-assign m3_control_mode_data[31] = m3_control_mode.PWMLimit[23:16];
-assign m3_control_mode_data[32] = m3_control_mode.PWMLimit[15:8];
-assign m3_control_mode_data[33] = m3_control_mode.PWMLimit[7:0];
+assign m3_control_mode_data[33] = m3_control_mode.PWMLimit[31:24];
+assign m3_control_mode_data[32] = m3_control_mode.PWMLimit[23:16];
+assign m3_control_mode_data[31] = m3_control_mode.PWMLimit[15:8];
+assign m3_control_mode_data[30] = m3_control_mode.PWMLimit[7:0];
 assign m3_control_mode_data[34] = m3_control_mode.crc[15:8];
 assign m3_control_mode_data[35] = m3_control_mode.crc[7:0];
 
@@ -438,7 +438,7 @@ assign m3_control_mode_data[35] = m3_control_mode.crc[7:0];
 					byte_transmit_counter = 0;
 					// timeout counter: (8bit + 1 start-bit + 1 stop-bit) +(CLK_FREQ_HZ/200) because we are not talking to fpgas here
 					if(motor<6)begin
-						delay_counter = CLK_FREQ_HZ/baudrate[motor]*((M3_STATUS_RESPONSE_FRAME_LENGTH+1)*8+2*(M3_STATUS_RESPONSE_FRAME_LENGTH+1))+(CLK_FREQ_HZ/50);
+						delay_counter = CLK_FREQ_HZ/baudrate[motor]*((M3_STATUS_RESPONSE_FRAME_LENGTH+1)*8+2*(M3_STATUS_RESPONSE_FRAME_LENGTH+1))+(CLK_FREQ_HZ/200);
 					end else begin
 						delay_counter = CLK_FREQ_HZ/baudrate[motor]*((HAND_STATUS_RESPONSE_FRAME_LENGTH+1)*8+2*(HAND_STATUS_RESPONSE_FRAME_LENGTH+1))+(CLK_FREQ_HZ/200);
 					end
@@ -633,12 +633,12 @@ assign m3_control_mode_data[35] = m3_control_mode.crc[7:0];
 							if(data_in_frame[5]!=control_mode[motor])begin
 								trigger_m3_control_mode_update[motor] <= 1;
 							end
-							encoder0_position[motor] <= {data_in_frame[10],data_in_frame[11],data_in_frame[12],data_in_frame[13]};
-							encoder1_position[motor] <= {data_in_frame[14],data_in_frame[15],data_in_frame[16],data_in_frame[17]};
+							encoder0_position[motor] <= {data_in_frame[13],data_in_frame[12],data_in_frame[11],data_in_frame[10]};
+							encoder1_position[motor] <= {data_in_frame[17],data_in_frame[16],data_in_frame[15],data_in_frame[14]};
 							displacement[motor] <= {data_in_frame[21],data_in_frame[20],data_in_frame[19],data_in_frame[18]};
-							duty[motor] <= {data_in_frame[22],data_in_frame[23],data_in_frame[24],data_in_frame[25]};
+							duty[motor] <= {data_in_frame[25],data_in_frame[24],data_in_frame[23],data_in_frame[22]};
 							status_received[motor] <= status_received[motor] + 1;
-							if({data_in_frame[6],data_in_frame[7],data_in_frame[8],data_in_frame[9]}!=setpoint[motor])begin
+							if({data_in_frame[9],data_in_frame[8],data_in_frame[7],data_in_frame[6]}!=setpoint[motor])begin
 								trigger_m3_command_update[motor] <= 1;
 							end
 							receiver_done <= 1;
