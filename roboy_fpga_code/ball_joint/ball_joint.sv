@@ -71,7 +71,6 @@ module BallJoint (
 					8'h01: returnvalue <= mag_y[sensor];
 					8'h02: returnvalue <= mag_z[sensor];
 					8'h03: returnvalue <= temperature[sensor];
-					8'h04: returnvalue <= update_frequency;
 					default: returnvalue <= 32'hDEADBEEF;
 				endcase
 				if(waitFlag==1) begin // next clock cycle the returnvalue should be ready

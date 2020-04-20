@@ -298,7 +298,7 @@ assign m3_control_mode_data[35] = m3_control_mode.crc[7:0];
 			case(state)
 				IDLE: begin
 					if(update_delay_counter==0) begin
-						update_delay_counter <= (CLK_FREQ_HZ/update_frequency_Hz/2);
+						update_delay_counter <= (CLK_FREQ_HZ/update_frequency_Hz/7);
 						state <= PREPARE_STATUS_REQUEST;
 						if(motor<6) begin
 							motor <= motor + 1;
@@ -440,7 +440,7 @@ assign m3_control_mode_data[35] = m3_control_mode.crc[7:0];
 					if(motor<6)begin
 						delay_counter = CLK_FREQ_HZ/baudrate[motor]*((M3_STATUS_RESPONSE_FRAME_LENGTH+1)*8+2*(M3_STATUS_RESPONSE_FRAME_LENGTH+1))+(CLK_FREQ_HZ/200);
 					end else begin
-						delay_counter = CLK_FREQ_HZ/baudrate[motor]*((HAND_STATUS_RESPONSE_FRAME_LENGTH+1)*8+2*(HAND_STATUS_RESPONSE_FRAME_LENGTH+1))+(CLK_FREQ_HZ/200);
+						delay_counter = CLK_FREQ_HZ/baudrate[motor]*((HAND_STATUS_RESPONSE_FRAME_LENGTH+1)*8+2*(HAND_STATUS_RESPONSE_FRAME_LENGTH+1))+(CLK_FREQ_HZ/50);
 					end
 					status_requests[motor] <= status_requests[motor] + 1;
 					state <= SEND_STATUS_REQUEST;
@@ -475,7 +475,7 @@ assign m3_control_mode_data[35] = m3_control_mode.crc[7:0];
 							state <= IDLE;
 						end
 						timeout <= 1;
-						if(status_requests[motor]>update_frequency_Hz)begin
+						if(status_requests[motor]>=update_frequency_Hz)begin
 							status_requests[motor] <= 0;
 							communication_quality[motor] <= (status_received[motor]*100)/status_requests[motor];
 						end
