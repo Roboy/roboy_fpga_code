@@ -299,11 +299,15 @@ assign m3_control_mode_data[35] = m3_control_mode.crc[7:0];
 				IDLE: begin
 					if(update_delay_counter==0) begin
 						update_delay_counter <= (CLK_FREQ_HZ/update_frequency_Hz/7);
-						state <= PREPARE_STATUS_REQUEST;
 						if(motor<6) begin
 							motor <= motor + 1;
 						end else begin
 							motor <= 0;
+						end
+						if(motor<5)begin
+							state <= PREPARE_STATUS_REQUEST;
+						end else begin
+							state <= PREPARE_HAND_COMMAND;
 						end
 					end
 				end
