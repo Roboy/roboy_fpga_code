@@ -257,8 +257,8 @@ assign m3_control_mode_data[35] = m3_control_mode.crc[7:0];
 			PREPARE_HAND_COMMAND  = 8'h4, GENERATE_HAND_COMMAND_CRC = 8'h5, SEND_HAND_COMMAND = 8'h6,
 			PREPARE_STATUS_REQUEST = 8'h7, GENERATE_STATUS_REQUEST_CRC = 8'h8, SEND_STATUS_REQUEST = 8'h9,
 			PREPARE_M3_CONTROL_MODE = 8'hA, GENERATE_M3_CONTROL_MODE_CRC = 8'hB, SEND_M3_CONTROL_MODE = 8'hC,
-			PREPARE_M3_COMMAND  = 8'hD, GENERATE_M3_COMMAND_CRC = 8'hE, SEND_M3_COMMAND = 8'hF,
-			WAIT_UNTIL_BUS_FREE = 8'h10;
+			PREPARE_M3_COMMAND  = 8'hD, GENERATE_M3_COMMAND_CRC = 8'hE, SEND_M3_COMMAND = 8'hF, 
+			WAIT_UNTIL_BUS_FREE = 8'h10, STATE_SWITCH = 8'h11;
 	reg [7:0] state;
 	reg receiver_done;
 
@@ -304,11 +304,14 @@ assign m3_control_mode_data[35] = m3_control_mode.crc[7:0];
 						end else begin
 							motor <= 0;
 						end
-						if(motor<5)begin
-							state <= PREPARE_STATUS_REQUEST;
-						end else begin
-							state <= PREPARE_HAND_COMMAND;
-						end
+						state <= STATE_SWITCH;
+					end
+				end
+				STATE_SWITCH: begin
+					if(motor<6)begin // m3 units
+						state <= PREPARE_STATUS_REQUEST;
+					end else begin // we only send hand commands, because the samd in the hand is too weak
+						state <= PREPARE_HAND_COMMAND;
 					end
 				end
 				PREPARE_HAND_CONTROL_MODE: begin

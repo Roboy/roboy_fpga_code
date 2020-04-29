@@ -128,9 +128,9 @@ module iCEbusControl (
 					baudrate[i] <= 2_000_000;
 				end else if(arm_coms)begin
 					if(i<6)begin // m3
-						baudrate[i] <= 57600;
+						baudrate[i] <= 460800;
 					end else begin // openbionics
-						baudrate[i] <= 57600;
+						baudrate[i] <= 19200;
 					end
 				end
 			end
