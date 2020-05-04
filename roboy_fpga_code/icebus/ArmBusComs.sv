@@ -258,7 +258,7 @@ assign m3_control_mode_data[35] = m3_control_mode.crc[7:0];
 			PREPARE_STATUS_REQUEST = 8'h7, GENERATE_STATUS_REQUEST_CRC = 8'h8, SEND_STATUS_REQUEST = 8'h9,
 			PREPARE_M3_CONTROL_MODE = 8'hA, GENERATE_M3_CONTROL_MODE_CRC = 8'hB, SEND_M3_CONTROL_MODE = 8'hC,
 			PREPARE_M3_COMMAND  = 8'hD, GENERATE_M3_COMMAND_CRC = 8'hE, SEND_M3_COMMAND = 8'hF, 
-			WAIT_UNTIL_BUS_FREE = 8'h10, STATE_SWITCH = 8'h11;
+			WAIT_UNTIL_BUS_FREE = 8'h10, STATE_SWITCH = 8'h11, SHORT_DELAY = 8'h12;
 	reg [7:0] state;
 	reg receiver_done;
 
@@ -367,8 +367,15 @@ assign m3_control_mode_data[35] = m3_control_mode.crc[7:0];
 						if(byte_transmit_counter<HAND_COMMAND_FRAME_LENGTH)begin
 							tx_transmit <= 1;
 						end else begin
-							state <= IDLE;
+							delay_counter <= 250_000; // 5ms delay after hand command
+							state <= SHORT_DELAY;
 						end
+					end
+				end
+				SHORT_DELAY: begin
+					delay_counter <= delay_counter-1;
+					if(delay_counter==0)begin
+						state <= IDLE;
 					end
 				end
 				PREPARE_M3_CONTROL_MODE: begin
