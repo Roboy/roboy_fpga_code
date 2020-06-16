@@ -491,7 +491,7 @@ assign m3_control_mode_data[35] = m3_control_mode.crc[7:0];
 						timeout <= 1;
 						if(status_requests[motor]>=update_frequency_Hz)begin
 							status_requests[motor] <= 0;
-							communication_quality[motor] <= (status_received[motor]*100)/status_requests[motor];
+							communication_quality[motor] <= status_received[motor];
 						end
 					end else begin
 						delay_counter = delay_counter - 1;

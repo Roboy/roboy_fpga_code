@@ -259,7 +259,7 @@ module iCEboardComs #(parameter NUMBER_OF_MOTORS = 8, parameter CLK_FREQ_HZ = 50
 						if(status_requests[motor]>update_frequency_Hz)begin
 							status_requests[motor] <= 0;
 						end else begin
-							communication_quality[motor] <= (status_received[motor]*100)/status_requests[motor];
+							communication_quality[motor] <= status_received[motor];
 						end
 					end else begin
 						delay_counter = delay_counter - 1;
